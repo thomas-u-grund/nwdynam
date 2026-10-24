@@ -11,9 +11,9 @@ own repository; it needs the core package nwcommands but no other model package.
    then run `nwinstall`. Required: nwcommands (core), distribution of 5sep2026 or later.
 2. Install this package:
 
-       net install nwdynam, from(https://raw.githubusercontent.com/<account>/nwdynam/main/)
+       net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/main/)
 
-   (`<account>` is a placeholder for the GitHub account that hosts the repository.)
+   (`thomas-u-grund` is a placeholder for the GitHub account that hosts the repository.)
 
 ## Requirements
 
