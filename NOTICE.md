@@ -15,9 +15,9 @@ nwdynam is Copyright (C) 2026 Thomas U. Grund and is distributed under the GNU G
 
 Coefficients and log-likelihoods were compared with `goldfish` (version 1.6.12) on the bundled Social_Evolution data and on small hand-traceable examples; the cross-check scripts are in `dev/` (`dev/dynam_unit*_crosscheck.R` and the matching `.do` files) and the regression tests in `cscripts/test_nwdynam_*.do`. The native plugin is certified against the Mata reference implementation to floating-point round-off.
 
-## AI assistance (PLACEHOLDER: the owner confirms or rewrites this paragraph)
+## AI assistance
 
-Parts of the code, tests, documentation and build tooling of this package were written with the help of an AI assistant (Claude, Anthropic) working under the direction of the author, who reviewed and is responsible for the result. [Wording to be confirmed by the author before release.]
+The software was developed with Claude Code (Anthropic), an AI coding assistant, working under the author's direction. It helped port algorithms from goldfish into Stata, Mata and C and helped write the tests. The author specified the scope, reviewed the code, and is responsible for the package. Its correctness rests on validation, not on the assistant: the results are compared numerically with goldfish, and the test suite reruns these comparisons.
 
 ## How to cite
 
