@@ -1,0 +1,5 @@
+v 3
+d nwdynam: dynamic network actor models for Stata
+
+p nwdynam
+d nwdynam. Dynamic network actor models (DyNAM; Stadtfeld and Block 2017) for event-time networks
