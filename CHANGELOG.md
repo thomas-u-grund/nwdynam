@@ -1,0 +1,15 @@
+# Changelog
+
+All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
+project uses [Semantic Versioning](https://semver.org/).
+
+## [1.0.0] - 2026-10-24
+
+First release of nwdynam as a package of its own.
+
+### Added
+- Dynamic network actor models (DyNAM; Stadtfeld and Block 2017) for event-time networks declared with `nwset ..., eventtime()`: rate and choice submodels.
+- Network effects (inertia, reciprocity, in- and out-degree, transitivity, cycles, common sender/receiver, four-cycles, node-level transitivity), covariate effects (same, diff, sim, ego, alter, tertius, ego-alter interaction), windowed and weighted effects, opportunity sets, ties as effects, intercepts; two-mode networks.
+- Native C plugin (macOS, Linux, Windows) for the likelihood and gradient.
+- `nwdynam version`: package, core and plugin versions; `e(version)` in the results.
+- Compared with and validated against R goldfish 1.6.12.

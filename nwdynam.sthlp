@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.16.0  02sep2026 author: Thomas Grund}{...}
+{* *! version 1.0.0  24oct2026 author: Thomas Grund}{...}
 {marker topic}
 {helpb nwtopical##analysis_dynamicmodels:[NW-2.6.8] Dynamic & Event-Based Models}
 
@@ -8,6 +8,7 @@
 {p2colset 9 15 22 2}{...}
 {p2col :nwdynam  {hline 2}}Dynamic Network Actor Model - choice, rate, and choice_coordination sub-models (MLE){p_end}
 {p2colreset}{...}
+{pstd}{it:nwdynam version 1.0.0, 24 October 2026}{p_end}{* nwversion}
 
 
 {title:Syntax}

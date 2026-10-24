@@ -1,3 +1,4 @@
+*! version 1.0.0  24oct2026 nwdynam
 * Copyright (C) 2026 Thomas U. Grund
 * This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
 * nwdynam is free software: you can redistribute it and/or modify it under the terms of the GNU General
@@ -8,6 +9,10 @@
 capture program drop nwdynam
 program nwdynam, eclass
 	version 14
+	if word(`"`0'"', 1) == "version" {
+		nwdynam_version
+		exit
+	}
 	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist numeric min=2 max=2) INERTIAWINDOW(real -1) RECIPWINDOW(real -1) INDEGWINDOW(real -1) OUTDEGWINDOW(real -1) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) INTERCEPT SEED(integer -1)]
 	set more off
 
@@ -787,6 +792,7 @@ program nwdynam, eclass
 
 	ereturn post `b' `V', obs(`nevents')
 	ereturn local cmd "nwdynam"
+	ereturn local version "1.0.0"
 	ereturn local title "`__nwdynam_title'"
 	ereturn local depvar "`netname'"
 	ereturn local submodel "`submodel'"
