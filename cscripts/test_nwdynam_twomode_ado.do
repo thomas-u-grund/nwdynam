@@ -1,13 +1,13 @@
 cscript
 
-* Two-mode (bipartite) DyNAM support (docs/DYNAM_ROADMAP.md's "effect
+* Two-mode (bipartite) DyNAM support (the development notes' "effect
 * expansion" scope, batch 9, resolved 2026-09-02, user: "continue" -
 * the two-mode/opportunitiesList/choice_coordination/cross-network/
 * WITH-INTERCEPT items flagged as large standalone efforts).
 *
 * Previously rejected outright by nwdynam.ado; the guard's own stated
 * reason (nwset's own twomode/eventtime() composability not yet
-* available) was resolved 2026-08-31 - see docs/ROADMAP.md's "Two-mode/
+* available) was resolved 2026-08-31 - see the development notes' "Two-mode/
 * temporal architecture initiative". This file certifies the .ado
 * wrapper's own two-mode option handling and failure paths - the real
 * cross-tool correctness check against goldfish's own real numbers
@@ -37,8 +37,16 @@ cscript
 * Windowed/weighted effects also rejected outright - not yet verified
 * together with two-mode.
 
-do unw_core.do
-do unw_ergm.do
+* The core package nwcommands is found through the environment variable NWCORE (path of the core checkout).
+local nwcore : env NWCORE
+if `"`nwcore'"' == "" {
+	di as error "set the environment variable NWCORE to the directory of the nwcommands (core) package"
+	exit 198
+}
+adopath ++ `"`nwcore'"'
+adopath ++ `"`c(pwd)'"'
+quietly do `"`nwcore'/unw_core.do"'
+* (not needed here: unw_ergm.do belongs to another package)
 do unw_dynam.do
 
 * Toy two-mode affiliation network: 6 "people" (mode 1), 4 "orgs"

@@ -1,8 +1,16 @@
 /*
+ * Copyright (C) 2026 Thomas U. Grund
+ * This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
+ * nwdynam is free software: you can redistribute it and/or modify it under the terms of the GNU General
+ * Public License, version 3, as published by the Free Software Foundation. It is distributed in the hope
+ * that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the file LICENSE for the full text.
+ */
+/*
 	unw_dynam.do -- native Dynamic Network Actor Model (DyNAM) estimation
 	core for nwcommands (nwdynam).
 
-	See docs/DYNAM_ROADMAP.md (scope/status) - a deliberately SEPARATE
+	See the development notes (scope/status) - a deliberately SEPARATE
 	engine from unw_rem.do, matching that document's own "why
 	architecturally distinct" reasoning: DyNAM factors the relational-
 	event likelihood into a rate sub-model (who acts, and when) and a
@@ -41,16 +49,16 @@
 	(doc/goldfishEffects.Rmd) and fit on its own bundled Social_Evolution
 	dataset - never copied from goldfish's source code (goldfish is
 	GPL (>= 3), not a licensing concern, but this project's own
-	established practice, matching docs/REM_PROVENANCE.md's precedent
+	established practice, matching the development notes' precedent
 	for nwrem/relevent, is independent derivation verified against
 	documented behavior, not transcription).
 
 	Sourced live during development (`do unw_dynam.do`), matching
 	unw_rem.do's/unw_saom.do's own convention - not yet compiled into
-	lib/lnwcommands.mlib (see REM_ROADMAP.md's "one rebuild at the end,
+	lib/lnwcommands.mlib (see the development notes' "one rebuild at the end,
 	not mid-flight" rule, followed here too).
 
-	SCOPE (v1 - see docs/DYNAM_ROADMAP.md for the full disclosure):
+	SCOPE (v1 - see the development notes for the full disclosure):
 	- Unit 1 (choice sub-model): three effects (inertia, recip,
 	  indeg-alter), all UNWEIGHTED/binary (goldfish's own
 	  weighted=FALSE default).
@@ -65,7 +73,7 @@
 	not silently unsupported - nwdynam.ado rejects an intercept request
 	with a clear error rather than pretending to fit it.
 
-	EFFECT SELECTION (added 2026-09-02, docs/DYNAM_ROADMAP.md's own
+	EFFECT SELECTION (added 2026-09-02, the development notes' own
 	"effect selection" scope item - the FIRST of the two items grouped
 	under "effect selection/expansion" there; NEW effect families
 	beyond these five - same/diff/sim/tertius/closure effects from
@@ -163,7 +171,7 @@ void DynamState::init(real matrix rawevents, real scalar nn) {
 	plugin serving one command's own engine) rather than unw_core.do's
 	shared NativeGraph* dispatcher (which serves several graph-algorithm
 	commands sharing one plugin) - DyNAM is its own third/fourth engine,
-	same "why a separate engine" reasoning docs/DYNAM_ROADMAP.md already
+	same "why a separate engine" reasoning the development notes already
 	gives for keeping unw_dynam.do independent of unw_rem.do.
 
 	UNLIKE ergm_mcmc.c/saom_sim.c (a full sampling/simulation loop lives
@@ -177,7 +185,7 @@ void DynamState::init(real matrix rawevents, real scalar nn) {
 	Mata" contract as `ErgmNativeAvailable()`/`NativeGraphAvailable()`.
 
 	TWO genuinely different lookup strategies are needed (harmonisation
-	2026-09-02, docs/CERTIFICATION.md), tried in order:
+	2026-09-02, the development notes), tried in order:
 	 (1) `findfile()` on the platform-specific basename alone - what
 	     actually finds the plugin after a real `net install`, which
 	     flattens every package "f" line into
@@ -325,7 +333,7 @@ void dynam_rate_eval_unit1_native(real scalar todo, real rowvector theta, pointe
 
 	Risk set for event i: sender s_i is taken directly from the DATA
 	(not modeled - that is the separate, not-yet-built rate sub-model,
-	see this file's own header comment and docs/DYNAM_ROADMAP.md).
+	see this file's own header comment and the development notes).
 	Every other actor j != s_i is a candidate receiver - a standard
 	conditional (multinomial) logit over n-1 candidates, structurally
 	the same softmax-over-risk-set machinery as unw_rem.do's own
@@ -394,7 +402,7 @@ void dynam_choice_eval_unit1(real scalar todo, real rowvector theta, pointer(cla
 	recip + indeg, no selection - all three always active, matching
 	unw_rem.do's own rem_loglik_grad_unit1()/RemFitUnit1() precedent of
 	a hardcoded small effect set before a later unit generalizes to a
-	selectable multi-effect design, see docs/DYNAM_ROADMAP.md's own
+	selectable multi-effect design, see the development notes' own
 	scope note). Same retry-with-escalating-perturbation-then-
 	Nelder-Mead robustness strategy as RemFitUnit1() - see that
 	function's own comment for why (avoiding optimize()'s "flat region
@@ -644,7 +652,7 @@ void DynamFitRateUnit1(real matrix eventmat, real scalar n, string scalar bname,
 }
 
 /*
-	Choice sub-model, generalized/selectable engine (docs/DYNAM_ROADMAP.md's
+	Choice sub-model, generalized/selectable engine (the development notes'
 	"effect selection" scope item - see this file's own header comment
 	for how this relates to dynam_choice_loglik_grad_unit1() above).
 	`active` is a 6-element 0/1 rowvector, fixed order (1=inertia,
@@ -659,7 +667,7 @@ void DynamFitRateUnit1(real matrix eventmat, real scalar n, string scalar bname,
 	the same form already verified against goldfish, not silently
 	re-derive a different-but-equivalent formulation here too).
 
-	Effects 4-6 (same/diff/sim - docs/DYNAM_ROADMAP.md's "effect
+	Effects 4-6 (same/diff/sim - the development notes' "effect
 	expansion" scope item, formulas read directly from goldfish's own
 	doc/goldfishEffects.Rmd, not guessed): static per-actor ATTRIBUTE
 	effects, not structural ones - a candidate's own value never changes

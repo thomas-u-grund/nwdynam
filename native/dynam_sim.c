@@ -1,8 +1,16 @@
 /*
+ * Copyright (C) 2026 Thomas U. Grund
+ * This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
+ * nwdynam is free software: you can redistribute it and/or modify it under the terms of the GNU General
+ * Public License, version 3, as published by the Free Software Foundation. It is distributed in the hope
+ * that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the file LICENSE for the full text.
+ */
+/*
 	dynam_sim.c -- native (C) DyNAM likelihood/gradient kernel for
 	nwcommands (nwdynam).
 
-	See docs/DYNAM_ROADMAP.md (scope/status) and unw_dynam.do's own
+	See the development notes (scope/status) and unw_dynam.do's own
 	header comment (Mata reference implementation, built and
 	CORRECTNESS-VERIFIED against a real reference R implementation
 	FIRST - dev/dynam_unit1_choice_crosscheck.do,

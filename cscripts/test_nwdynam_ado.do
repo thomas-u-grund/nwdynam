@@ -10,8 +10,16 @@ cscript
 * the .ado wrapper's own option handling and failure paths, same role
 * test_nwrem_ado.do plays for nwrem.
 
-do unw_core.do
-do unw_ergm.do
+* The core package nwcommands is found through the environment variable NWCORE (path of the core checkout).
+local nwcore : env NWCORE
+if `"`nwcore'"' == "" {
+	di as error "set the environment variable NWCORE to the directory of the nwcommands (core) package"
+	exit 198
+}
+adopath ++ `"`nwcore'"'
+adopath ++ `"`c(pwd)'"'
+quietly do `"`nwcore'/unw_core.do"'
+* (not needed here: unw_ergm.do belongs to another package)
 do unw_dynam.do
 
 nwclear
@@ -87,7 +95,7 @@ assert _rc == 198
 di as text "  correctly rejected submodel(bogus) (rc=" _rc ")"
 
 di as text "{hline 60}"
-di as text "Test: effect selection (docs/DYNAM_ROADMAP.md) - choice sub-model"
+di as text "Test: effect selection (the development notes) - choice sub-model"
 di as text "{hline 60}"
 
 * No flags given: default preserves the ORIGINAL all-effects behavior

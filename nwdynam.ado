@@ -1,3 +1,9 @@
+* Copyright (C) 2026 Thomas U. Grund
+* This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
+* nwdynam is free software: you can redistribute it and/or modify it under the terms of the GNU General
+* Public License, version 3, as published by the Free Software Foundation. It is distributed in the hope
+* that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+* or FITNESS FOR A PARTICULAR PURPOSE. See the file LICENSE for the full text.
 
 capture program drop nwdynam
 program nwdynam, eclass
@@ -58,7 +64,7 @@ program nwdynam, eclass
 	// 9" - user: "continue"). Previously rejected outright, matching
 	// nwrem.ado's own guard - but that guard's own stated reason
 	// ("nwset's own twomode/eventtime() composability wasn't available
-	// yet") was resolved 2026-08-31 (see docs/ROADMAP.md's "Two-mode/
+	// yet") was resolved 2026-08-31 (see the development notes' "Two-mode/
 	// temporal architecture initiative"), and unw_dynam.do's own
 	// 14-effect Multi engine was never actually checked against a
 	// two-mode dyad space until now - it has been, directly against
@@ -75,7 +81,7 @@ program nwdynam, eclass
 	// nwset's own bipartite ingestion, already reused by nwergm's own
 	// bipartite() support). Validated below, once the real event data
 	// is available, rather than assumed.
-	// choice/rate v1 scope (docs/DYNAM_ROADMAP.md scope decision 1,
+	// choice/rate v1 scope (the development notes scope decision 1,
 	// resolved 2026-09-02): directed-only. A two-mode network reports
 	// `directed' == false from _nwsyntax (confirmed directly - ERGM's
 	// own bipartite convention, where ties have no inherent direction),
@@ -108,7 +114,7 @@ program nwdynam, eclass
 		error 198
 	}
 
-	// Effect selection (docs/DYNAM_ROADMAP.md's own "effect selection"
+	// Effect selection (the development notes' own "effect selection"
 	// scope item, resolved 2026-09-02) - each sub-model's own fixed
 	// effect list is individually selectable via a boolean flag (or,
 	// for the attribute effects added below, a valued option) per
@@ -129,7 +135,7 @@ program nwdynam, eclass
 	// option existed, so silently requiring explicit selection now
 	// would be a breaking change).
 	//
-	// same()/diff()/sim()/ego()/alter() (docs/DYNAM_ROADMAP.md's "effect
+	// same()/diff()/sim()/ego()/alter() (the development notes' "effect
 	// expansion" scope item, added 2026-09-02) are VALUED options, not
 	// booleans, and - matching goldfish's own effect table exactly -
 	// each applies to exactly ONE sub-model: same()/diff()/sim()/alter()
@@ -310,7 +316,7 @@ program nwdynam, eclass
 		}
 	}
 
-	// inertiawindow()/recipwindow() (docs/DYNAM_ROADMAP.md's "effect
+	// inertiawindow()/recipwindow() (the development notes' "effect
 	// expansion" scope item, batch 3, added 2026-09-02 - user request
 	// "implement window effects," REDESIGNED twice after user feedback:
 	// first to two independent plain options (a nested suboption
