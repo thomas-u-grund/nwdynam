@@ -87,3 +87,7 @@ by hand "fixes" it for that session only, which hid the bug in every manual test
 - Reproduce: `SMOKE_STALE=1 tools/smoke_fresh_install.sh <core> <models>` in the core repo builds exactly this state (the session's Mata
   index is made while only the core library is visible). Without `SMOKE_STALE` a plain new session usually finds all libraries,
   which is why a simple "install, restart, run" test passes.
+
+## Events with the same time are sorted with the row number as second key (fixed 2026-10-25)
+
+`DynamState::init()` sorted the events by time with `order(time, 1)`, which breaks ties by the random-number state: with tied event times the tie matrix evolved in a different order and the log likelihood changed from run to run (socialevolution with time/20 rounded up: -644 to -683 over six seeds). The key is now (time, row number of the network's event list), the order goldfish uses when the times are made distinct in that order. Test: `cscripts/test_nwdynam_ordfix.do`. Note: goldfish treats events with an identical time as simultaneous (its log likelihood on the tied data is -1595.3, not -652.8), which nwdynam does not do; the two agree only for distinct times.
