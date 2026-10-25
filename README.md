@@ -1,6 +1,6 @@
 # nwdynam
 
-<!--version-->**Version 1.1.0** (released 25 October 2026)<!--/version-->
+<!--version-->**Version 1.1.1** (released 25 October 2026)<!--/version-->
 
 `nwdynam` fits dynamic network actor models (DyNAM) to relational event data declared as an event-type temporal network with `nwset ..., eventtime()`: a rate model (when does an actor act) and a choice model (whom does the actor choose), with network, covariate, window and coordination effects. The hot likelihood/gradient evaluation runs in a native plugin.
 
@@ -10,7 +10,7 @@ own repository; it needs the core package nwcommands but no other model package.
 ## Install
 
 1. Install the core package first (Stata): `net install nwcommands, from(<URL of the nwcommands distribution>)`
-   then run `nwinstall`. Required: nwcommands (core), version 3.4.0 or later.
+   then run `nwinstall`. Required: nwcommands (core), version 3.5.1 or later.
 2. Install this package:
 
        net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/main/) replace
@@ -18,7 +18,7 @@ own repository; it needs the core package nwcommands but no other model package.
 `net install nwdynam` installs the latest release (the state of the main branch). To install a specific version, point `from()` at the
 release tag (GitHub serves every tag under its own raw URL), for example version 1.0.0:
 
-       net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/v1.1.0/) replace
+       net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/v1.1.1/) replace
 
 `net describe nwdynam` shows the version and distribution date, `nwdynam version` the package, core and plugin versions, and `e(version)`
 holds the package version in the stored results. Release history: `CHANGELOG.md`; how releases are made: `RELEASING.md`.
@@ -26,7 +26,7 @@ holds the package version in the stored results. Release history: `CHANGELOG.md`
 
 ## Requirements
 
-* Stata 14 or later (StataBE is enough).
+* Stata 17 or later. Tested with Stata 17 and Stata 18 (Stata/BE is enough). The Mata libraries are built with Stata 17, the oldest tested version, because a library built by a newer Stata is ignored by older ones; Stata 16 and older have not been tested and are not expected to work.
 * The core nwcommands package (see above), including its Mata library `lnwcommands.mlib`.
 * Platform plugins are shipped for macOS, Linux and Windows.
 
