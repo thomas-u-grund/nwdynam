@@ -529,6 +529,7 @@ without a compiled plugin.
 	  {bf:e(depvar)}	name of the event network fit
 	  {bf:e(submodel)}	{bf:choice} or {bf:rate}
 	  {bf:e(effects)}	space-separated list of the effects actually fit, in their fixed order
+	  {bf:e(unidentified)}	effects without a usable standard error (missing or above 100); empty when all are identified
 
 	Matrices
 	  {bf:e(b)}		coefficient vector (columns named per {bf:e(effects)})

@@ -30,6 +30,8 @@ program nwdynam_version, rclass
 		if "`__coredate'" != "" local __core "distribution of `__coredate'"
 		else local __core "installed (development copy, no distribution date)"
 	}
+	// the Mata library must be indexed before DynamNativePluginPath() can be found (a fresh session otherwise reports the plugin as missing)
+	capture _nwdynam_libcheck
 	capture mata: st_local("__plp", DynamNativePluginPath())
 	capture mata: st_local("__pla", strofreal(DynamNativeAvailable()))
 	if "`__pla'" == "1" {

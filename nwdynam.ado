@@ -808,4 +808,19 @@ program nwdynam, eclass
 	di as text "Events: " as result `nevents' _col(40) as text "Log likelihood: " as result %9.4f `__nwdynam_ll'
 	di as text "{hline 60}"
 	ereturn display
+	// effects that are not identified: no standard error, or an enormous one (flat likelihood, separation, collinear effects)
+	local __nwdynam_bad ""
+	local __nwdynam_k = colsof(e(b))
+	forvalues __nwdynam_j = 1/`__nwdynam_k' {
+		local __nwdynam_se = sqrt(el(e(V), `__nwdynam_j', `__nwdynam_j'))
+		if missing(`__nwdynam_se') | `__nwdynam_se' > 100 {
+			local __nwdynam_bad "`__nwdynam_bad' `: word `__nwdynam_j' of `__nwdynam_collabs''"
+		}
+	}
+	ereturn local unidentified "`=trim("`__nwdynam_bad'")'"
+	if "`__nwdynam_bad'" != "" {
+		di as text "Note: no usable standard error for" as result "`__nwdynam_bad'" as text "."
+		di as text "      These effects are probably not identified (too few events, a perfectly predicted pattern, or effects"
+		di as text "      that are linear functions of each other). Do not interpret their estimates; drop or recode the effect."
+	}
 end
