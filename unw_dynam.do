@@ -160,7 +160,10 @@ void DynamState::init(real matrix rawevents, real scalar nn) {
 	// unw_core.do's nwattime_slice_event()) - the choice sub-model's
 	// own incrementally-updated tie matrix requires chronological
 	// order.
-	ord = order(rawevents[.,3], 1)
+	// Events with the SAME time keep the order in which the network lists them: order() on the time column alone breaks
+	// ties arbitrarily (it depends on the state of the random-number generator), so the same data gave different tie
+	// histories and a different likelihood from run to run. The row number as second key makes the sort stable.
+	ord = order((rawevents[.,3], (1::rows(rawevents))), (1, 2))
 	events = rawevents[ord,.]
 	nevents = rows(events)
 }

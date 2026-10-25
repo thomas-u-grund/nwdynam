@@ -5,6 +5,9 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Events with the same time keep the order in which the network lists them. Before, the events were sorted with `order()` on the time column alone, which breaks ties by the state of the random-number generator, so the same data with tied times gave a different tie history and a different likelihood from run to run.
+
 ## [1.0.4] - 2026-10-25
 
 ### Changed
