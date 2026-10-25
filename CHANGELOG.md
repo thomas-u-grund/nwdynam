@@ -3,9 +3,10 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] - 2026-10-25
 
-Proposed version: 1.1.0.
+### Results that change (read before you re-run old fits)
+- Events with the same time are now simultaneous, as in goldfish: the statistics of all events at a time point come from the state before that time point. Estimates for data with tied times change; the option `sequential` keeps the old way. Data without tied times are unchanged.
 
 ### Changed (results change for data with tied event times!)
 - Events with an identical time are now simultaneous, as in goldfish 1.6.12: the statistics of all events of a time point are computed from the state before that time point (all effects, windows and the rate intercept included, and the coordination model), and the state is updated after the whole group. Before, tied events were processed one after another in input order. Example: `socialevolution` with `ceil(t/20)`: log likelihood -652.83 and inertia 5.00 before, -1595.33 and 3.54 now (goldfish: -1595.33, 3.54). Data without ties give identical results (byte-identical estimates on the book examples).
