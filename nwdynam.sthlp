@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.0.2  25oct2026 author: Thomas Grund}{...}
+{* *! version 1.0.3  25oct2026 author: Thomas Grund}{...}
 {marker topic}
 {helpb nwtopical##analysis_dynamicmodels:[NW-2.6.8] Dynamic & Event-Based Models}
 
@@ -662,4 +662,4 @@ elapsed time between events, not just their order (combining {opt intercept} wit
 {p 4 14 2}Help: {help nwset}, {help nwattime}, {help nwrem}, {help nwergm}, {help nwsaom}{p_end}
 
 {hline}
-{pstd}{it:nwdynam version 1.0.2, 25 October 2026}{p_end}{* nwversion}
+{pstd}{it:nwdynam version 1.0.3, 25 October 2026}{p_end}{* nwversion}
