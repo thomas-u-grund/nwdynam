@@ -18,6 +18,7 @@
 {cmd:,}
 [{opt submodel(string)}
 {opt seed(#)}
+{opt sequential}
 {opt inertia}
 {opt recip}
 {opt indeg}
@@ -54,6 +55,7 @@
 {syntab:General}
 {synopt:{opt submodel(string)}}which DyNAM sub-model to fit - {bf:choice} (the default), {bf:rate}, or {bf:choice_coordination}; see {bf:Description} below{p_end}
 {synopt:{opt seed(#)}}random-number seed before estimation{p_end}
+{synopt:{opt sequential}}process events with identical times one after another (old behaviour); see {bf:Events with identical times}{p_end}
 
 {syntab:Effects (no decay - the entire prior event history counts equally)}
 {synopt:{opt inertia}}choice sub-model only{p_end}
@@ -120,6 +122,19 @@ and Time: Dynamic Network Actor Models for Relational Events," {it:Sociological 
 independent sub-models given the event history so far: a {bf:rate} sub-model (which actor acts
 next) and a {bf:choice} sub-model (given that actor, which other actor they choose - a
 conditional logit over the receiver set).
+
+{marker ties}{...}
+{pstd}
+{bf:Events with identical times.} As in {cmd:goldfish}, events that have exactly the same time are
+{it:simultaneous}: the statistics of every event of a time point are computed from the network as it was
+{it:before} that time point, and the network is updated only after the whole group has been evaluated. The order of
+the rows within a group therefore does not matter (all events of the group share one risk set state; each
+contributes its own term to the log likelihood). With {opt intercept}, the time between events is zero inside a group.
+Windowed effects see the group at its common time. Data without tied times are not affected. Coarsening the time
+stamps of a log (rounding to days, say) creates ties and changes the estimates: that is intended, and it matches
+{cmd:goldfish}. {opt sequential} gives the behaviour of nwdynam before 1.1.0: events with equal times are processed
+one after another in the order in which the network lists them, each seeing the earlier ones of its group (this is
+what {help nwrem} does). A note under the header says how many events share a time point.
 
 {pstd}
 By default, both sub-models fit here use the ordinal partial likelihood (Cox-style, using only the
@@ -521,6 +536,7 @@ without a compiled plugin.
 	Scalars
 	  {bf:e(N)}		number of events
 	  {bf:e(nodes)}		number of actors
+	  {bf:e(ntimes)}		number of distinct time points
 	  {bf:e(ll)}		log likelihood at the MLE
 
 	Macros
@@ -529,6 +545,7 @@ without a compiled plugin.
 	  {bf:e(depvar)}	name of the event network fit
 	  {bf:e(submodel)}	{bf:choice} or {bf:rate}
 	  {bf:e(effects)}	space-separated list of the effects actually fit, in their fixed order
+	  {bf:e(ties)}		{bf:none} (all times distinct), {bf:simultaneous} or {bf:sequential} (option)
 	  {bf:e(unidentified)}	effects without a usable standard error (missing or above 100); empty when all are identified
 
 	Matrices

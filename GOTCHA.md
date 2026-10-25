@@ -2,6 +2,16 @@
 
 Known, already diagnosed pitfalls. Entries copied from the nwcommands notes at the time of the split; some mention the core package.
 
+## Tied event times are simultaneous (goldfish), not sequential
+
+Before 1.1.0 events with the same time were processed one after another in input order (after the `ordfix` commit: order by time, then row), which gave -652.83 / inertia 5.00 on `socialevolution` with `ceil(t/20)`
+while goldfish gives -1595.33 / 3.54. goldfish evaluates all events of a time point at the state before that point (permuting tied rows
+does not change its fit; checked 2026-10-25). `DynamState.gfirst` holds the first row of each group and `dynam_group_end()` returns it at the
+last event of a group; every likelihood loop updates its tie/lastcontact/tiecount matrices only there. A new loop must do the same, or ties
+silently go back to sequential. The native kernel does it with plugin codes 11/12 (v4 = 1 at the last event of a group); the Linux/Windows
+plugins are stale until CI rebuilds them. Option `sequential` (scalar `__nwdynam_sequential` read in `DynamState::init`) restores the old behaviour.
+nwrem (relevent) still reads ties sequentially. A test that calls a Mata evaluator directly with a scalar left over from a crashed `nwdynam` call can inherit `sequential`; the ado drops it at the end.
+
 ## Attaching a covariate to an `eventtime()`-declared network needs `_nwnode`, not a fresh merge
 
 After `nwset sender receiver, eventtime(t) name(netname)` declares an event network (found while

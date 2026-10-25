@@ -13,7 +13,7 @@ program nwdynam, eclass
 		nwdynam_version
 		exit
 	}
-	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist numeric min=2 max=2) INERTIAWINDOW(real -1) RECIPWINDOW(real -1) INDEGWINDOW(real -1) OUTDEGWINDOW(real -1) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) INTERCEPT SEED(integer -1)]
+	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist numeric min=2 max=2) INERTIAWINDOW(real -1) RECIPWINDOW(real -1) INDEGWINDOW(real -1) OUTDEGWINDOW(real -1) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) INTERCEPT SEED(integer -1) SEQUENTIAL]
 	set more off
 	_nwdynam_libcheck
 
@@ -629,6 +629,13 @@ program nwdynam, eclass
 	mata: st_numscalar("__nwdynam_nevents", rows(`__nwdynam_events'))
 	local nevents = __nwdynam_nevents
 	scalar drop __nwdynam_nevents
+	// Events with an identical time are simultaneous (as in goldfish): statistics for all events of a time point are
+	// computed from the state before that time point. Option sequential: old behaviour, tied events one after another.
+	mata: st_numscalar("__nwdynam_ntimes", rows(uniqrows(`__nwdynam_events'[.,3])))
+	local __nwdynam_ntimes = __nwdynam_ntimes
+	scalar drop __nwdynam_ntimes
+	capture scalar drop __nwdynam_sequential
+	scalar __nwdynam_sequential = ("`sequential'" != "")
 
 	if `nevents' < 2 {
 		di as error "nwdynam needs at least 2 events to fit a model; `netname' has `nevents'."
@@ -779,6 +786,7 @@ program nwdynam, eclass
 		local __nwdynam_title "Dynamic Network Actor Model, choice_coordination sub-model (multinomial-multinomial, MLE)"
 		local __nwdynam_hdr "Dynamic Network Actor Model - choice_coordination sub-model (MLE)"
 	}
+	capture scalar drop __nwdynam_sequential
 	mata: mata drop `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_oppmat' `__nwdynam_tiemat'
 
 	tempname b V
@@ -801,11 +809,17 @@ program nwdynam, eclass
 	ereturn scalar N = `nevents'
 	ereturn scalar nodes = `nodes'
 	ereturn scalar ll = `__nwdynam_ll'
+	ereturn scalar ntimes = `__nwdynam_ntimes'
+	ereturn local ties = cond(`__nwdynam_ntimes' < `nevents', cond("`sequential'" != "", "sequential", "simultaneous"), "none")
 
 	di as text "{hline 60}"
 	di as text "`__nwdynam_hdr'"
 	di as text "Network: " as result "`netname'" _col(40) as text "Actors: " as result `nodes'
 	di as text "Events: " as result `nevents' _col(40) as text "Log likelihood: " as result %9.4f `__nwdynam_ll'
+	if `__nwdynam_ntimes' < `nevents' {
+		if "`sequential'" != "" di as text "Note: " as result `=`nevents'-`__nwdynam_ntimes'' as text " events share a time point; processed one after another (option sequential)."
+		else di as text "Note: " as result `=`nevents'-`__nwdynam_ntimes'' as text " events share a time point with an earlier event; events with equal times are simultaneous (as in goldfish)."
+	}
 	di as text "{hline 60}"
 	ereturn display
 	// effects that are not identified: no standard error, or an enormous one (flat likelihood, separation, collinear effects)

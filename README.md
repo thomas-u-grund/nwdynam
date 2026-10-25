@@ -42,9 +42,15 @@ Each test is a do-file in `cscripts/` that prints `PASS` or `ALL OK` lines; the 
 lines and any Stata error per test. Stata is run with `-e`. Validation scripts that compare with the R
 reference implementation are in `dev/`.
 
+## Events with identical times
+
+Events with exactly the same time are simultaneous, as in goldfish: the statistics of all events of a time point come from the state before
+that time point, and the state is updated after the whole group. The order of tied rows does not matter. Option `sequential` restores the
+behaviour before 1.1.0 (tied events one after another). Data without ties give the same results as before.
+
 ## Native plugin
 
-The package ships a native Stata plugin (dynam_sim.c) for macOS (universal), Linux and Windows (built by the GitHub Actions workflow `.github/workflows/build-plugins.yml`; the macOS build can be reproduced with `make -C native macos`). Platform without a plugin: see the help file.
+The package ships a native Stata plugin (dynam_sim.c) for macOS (universal), Linux and Windows (built by the GitHub Actions workflow `.github/workflows/build-plugins.yml`; the macOS build can be reproduced with `make -C native macos`). Platform without a plugin: see the help file. Plugin code 11/12 (simultaneous events) needs a plugin built from this version; the Linux and Windows binaries are rebuilt by the workflow.
 
 ## Rebuilding the Mata library
 

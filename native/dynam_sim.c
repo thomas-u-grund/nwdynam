@@ -91,6 +91,8 @@
 #include <string.h>
 #include <math.h>
 
+/* Plugin codes 11 and 12 = codes 1 and 2 with SIMULTANEOUS events (goldfish): a fourth variable v4 is 1 at the last
+   event of each group of equal times, and the tie state is updated only after the last event of a group. */
 #define ALG_DYNAM_CHOICE 1
 #define ALG_DYNAM_RATE 2
 
@@ -101,13 +103,13 @@
    colsum() every event.
    =================================================================== */
 
-static int dynam_choice_loglik_grad(long n, long nevents, long *sender, long *receiver,
+static int dynam_choice_loglik_grad(long n, long nevents, long *sender, long *receiver, char *gend,
 		double theta1, double theta2, double theta3,
 		double *out_ll, double out_grad[3]) {
 	char *tie = NULL;      /* n x n, 0/1, row-major: tie[(s-1)*n + (j-1)] */
 	double *indeg = NULL;  /* n, running in-degree (distinct senders so far) */
 	double *lp = NULL, *P = NULL;
-	long i, j, s, r;
+	long i, j, k, s, r, gs = 0;
 	double ll = 0.0, grad1 = 0.0, grad2 = 0.0, grad3 = 0.0;
 	double mx, sumP, lrsum, inertia_r, recip_r, indeg_r;
 	int rc = 0;
@@ -161,9 +163,16 @@ static int dynam_choice_loglik_grad(long n, long nevents, long *sender, long *re
 			grad3 += (indeg_r - sum_indeg_P);
 		}
 
-		if (!tie[(s - 1) * n + (r - 1)]) {
-			tie[(s - 1) * n + (r - 1)] = 1;
-			indeg[r - 1] += 1.0;
+		/* simultaneous events (same time): the state is updated only after the last event of the group */
+		if (!gend || gend[i]) {
+			for (k = gs; k <= i; k++) {
+				long sk = sender[k], rk = receiver[k];
+				if (!tie[(sk - 1) * n + (rk - 1)]) {
+					tie[(sk - 1) * n + (rk - 1)] = 1;
+					indeg[rk - 1] += 1.0;
+				}
+			}
+			gs = i + 1;
 		}
 	}
 
@@ -189,13 +198,13 @@ cleanup:
    choice kernel above.
    =================================================================== */
 
-static int dynam_rate_loglik_grad(long n, long nevents, long *sender, long *receiver,
+static int dynam_rate_loglik_grad(long n, long nevents, long *sender, long *receiver, char *gend,
 		double theta1, double theta2,
 		double *out_ll, double out_grad[2]) {
 	char *tie = NULL;
 	double *indeg = NULL, *outdeg = NULL;
 	double *lp = NULL, *P = NULL;
-	long i, j, s, r;
+	long i, j, k, s, r, gs = 0;
 	double ll = 0.0, grad1 = 0.0, grad2 = 0.0;
 	double mx, sumP, lrsum;
 	int rc = 0;
@@ -236,10 +245,16 @@ static int dynam_rate_loglik_grad(long n, long nevents, long *sender, long *rece
 			grad2 += (outdeg[s - 1] - sum_outdeg_P);
 		}
 
-		if (!tie[(s - 1) * n + (r - 1)]) {
-			tie[(s - 1) * n + (r - 1)] = 1;
-			indeg[r - 1] += 1.0;
-			outdeg[s - 1] += 1.0;
+		if (!gend || gend[i]) {
+			for (k = gs; k <= i; k++) {
+				long sk = sender[k], rk = receiver[k];
+				if (!tie[(sk - 1) * n + (rk - 1)]) {
+					tie[(sk - 1) * n + (rk - 1)] = 1;
+					indeg[rk - 1] += 1.0;
+					outdeg[sk - 1] += 1.0;
+				}
+			}
+			gs = i + 1;
 		}
 	}
 
@@ -267,6 +282,8 @@ static double next_double(void) {
 STDLL stata_call(int argc, char *argv[]) {
 	char *argbuf;
 	long algcode, n, nevents, i;
+	int grouped = 0;
+	char *gend = NULL;
 	double theta1 = 0.0, theta2 = 0.0, theta3 = 0.0;
 	long *sender = NULL, *receiver = NULL;
 	double ll = 0.0, grad[3];
@@ -277,6 +294,8 @@ STDLL stata_call(int argc, char *argv[]) {
 	argbuf = (char *)malloc(strlen(argv[0]) + 1);
 	strcpy(argbuf, argv[0]);
 	algcode = (long)atof(strtok(argbuf, " \t"));
+	/* codes 11/12: the same kernels with simultaneous events; v4 = 1 at the last event of each group of equal times */
+	if (algcode > 10) { grouped = 1; algcode -= 10; }
 	n       = (long)next_double();
 	nevents = (long)next_double();
 	theta1  = next_double();
@@ -292,16 +311,18 @@ STDLL stata_call(int argc, char *argv[]) {
 	if (nevents > 0) {
 		sender = (long *)malloc((size_t)nevents * sizeof(long));
 		receiver = (long *)malloc((size_t)nevents * sizeof(long));
+		if (grouped) gend = (char *)malloc((size_t)nevents);
 		for (i = 0; i < nevents; i++) {
 			ST_double v;
 			SF_vdata(1, i + 1, &v); sender[i] = (long)v;
 			SF_vdata(2, i + 1, &v); receiver[i] = (long)v;
+			if (grouped) { SF_vdata(4, i + 1, &v); gend[i] = (v != 0.0); }
 		}
 	}
 
 	switch (algcode) {
 		case ALG_DYNAM_CHOICE:
-			rc = dynam_choice_loglik_grad(n, nevents, sender, receiver, theta1, theta2, theta3, &ll, grad);
+			rc = dynam_choice_loglik_grad(n, nevents, sender, receiver, gend, theta1, theta2, theta3, &ll, grad);
 			if (rc == 0) {
 				SF_vstore(3, 1, ll);
 				SF_vstore(3, 2, grad[0]);
@@ -310,7 +331,7 @@ STDLL stata_call(int argc, char *argv[]) {
 			}
 			break;
 		case ALG_DYNAM_RATE:
-			rc = dynam_rate_loglik_grad(n, nevents, sender, receiver, theta1, theta2, &ll, grad);
+			rc = dynam_rate_loglik_grad(n, nevents, sender, receiver, gend, theta1, theta2, &ll, grad);
 			if (rc == 0) {
 				SF_vstore(3, 1, ll);
 				SF_vstore(3, 2, grad[0]);
@@ -324,5 +345,6 @@ STDLL stata_call(int argc, char *argv[]) {
 
 	free(sender);
 	free(receiver);
+	free(gend);
 	return rc;
 }
