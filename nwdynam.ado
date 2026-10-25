@@ -15,6 +15,7 @@ program nwdynam, eclass
 	}
 	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist numeric min=2 max=2) INERTIAWINDOW(real -1) RECIPWINDOW(real -1) INDEGWINDOW(real -1) OUTDEGWINDOW(real -1) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) INTERCEPT SEED(integer -1)]
 	set more off
+	_nwdynam_libcheck
 
 	_nwsyntax `netname', max(1)
 

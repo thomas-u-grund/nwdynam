@@ -73,3 +73,17 @@ helper files need (observed-network bridge, summary functions) belongs in `unw_e
 `syntax [, NOMPLECHECK]` creates the local `mplecheck`, not `nomplecheck`; testing `"`nomplecheck'" == ""` is then always true.
 Use a string option (`mplecheck(on|off)`) or a name that does not start with "no".
 
+## `mata mlib index` does not persist: a library installed by net install can be missing from a session's Mata library list
+
+Stata builds its list of Mata libraries (.mlib) once, early in a session; `mata mlib index` rebuilds it for the running session only
+and nothing is saved. A library that `net install` put into PLUS/l/ can be absent from the list (`mata mlib query` shows `lnwcommands`
+but not `lnwdynam`). The first Mata call then stops with r(3499) "<function>() not found", and a Mata block that mentions a class of
+the library stops the whole ado file with r(3000) "class ... undefined (error occurred while loading ...)". Running `mata mlib index`
+by hand "fixes" it for that session only, which hid the bug in every manual test.
+- Every entry program starts with `_nwdynam_libcheck` (which runs `mata mlib index` once when a library function is not visible); do not
+  call Mata before it.
+- A **file-scope** `mata:` block that mentions a class of a library would be compiled when the file is auto-loaded, before any program
+  runs (see nwergm); neither package has one today.
+- Reproduce: `SMOKE_STALE=1 tools/smoke_fresh_install.sh <core> <models>` in the core repo builds exactly this state (the session's Mata
+  index is made while only the core library is visible). Without `SMOKE_STALE` a plain new session usually finds all libraries,
+  which is why a simple "install, restart, run" test passes.

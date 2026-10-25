@@ -7,6 +7,7 @@ d Requires nwcommands (core), distribution of 5sep2026 or later
 d Version: 1.0.2
 d Distribution-Date: 25oct2026
 f nwdynam.ado
+f _nwdynam_libcheck.ado
 f nwdynam_version.ado
 f nwdynam.sthlp
 f lib/lnwdynam.mlib
