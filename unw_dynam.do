@@ -135,8 +135,22 @@ class DynamState {
 	real matrix events     // nevents x 3: (sender, receiver, time), SORTED ascending by time
 	real scalar n          // number of actors
 	real scalar nevents
+	real colvector gfirst  // for each event: row of the first event of its group of equal times (its own row if sequential)
+	real scalar sequential // 1 = events with equal times are processed one after another (old behaviour)
+	real scalar ngroups    // number of distinct time groups
 
 	void init()
+}
+
+/*
+	Simultaneous events (identical time stamps), as in goldfish: all events of a group are evaluated at the state
+	as it was BEFORE the group; the state is updated only after the last event of the group. Returns the first
+	row of the group if event i is the last of its group (apply the updates of rows gfirst..i now), else 0.
+*/
+real scalar dynam_group_end(pointer(class DynamState scalar) scalar pS, real scalar i) {
+	if (i == (*pS).nevents) return((*pS).gfirst[i])
+	if ((*pS).gfirst[i+1] == i+1) return((*pS).gfirst[i])
+	return(0)
 }
 
 void DynamState::init(real matrix rawevents, real scalar nn) {
@@ -160,9 +174,21 @@ void DynamState::init(real matrix rawevents, real scalar nn) {
 	// unw_core.do's nwattime_slice_event()) - the choice sub-model's
 	// own incrementally-updated tie matrix requires chronological
 	// order.
-	ord = order(rawevents[.,3], 1)
+	// Events with the SAME time keep the order in which the network lists them: order() on the time column alone breaks
+	// ties arbitrarily (it depends on the state of the random-number generator), so the same data gave different tie
+	// histories and a different likelihood from run to run. The row number as second key makes the sort stable.
+	ord = order((rawevents[.,3], (1::rows(rawevents))), (1, 2))
 	events = rawevents[ord,.]
 	nevents = rows(events)
+	// option sequential (scalar __nwdynam_sequential = 1): old behaviour, every event is its own group
+	sequential = (st_numscalar("__nwdynam_sequential") == 1)
+	gfirst = (1::nevents)
+	if (!sequential) {
+		for (k=2; k<=nevents; k++) {
+			if (events[k,3] == events[k-1,3]) gfirst[k] = gfirst[k-1]
+		}
+	}
+	ngroups = sum(gfirst :== (1::nevents))
 }
 
 /*
@@ -272,8 +298,8 @@ void dynam_choice_eval_unit1_native(real scalar todo, real rowvector theta, poin
 	string scalar argstr
 	real matrix res
 
-	argstr = strofreal(1) + " " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " " + strofreal(theta[1], "%25.17g") + " " + strofreal(theta[2], "%25.17g") + " " + strofreal(theta[3], "%25.17g")
-	stata("plugin call dynamnative v1 v2 v3, " + char(34) + argstr + char(34))
+	argstr = strofreal(1 + 10*((*pS).ngroups < (*pS).nevents)) + " " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " " + strofreal(theta[1], "%25.17g") + " " + strofreal(theta[2], "%25.17g") + " " + strofreal(theta[3], "%25.17g")
+	stata("plugin call dynamnative v1 v2 v3" + (((*pS).ngroups < (*pS).nevents) ? " v4" : "") + ", " + char(34) + argstr + char(34))
 	res = st_data((1::4), "v3")
 	y = res[1,1]
 	if (todo >= 1) g = res[2::4,1]'
@@ -284,8 +310,8 @@ void dynam_rate_eval_unit1_native(real scalar todo, real rowvector theta, pointe
 	string scalar argstr
 	real matrix res
 
-	argstr = strofreal(2) + " " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " " + strofreal(theta[1], "%25.17g") + " " + strofreal(theta[2], "%25.17g")
-	stata("plugin call dynamnative v1 v2 v3, " + char(34) + argstr + char(34))
+	argstr = strofreal(2 + 10*((*pS).ngroups < (*pS).nevents)) + " " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " " + strofreal(theta[1], "%25.17g") + " " + strofreal(theta[2], "%25.17g")
+	stata("plugin call dynamnative v1 v2 v3" + (((*pS).ngroups < (*pS).nevents) ? " v4" : "") + ", " + char(34) + argstr + char(34))
 	res = st_data((1::3), "v3")
 	y = res[1,1]
 	if (todo >= 1) g = res[2::3,1]'
@@ -374,7 +400,8 @@ void dynam_choice_loglik_grad_unit1(real rowvector theta, pointer(class DynamSta
 		grad[2] = grad[2] + (recip_i[r] - sum(recip_i :* P))
 		grad[3] = grad[3] + (indeg_i[r] - sum(indeg_i :* P))
 
-		tie[s,r] = 1   // update AFTER using this event's own pre-event state
+		// update AFTER using this event's own pre-event state (after the whole group of equal times)
+		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) tie[(*pS).events[k,1], (*pS).events[k,2]] = 1
 	}
 }
 
@@ -414,6 +441,7 @@ void DynamFitUnit1(real matrix eventmat, real scalar n, string scalar bname, str
 	real rowvector theta0, theta_hat
 	real matrix V
 	real scalar attempt, ok, errcode, usenative, nobs_needed, __junk
+	real colvector gend
 	real matrix starts
 	string scalar origframe
 	pointer(void) scalar evalfunc
@@ -435,7 +463,11 @@ void DynamFitUnit1(real matrix eventmat, real scalar n, string scalar bname, str
 		__junk = st_addvar("double", "v1")
 		__junk = st_addvar("double", "v2")
 		__junk = st_addvar("double", "v3")
+		__junk = st_addvar("double", "v4")   // 1 at the last event of each group of equal times (plugin codes 11/12)
 		st_store((1::S.nevents), ("v1","v2"), S.events[.,(1,2)])
+		gend = J(S.nevents, 1, 1)
+		if (S.nevents > 1) gend[1::(S.nevents-1)] = (S.gfirst[2::S.nevents] :== (2::S.nevents))
+		st_store((1::S.nevents), "v4", gend)
 		// See unw_ergm.do's ErgmNativeSampleCore()'s own identical
 		// comment on why redefining an already-loaded plugin-type
 		// program is left in place rather than dropped first.
@@ -551,7 +583,8 @@ void dynam_rate_loglik_grad_unit1(real rowvector theta, pointer(class DynamState
 		grad[1] = grad[1] + (indeg_i[s] - sum(indeg_i :* P))
 		grad[2] = grad[2] + (outdeg_i[s] - sum(outdeg_i :* P))
 
-		tie[s,r] = 1   // update AFTER using this event's own pre-event state
+		// update AFTER using this event's own pre-event state (after the whole group of equal times)
+		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) tie[(*pS).events[k,1], (*pS).events[k,2]] = 1
 	}
 }
 
@@ -580,6 +613,7 @@ void DynamFitRateUnit1(real matrix eventmat, real scalar n, string scalar bname,
 	real rowvector theta0, theta_hat
 	real matrix V
 	real scalar attempt, ok, errcode, usenative, nobs_needed, __junk
+	real colvector gend
 	real matrix starts
 	string scalar origframe
 	pointer(void) scalar evalfunc
@@ -593,12 +627,16 @@ void DynamFitRateUnit1(real matrix eventmat, real scalar n, string scalar bname,
 		stata("capture frame drop __nwdynam_native")
 		stata("frame create __nwdynam_native")
 		st_framecurrent("__nwdynam_native")
-		nobs_needed = max((S.nevents, 3))
+		nobs_needed = max((S.nevents, 4))
 		st_addobs(nobs_needed)
 		__junk = st_addvar("double", "v1")
 		__junk = st_addvar("double", "v2")
 		__junk = st_addvar("double", "v3")
+		__junk = st_addvar("double", "v4")   // 1 at the last event of each group of equal times (plugin codes 11/12)
 		st_store((1::S.nevents), ("v1","v2"), S.events[.,(1,2)])
+		gend = J(S.nevents, 1, 1)
+		if (S.nevents > 1) gend[1::(S.nevents-1)] = (S.gfirst[2::S.nevents] :== (2::S.nevents))
+		st_store((1::S.nevents), "v4", gend)
 		stata("capture program dynamnative, plugin using(" + char(34) + DynamNativePluginPath() + char(34) + ")")
 		evalfunc = &dynam_rate_eval_unit1_native()
 	}
@@ -1228,8 +1266,10 @@ void dynam_choice_loglik_grad_multi(real rowvector theta, real rowvector active,
 		if (active[16]) gradfull[16] = gradfull[16] + (tertius_i[r] - sum(tertius_i :* P))
 		if (active[17]) gradfull[17] = gradfull[17] + (tie_i[r] - sum(tie_i :* P))
 
-		lastcontact[s,r] = tcur
-		tiecount[s,r] = tiecount[s,r] + 1
+		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
+			lastcontact[(*pS).events[k,1], (*pS).events[k,2]] = tcur
+			tiecount[(*pS).events[k,1], (*pS).events[k,2]] = tiecount[(*pS).events[k,1], (*pS).events[k,2]] + 1
+		}
 	}
 
 	grad = J(1, 0, 0)
@@ -1507,8 +1547,10 @@ void dynam_rate_loglik_grad_multi(real rowvector theta, real rowvector active,
 		if (active[4]) gradfull[4] = gradfull[4] + (nodetrans_i[s] - sum(nodetrans_i :* P))
 		if (active[5]) gradfull[5] = gradfull[5] + (tertius_i[s] - sum(tertius_i :* P))
 
-		lastcontact[s,r] = tcur
-		tiecount[s,r] = tiecount[s,r] + 1
+		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
+			lastcontact[(*pS).events[k,1], (*pS).events[k,2]] = tcur
+			tiecount[(*pS).events[k,1], (*pS).events[k,2]] = tiecount[(*pS).events[k,1], (*pS).events[k,2]] + 1
+		}
 	}
 
 	grad = J(1, 0, 0)
@@ -1798,8 +1840,10 @@ void dynam_rateint_loglik_grad_multi(real rowvector theta, real rowvector active
 			if (active[5]) gradfull[idx[5]] = gradfull[idx[5]] + (tertius_i[s] - dt * sum(haz :* tertius_i))
 		}
 
-		lastcontact[s,r] = tcur
-		tiecount[s,r] = tiecount[s,r] + 1
+		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
+			lastcontact[(*pS).events[k,1], (*pS).events[k,2]] = tcur
+			tiecount[(*pS).events[k,1], (*pS).events[k,2]] = tiecount[(*pS).events[k,1], (*pS).events[k,2]] + 1
+		}
 		tprev = tcur
 	}
 
@@ -2238,8 +2282,10 @@ void dynam_coord_loglik_grad_multi(real rowvector theta, real rowvector active,
 			gradfull[12] = gradfull[12] + ((dlogp[s,r] + dlogp[r,s]) - sum(Pnorm :* dlogp))
 		}
 
-		lastcontact[s,r] = tcur
-		lastcontact[r,s] = tcur
+		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
+			lastcontact[(*pS).events[k,1], (*pS).events[k,2]] = tcur
+			lastcontact[(*pS).events[k,2], (*pS).events[k,1]] = tcur
+		}
 	}
 
 	grad = J(1, 0, 0)

@@ -8,7 +8,7 @@ if [[ -z $NWCORE || ! -f $NWCORE/unw_core.do ]]; then echo "set NWCORE to the nw
 export NWCORE
 jobs=${1:-3}
 STATA=${STATA:-/Applications/Stata/StataBE.app/Contents/MacOS/StataBE}
-tests=(test_nwdynam_ado test_nwdynam_native test_nwdynam_twomode_ado test_nwdynam_fixes1)
+tests=(test_nwdynam_ado test_nwdynam_native test_nwdynam_twomode_ado test_nwdynam_fixes1 test_nwdynam_ordfix test_nwdynam_ties)
 tmp=$(mktemp -d)
 run_one() {
   local t=$1

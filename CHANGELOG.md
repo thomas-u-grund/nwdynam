@@ -5,6 +5,16 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Proposed version: 1.1.0.
+
+### Changed (results change for data with tied event times!)
+- Events with an identical time are now simultaneous, as in goldfish 1.6.12: the statistics of all events of a time point are computed from the state before that time point (all effects, windows and the rate intercept included, and the coordination model), and the state is updated after the whole group. Before, tied events were processed one after another in input order. Example: `socialevolution` with `ceil(t/20)`: log likelihood -652.83 and inertia 5.00 before, -1595.33 and 3.54 now (goldfish: -1595.33, 3.54). Data without ties give identical results (byte-identical estimates on the book examples).
+- New option `sequential` keeps the old behaviour. New `e(ntimes)`, `e(ties)`; a note under the header says how many events share a time point.
+- Native plugin: new codes 11/12 (simultaneous events, extra variable v4). Linux and Windows plugins must be rebuilt by CI before release; an older plugin stops with an error on tied data instead of giving wrong numbers.
+
+### Fixed
+- Events with the same time keep the order in which the network lists them. Before, the events were sorted with `order()` on the time column alone, which breaks ties by the state of the random-number generator, so the same data with tied times gave a different tie history and a different likelihood from run to run.
+
 ## [1.0.4] - 2026-10-25
 
 ### Changed
