@@ -8,7 +8,6 @@
 {p2colset 9 15 22 2}{...}
 {p2col :nwdynam  {hline 2}}Dynamic Network Actor Model - choice, rate, and choice_coordination sub-models (MLE){p_end}
 {p2colreset}{...}
-{pstd}{it:nwdynam version 1.0.1, 24 October 2026}{p_end}{* nwversion}
 
 
 {title:Syntax}
@@ -661,3 +660,6 @@ elapsed time between events, not just their order (combining {opt intercept} wit
 {title:Also see}
 
 {p 4 14 2}Help: {help nwset}, {help nwattime}, {help nwrem}, {help nwergm}, {help nwsaom}{p_end}
+
+{hline}
+{pstd}{it:nwdynam version 1.0.1, 24 October 2026}{p_end}{* nwversion}
