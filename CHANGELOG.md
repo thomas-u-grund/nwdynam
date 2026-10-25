@@ -5,11 +5,14 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Fixed
-- `nwdynam version` as the first command of a fresh session no longer reports the native plugin as "missing": the Mata library is indexed before the plugin path is looked up.
+## [1.0.4] - 2026-10-25
 
 ### Changed
+- Rebuilt for nwcommands 3.4.0; requires core 3.4.0 or later.
 - A fit with effects that are not identified (no standard error, or a standard error above 100, as in a very short event log) now prints a note under the table and returns the effect names in `e(unidentified)`.
+
+### Fixed
+- `nwdynam version` as the first command of a fresh session no longer reports the native plugin as "missing": the Mata library is indexed before the plugin path is looked up.
 
 ## [1.0.3] - 2026-10-25
 
