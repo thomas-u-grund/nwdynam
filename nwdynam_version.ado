@@ -1,10 +1,10 @@
-*! version 1.1.2  26oct2026 nwdynam version: shows the package, core, plugin and reference versions
+*! version 1.1.3  26oct2026 nwdynam version: shows the package, core, plugin and reference versions
 * Copyright (C) 2026 Thomas U. Grund
 * nwdynam is free software under the GNU General Public License, version 3 (file LICENSE).
 capture program drop nwdynam_version
 program nwdynam_version, rclass
 	version 14
-	local __pkgver "1.1.2"
+	local __pkgver "1.1.3"
 	local __pkgdate "26oct2026"
 	// the core package: its distribution date from Stata's package list (net install writes it to stata.trk)
 	local __core "not found"
