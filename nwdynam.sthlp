@@ -281,7 +281,7 @@ at once - {opt opportunities()} cannot be combined with any of those seven optio
 
 {pstd}
 {opt tie(netname)} ("cross-network effects, v1 scope") reads whether a tie exists in a SEPARATE,
-already-declared network - goldfish's own {cmd:tie(network, ...)} effect, {it:s(i,j,t,x) = I(x_ij>0)},
+already-declared network (a tie is present when its value is greater than 0; negative values are not ties) - goldfish's own {cmd:tie(network, ...)} effect, {it:s(i,j,t,x) = I(x_ij>0)},
 identical in shape to {opt inertia} but reading a fixed, exogenous matrix instead of the
 dependent network's own event history. {it:netname} must be an ORDINARY (non-{opt eventtime()})
 network with exactly the same number of actors as the network being fit, in the same row/index

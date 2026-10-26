@@ -3,6 +3,11 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- `tie()` counts a tie only when its value is greater than 0, as goldfish's I(x_ij>0); negative values were ties.
+
 ## [1.1.2] - 2026-10-26
 
 ### Changed
