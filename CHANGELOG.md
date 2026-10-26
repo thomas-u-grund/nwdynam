@@ -3,6 +3,16 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-10-26
+
+Minor release (documented behaviour changes). Works with nwcommands 3.6.0 and later; no change of the Mata library.
+
+### Added
+- Warning when the compiled plugin is missing: a fit of the original structural effect set (choice and rate sub-models) that falls back to the slower Mata engine now prints one warning line (once per call), as nwergm does. Results are unchanged. New helper `_nwdynam_slowwarn.ado`; new test `cscripts/test_nwdynam_fallbackwarn.do`.
+
+### Changed
+- Help text: the Mata fallback is no longer described as transparent; it states the warning and which fits can warn.
+
 ## [1.1.4] - 2026-10-26
 
 Patch release. Works with nwcommands 3.6.0 and later; no change of the Mata library.

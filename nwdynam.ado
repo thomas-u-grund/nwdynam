@@ -1,4 +1,4 @@
-*! version 1.1.4  26oct2026 nwdynam
+*! version 1.2.0  26oct2026 nwdynam
 * Copyright (C) 2026 Thomas U. Grund
 * This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
 * nwdynam is free software: you can redistribute it and/or modify it under the terms of the GNU General
@@ -753,6 +753,15 @@ program nwdynam, eclass
 		}
 	}
 
+	// Mata fallback warning: the original-structural-effects engines (choice and rate, no intercept) use the compiled
+	// plugin; if its file is missing the fit runs on the slower Mata engine. Say so, once per call (as nwergm does).
+	if "`submodel'" == "choice" | ("`submodel'" == "rate" & "`intercept'" == "") {
+		if !`__nwdynam_usemulti' {
+			mata: st_local("__nwdynam_natav", strofreal(DynamNativeAvailable()))
+			if !`__nwdynam_natav' _nwdynam_slowwarn
+		}
+	}
+
 	if "`submodel'" == "choice" {
 		if `__nwdynam_usemulti' {
 			mata: DynamChoiceFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_same', `__nwdynam_diff', `__nwdynam_sim', `__nwdynam_alter', `__nwdynam_tertius', `__nwdynam_egoalterint1', `__nwdynam_egoalterint2', `__nwdynam_windowinertia', `__nwdynam_windowrecip', `__nwdynam_weightedinertia', `__nwdynam_weightedrecip', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_oppmat', `__nwdynam_tiemat', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
@@ -801,7 +810,7 @@ program nwdynam, eclass
 
 	ereturn post `b' `V', obs(`nevents')
 	ereturn local cmd "nwdynam"
-	ereturn local version "1.1.4"
+	ereturn local version "1.2.0"
 	ereturn local title "`__nwdynam_title'"
 	ereturn local depvar "`netname'"
 	ereturn local submodel "`submodel'"

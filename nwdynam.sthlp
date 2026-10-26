@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.1.4  26oct2026 author: Thomas Grund}{...}
+{* *! version 1.2.0  26oct2026 author: Thomas Grund}{...}
 {marker topic}
 {helpb nwtopical##analysis_dynamicmodels:[NW-2.6.8] Dynamic & Event-Based Models}
 
@@ -484,11 +484,17 @@ native-eligible (C) engine - any other active set dispatches to a Mata-only engi
 (no native backend for a genuine subset or a windowed fit yet, a disclosed follow-on). Both
 engines were confirmed to agree with each other on the full structural-effect set.
 
+{marker native}{...}
 {pstd}
 The native (C) backend, when available for the running platform, accelerates the
 log-likelihood/gradient evaluation Mata's own optimizer calls repeatedly - the optimization
-itself always runs in Mata. Falls back to the pure-Mata engine transparently on any platform
-without a compiled plugin.
+itself always runs in Mata. If the compiled plugin file for the platform is missing, the
+fit runs on the pure-Mata engine, which gives the same results but is slower, and
+{cmd:nwdynam} prints one warning line (once per call) naming the missing file; reinstall the
+package with {bf:net install nwdynam, replace} to restore the plugin. The warning appears
+only for the original structural effect set of the choice and rate sub-models, the
+engines that use the plugin; all other effect sets always run in Mata and print no
+warning.
 
 
 {title:Stored results}
@@ -640,4 +646,4 @@ elapsed time between events, not just their order (combining {opt intercept} wit
 {p 4 14 2}Help: {help nwset}, {help nwattime}, {help nwrem}, {help nwergm}, {help nwsaom}{p_end}
 
 {hline}
-{pstd}{it:nwdynam version 1.1.4, 26 October 2026}{p_end}{* nwversion}
+{pstd}{it:nwdynam version 1.2.0, 26 October 2026}{p_end}{* nwversion}
