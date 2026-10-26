@@ -731,7 +731,7 @@ program nwdynam, eclass
 			di as error "tie(`tie') has `__nwdynam_tienet_nodes' actors but `netname' has `nodes' - tie() requires the exogenous network to have exactly the same number of actors, in the same order (row/index correspondence, not label matching) - see {help nwdynam}."
 			error 198
 		}
-		mata: `__nwdynam_tiemat' = `__nwdynam_tienet_netobj'->get_matrix_unvalued_copy()
+		mata: `__nwdynam_tiemat' = (*(`__nwdynam_tienet_netobj'->get_matrix()) :> 0) :& (*(`__nwdynam_tienet_netobj'->get_matrix()) :!= .)
 	}
 	else {
 		mata: `__nwdynam_tiemat' = J(0, 0, 0)

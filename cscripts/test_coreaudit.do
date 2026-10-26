@@ -5,7 +5,7 @@ cscript
 *   (goldfish: the increment of an event is used only by the weighted* effects), so the estimates equal those of the
 *   unweighted event network;
 * - tie() reads whether a tie exists (goldfish: I(x_ij > 0)): a valued tie network gives the estimates of its
-*   dichotomised network.
+*   dichotomised network; negative values are not ties.
 
 local nwcore : env NWCORE
 if `"`nwcore'"' == "" {
@@ -56,5 +56,13 @@ nwdynam ev0, inertia tie(st0)
 matrix B1 = e(b)
 nwdynam ev0, inertia tie(stv)
 assert mreldif(B1, e(b)) < 1e-5
+* negative values are not ties: -V gives the same as a network without those ties
+mata: Mn = st_matrix("__V"); Mn = Mn :* (2*(runiform(10,10):<.5) :- 1); st_matrix("__Neg", Mn); st_matrix("__Pos", (Mn :> 0))
+nwset, mat(__Neg) directed name(stn) nooutput
+nwset, mat(__Pos) directed name(stp) nooutput
+nwdynam ev0, inertia tie(stn)
+matrix B2 = e(b)
+nwdynam ev0, inertia tie(stp)
+assert mreldif(B2, e(b)) < 1e-5
 di as text "  PASS: tie() of a valued network equals tie() of its dichotomised network"
 di as text "test_coreaudit (nwdynam) PASS"
