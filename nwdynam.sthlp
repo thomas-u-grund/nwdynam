@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.1.3  26oct2026 author: Thomas Grund}{...}
+{* *! version 1.1.4  26oct2026 author: Thomas Grund}{...}
 {marker topic}
 {helpb nwtopical##analysis_dynamicmodels:[NW-2.6.8] Dynamic & Event-Based Models}
 
@@ -471,52 +471,12 @@ event (no lookahead); the covariate effects are static (the covariate itself doe
 over the fit).
 
 {pstd}
-{bf:Verified} against the real reference R implementation ({cmd:goldfish}, CRAN,
-{cmd:stocnet/goldfish}) fit on its own bundled {cmd:Social_Evolution} dataset (84 actors, 439
-real phone-call events) - both implementations converge to the same log-likelihood surface for
-every sub-model, structural subset, attribute effect, and windowed configuration tested,
-recovering matching coefficients to within 1e-2. See {cmd:dev/dynam_unit1_crosscheck.R} for the
-R side and {cmd:dev/dynam_unit1_choice_crosscheck.do} through {cmd:dev/dynam_unit11_weighted_crosscheck.do}
-for the direct head-to-head comparisons in this package's own source. The two-mode support
-described above is separately verified on a real hand-built toy affiliation network (6 "people," 4
-"orgs," 60 events) - see {cmd:dev/dynam_unit12_twomode_crosscheck.R} and {cmd:.do}. {opt opportunities()}
-is separately verified on a real hand-built toy directed network (8 actors, 30 events, one random
-per-event exclusion) - see {cmd:dev/dynam_unit13_opportunities_crosscheck.R}, the matching direct
-Mata-call {cmd:.do}, and {cmd:dev/dynam_unit13b_opportunities_ado_crosscheck.do} for the same
-numbers reproduced through this {cmd:.ado} command itself. {opt submodel(choice_coordination)} is
-separately verified on real hand-built toy undirected networks (a 4-actor/4-event {opt inertia}-only
-example and a 6-actor/12-event example with {opt inertia}, {opt indeg}, {opt same()}, {opt diff()},
-{opt sim()}, and {opt alter()} each checked) against real {cmd:goldfish} - see
-{cmd:dev/dynam_unit14_coordination_crosscheck.R}, the matching direct Mata-call {cmd:.do}, and
-{cmd:dev/dynam_unit14b_coordination_ado_crosscheck.do} for the same numbers reproduced through this
-{cmd:.ado} command itself. {opt nodetrans} and {opt trans} under {opt submodel(choice_coordination)}
-are separately verified on the same 6-actor/12-event toy network, alone and combined with
-{opt inertia} - see {cmd:dev/dynam_unit15_coordination_closure_crosscheck.R}, the matching direct
-Mata-call {cmd:.do}, and {cmd:dev/dynam_unit15b_coordination_closure_ado_crosscheck.do}.
-{opt tertius()} and {opt four} under {opt submodel(choice_coordination)} are likewise verified on
-the same toy network, alone and combined with {opt inertia} - see
-{cmd:dev/dynam_unit16_coordination_tertius_four_crosscheck.R}, the matching direct Mata-call
-{cmd:.do}, and {cmd:dev/dynam_unit16b_coordination_tertius_four_ado_crosscheck.do}.
-{opt egoalterint()} under {opt submodel(choice_coordination)} is likewise verified on the same toy
-network, alone and combined with {opt inertia} - see
-{cmd:dev/dynam_unit17_coordination_egoalterint_crosscheck.R}, the matching direct Mata-call
-{cmd:.do}, and {cmd:dev/dynam_unit17b_coordination_egoalterint_ado_crosscheck.do}. {opt tie()} is
-separately verified on a real hand-built toy directed network with a genuinely separate, static
-exogenous network, alone and combined with {opt inertia} - see
-{cmd:dev/dynam_unit18_tie_crosscheck.R}, the matching direct Mata-call {cmd:.do}, and
-{cmd:dev/dynam_unit18b_tie_ado_crosscheck.do}. {opt tie()} under {opt submodel(choice_coordination)}
-is likewise verified, alone and combined with {opt inertia} - see
-{cmd:dev/dynam_unit19_coordination_tie_crosscheck.R}, the matching direct Mata-call {cmd:.do}, and
-{cmd:dev/dynam_unit19b_coordination_tie_ado_crosscheck.do}. {opt intercept} is separately verified
-on a real hand-built toy directed network with REAL (unevenly-spaced) timestamps, matching
-{cmd:goldfish} exactly on two independent effect combinations - see
-{cmd:dev/dynam_unit20_rateintercept_crosscheck.R}, the matching direct Mata-call {cmd:.do}, and
-{cmd:dev/dynam_unit20b_rateintercept_ado_crosscheck.do}. {opt intercept} combined with two-mode
-networks and with {opt weightedindeg} and {opt weightedoutdeg} is likewise verified, each independently
-on its own real toy network with real timestamps - see
-{cmd:dev/dynam_unit21_rateintercept_twomode_crosscheck.R} and {cmd:dynam_unit21c_..._weighted_...R}, the
-matching direct Mata-call {cmd:dev/dynam_unit21_rateintercept_extras_crosscheck.do}, and
-{cmd:dev/dynam_unit21b_rateintercept_extras_ado_crosscheck.do}.
+{bf:Verified} against the R package {cmd:goldfish} (CRAN, {cmd:stocnet/goldfish}) fit on its own bundled
+{cmd:Social_Evolution} dataset (84 actors, 439 phone-call events): both implementations reach the same
+log-likelihood surface for every sub-model, structural subset, attribute effect and windowed configuration
+tested, with matching coefficients to within 1e-2. The two-mode support, {opt opportunities()},
+{opt submodel(choice_coordination)} with its effects, {opt tie()}, {opt intercept} and the weighted effects were
+each compared with {cmd:goldfish} on small hand-traceable event sequences; the package's tests repeat these comparisons.
 
 {pstd}
 Selecting exactly the three original structural effects, with neither window active, reuses a
@@ -680,4 +640,4 @@ elapsed time between events, not just their order (combining {opt intercept} wit
 {p 4 14 2}Help: {help nwset}, {help nwattime}, {help nwrem}, {help nwergm}, {help nwsaom}{p_end}
 
 {hline}
-{pstd}{it:nwdynam version 1.1.3, 26 October 2026}{p_end}{* nwversion}
+{pstd}{it:nwdynam version 1.1.4, 26 October 2026}{p_end}{* nwversion}

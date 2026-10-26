@@ -4,7 +4,7 @@ d Thomas U. Grund, University College Dublin, www.grund.co.uk
 d email: thomas.u.grund@gmail.com
 d GPL-3. Requires the core package nwcommands.
 d Requires nwcommands (core), version 3.6.0 or later
-d Version: 1.1.3
+d Version: 1.1.4
 d Distribution-Date: 26oct2026
 f nwdynam.ado
 f _nwdynam_libcheck.ado

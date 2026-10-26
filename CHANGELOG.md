@@ -3,6 +3,13 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.4] - 2026-10-26
+
+Patch release. Works with nwcommands 3.6.0 and later; no change of the Mata library.
+
+### Changed
+- Help text corrected: the long list of internal verification scripts is replaced by a short statement of the comparison with goldfish; the README install lines start with nwinstall. No change in code or results; the Mata library is unchanged.
+
 ## [1.1.3] - 2026-10-26
 
 Patch release. Works with nwcommands 3.6.0 and later; no change of the Mata library.
