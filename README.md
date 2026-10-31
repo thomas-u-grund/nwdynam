@@ -52,7 +52,7 @@ behaviour before 1.1.0 (tied events one after another). Data without ties give t
 
 ## Native plugin
 
-The package ships a native Stata plugin (dynam_sim.c) for macOS (universal), Linux and Windows (built by the GitHub Actions workflow `.github/workflows/build-plugins.yml`; the macOS build can be reproduced with `make -C native macos`). Platform without a plugin: see the help file. The C source is part of the package (`net get nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/main)` copies it into the current directory, with `dynam_native_readme.txt` explaining the build) and is in `native/` of this repository. Plugin code 11/12 (simultaneous events) needs a plugin built from this version; the Linux and Windows binaries are rebuilt by the workflow.
+The package ships a native Stata plugin (dynam_sim.c) for macOS (universal), Linux and Windows (built by the GitHub Actions workflow `.github/workflows/build-plugins.yml`; the macOS build can be reproduced with `make -C native macos`). Platform without a plugin: see the help file. The C source is part of the package (`net get nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/main)` copies it into the current directory, with `dynam_native_readme.txt` explaining the build) and is in `native/` of this repository. If the shipped plugin does not work on your computer (missing for the platform, older than the `.ado` files, does not load), `nwinstall, buildplugin(nwdynam)` compiles it there (macOS and Linux; needs a C compiler and `make`; restart Stata afterwards). Plugin code 11/12 (simultaneous events) needs a plugin built from this version; the Linux and Windows binaries are rebuilt by the workflow.
 
 ## Rebuilding the Mata library
 

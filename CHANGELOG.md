@@ -7,6 +7,7 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 - The C source of the native plugin (`native/*.c`, `native/*.h`, the `Makefile`, StataCorp's plugin interface files and a build note `dynam_native_readme.txt`) is listed in `nwdynam.pkg` as ancillary files: `net get nwdynam, from(...)` copies it; `net install` still installs the compiled plugins only.
+- If the shipped plugin does not work on a computer, `nwinstall, buildplugin(nwdynam)` (nwcommands 3.13.0 or later) fetches the source, compiles it there and installs the plugin (macOS and Linux).
 
 ## [1.2.0] - 2026-10-26
 
