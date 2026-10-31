@@ -3,6 +3,11 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- The C source of the native plugin (`native/*.c`, `native/*.h`, the `Makefile`, StataCorp's plugin interface files and a build note `dynam_native_readme.txt`) is listed in `nwdynam.pkg` as ancillary files: `net get nwdynam, from(...)` copies it; `net install` still installs the compiled plugins only.
+
 ## [1.2.0] - 2026-10-26
 
 Minor release (documented behaviour changes). Works with nwcommands 3.6.0 and later; no change of the Mata library.

@@ -15,3 +15,8 @@ f lib/lnwdynam.mlib
 f lib/plugins/macos/dynam_sim_macos.plugin
 f lib/plugins/windows/dynam_sim_windows.plugin
 f lib/plugins/unix/dynam_sim_unix.plugin
+f native/dynam_sim.c
+f native/Makefile
+f native/spi/stplugin.c
+f native/spi/stplugin.h
+f native/dynam_native_readme.txt

@@ -645,5 +645,10 @@ elapsed time between events, not just their order (combining {opt intercept} wit
 
 {p 4 14 2}Help: {help nwset}, {help nwattime}, {help nwrem}, {help nwergm}, {help nwsaom}{p_end}
 
+{pstd}
+The C source of the plugin comes with the package: {cmd:net get nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/main)}
+copies it into the current directory, together with a file that explains how to build the plugin; it is also in the folder
+{cmd:native/} of the repository at {browse "https://github.com/thomas-u-grund/nwdynam"}. {cmd:net install} installs the compiled plugins only.
+
 {hline}
 {pstd}{it:nwdynam version 1.2.0, 26 October 2026}{p_end}{* nwversion}
