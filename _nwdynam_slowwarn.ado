@@ -1,4 +1,4 @@
-*! version 1.2.0  26oct2026 _nwdynam_slowwarn: warning line when the Mata fallback replaces the compiled plugin
+*! version 1.2.1  31oct2026 _nwdynam_slowwarn: warning line when the Mata fallback replaces the compiled plugin
 * Copyright (C) 2026 Thomas U. Grund
 * This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
 * nwdynam is free software: you can redistribute it and/or modify it under the terms of the GNU General
