@@ -118,3 +118,7 @@ by hand "fixes" it for that session only, which hid the bug in every manual test
 ## A `/*` inside a `*` comment line opens a block comment (found 2026-10-26)
 
 A do-file comment such as `* a tree without lib/plugins/* (...)` contains `/*`, which starts a block comment that swallows the rest of the file: the log shows the whole file echoed and nothing runs, with no error. Never write `/*` inside a `*` comment line.
+
+## `nwinstall, buildmata(nwdynam)` compiles the source files listed in the core (2026-11-03)
+
+The user-side rebuild of lnwdynam.mlib lives in the core (`nwinstall_buildmata.ado`, table `nwinstall_buildmata_tab`): it lists the source files of this package, the library names and the `mata mlib add` patterns copied from `lib/build.do`. If this package gets a new Mata source file (as nwsaom did with `unw_saom_struct.do`, included by `unw_saom.do`) or another library, the table must change, or the rebuild fails with "file ... not found" (r(601)) or leaves functions out. The sources fetched are those on `main`.

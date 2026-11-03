@@ -22,6 +22,7 @@ Two rules from there that are easy to miss: push the release tag by name (`git p
 `lib/build.do` builds `lib/lnwdynam.mlib` from `unw_dynam.do`; it does not load the core and the sources do not mention the core class `nw_def` (verified 2026-10-25), so a changed core library cannot cause the r(3021) class mismatch here.
 The package nevertheless carries `lib/core_mlib.sha256`, and `NWCORE=... python3 tools/check_version.py` fails when the core library's hash differs. In a lockstep batch (master C3) the practice so far is: rebuild with Stata 17 (`<Stata 17> -e do lib/build.do` from the repository root), run
 `NWCORE=/path/to/nwcommands python3 tools/record_core_lib.py`, test and release a patch. Whether a record-only update without a release is enough is an open decision (master B.5).
+- `nwinstall, buildmata(nwdynam)` (core `nwinstall_buildmata.ado`) rebuilds lnwdynam.mlib on the user's computer from `unw_dynam.do` on `main`. A new or renamed Mata source file or library of this package must be added to `nwinstall_buildmata_tab` in the core (see its GOTCHA.md), and the `mata mlib add` patterns there must match `lib/build.do`.
 
 ## Tests
 

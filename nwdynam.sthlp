@@ -497,6 +497,11 @@ engines that use the plugin; all other effect sets always run in Mata and print 
 warning.
 
 
+{pstd}
+If the Mata library of nwdynam (lnwdynam.mlib) does not load in your Stata (for example r(3499) because it was built by a newer Stata than yours), build it with your own Stata:
+{cmd:nwinstall, buildmata(nwdynam)} fetches the Mata source, compiles it and installs the library; restart Stata afterwards.
+The build clears the data and the Mata objects in memory. See {help nwinstall##buildmata:nwinstall}.
+
 {title:Stored results}
 
 	Scalars
