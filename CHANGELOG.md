@@ -3,7 +3,13 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.2.2] - 2026-11-09
+
+Patch release. No change of the Mata library or the estimators.
+
+### Changed
+- The Windows plugin is compiled with optimisation (`/O2`), like those of the core, nwsaom and nwergm. The results are the same; the macOS and Linux plugins are unchanged. The full test suite passes on Windows.
+- Affiliation in `nwdynam.pkg`: RWTH Aachen University.
 
 ### Added
 - Documentation of `nwinstall, buildmata(nwdynam)` (nwcommands 3.14 and later): a Mata library that does not load in the user's Stata (built by a newer Stata, r(3499)) is rebuilt from the source in this repository with the Stata that runs. README and help file describe it. No change of the Mata library, the plugin or the estimators.
