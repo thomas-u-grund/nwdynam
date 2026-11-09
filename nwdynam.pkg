@@ -1,6 +1,6 @@
 v 3
 d nwdynam. Dynamic network actor models (DyNAM; Stadtfeld and Block 2017) for event-time networks
-d Thomas U. Grund, University College Dublin, www.grund.co.uk
+d Thomas U. Grund, RWTH Aachen University, www.grund.co.uk
 d email: thomas.u.grund@gmail.com
 d GPL-3. Requires the core package nwcommands.
 d Requires nwcommands (core), version 3.6.0 or later
