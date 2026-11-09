@@ -26,5 +26,5 @@ Build
   macOS (universal binary):  cd native && make macos
   Linux:                     cd native && make unix
   Windows (Visual Studio x64 prompt, in native/):
-      cl /LD /DSYSTEM=STWIN32 /I spi dynam_sim.c spi\stplugin.c /Fe:..\lib\plugins\windows\dynam_sim_windows.plugin
+      cl /LD /O2 /DSYSTEM=STWIN32 /I spi dynam_sim.c spi\stplugin.c /Fe:..\lib\plugins\windows\dynam_sim_windows.plugin
   The binaries are written to lib/plugins/<platform>/ next to the .ado files.
