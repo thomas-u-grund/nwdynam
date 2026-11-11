@@ -1,4 +1,4 @@
-*! version 1.2.2  09nov2026 nwdynam
+*! version 1.2.3  11nov2026 nwdynam
 * Copyright (C) 2026 Thomas U. Grund
 * This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
 * nwdynam is free software: you can redistribute it and/or modify it under the terms of the GNU General
@@ -36,7 +36,7 @@ program nwdynam, eclass
 	}
 
 	if "`istemporal'" != "true" | "`temporaltype'" != "event" {
-		di as error "nwdynam requires a network declared via nwset's eventtime() option (an event-type temporal network) - see {help nwset##temporal:nwset}."
+		di as error "{p 0 0 2}nwdynam requires a network declared via nwset's eventtime() option (an event-type temporal network) - see {help nwset##temporal:nwset}.{p_end}"
 		error 198
 	}
 
@@ -107,16 +107,16 @@ program nwdynam, eclass
 	// package's own two-mode convention).
 	if "`submodel'" == "choice_coordination" {
 		if "`is2mode'" == "true" {
-			di as error "submodel(choice_coordination) does not yet support two-mode (bipartite) networks - see {help nwdynam}."
+			di as error "{p 0 0 2}submodel(choice_coordination) does not yet support two-mode (bipartite) networks - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if "`directed'" == "true" {
-			di as error "submodel(choice_coordination) requires an UNDIRECTED network (goldfish's own coordination model is for undirected tie-formation events) - declare `netname' via {opt nwset ..., undirected eventtime()} - see {help nwdynam}."
+			di as error "{p 0 0 2}submodel(choice_coordination) requires an UNDIRECTED network (goldfish's own coordination model is for undirected tie-formation events) - declare `netname' via {opt nwset ..., undirected eventtime()} - see {help nwdynam}.{p_end}"
 			error 198
 		}
 	}
 	else if "`directed'" != "true" & "`is2mode'" != "true" {
-		di as error "nwdynam requires a directed network for submodel(choice) or submodel(rate) - see {help nwdynam}."
+		di as error "{p 0 0 2}nwdynam requires a directed network for submodel(choice) or submodel(rate) - see {help nwdynam}.{p_end}"
 		error 198
 	}
 
@@ -161,7 +161,7 @@ program nwdynam, eclass
 	// named.
 	if "`submodel'" == "choice" {
 		if "`ego'" != "" {
-			di as error "ego() is a rate sub-model effect ({bf:submodel(rate)}), not available with submodel(choice) - see {help nwdynam}."
+			di as error "{p 0 0 2}ego() is a rate sub-model effect ({bf:submodel(rate)}), not available with submodel(choice) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		// outdeg (added 2026-09-02, "expansion batch 5" - user checked
@@ -195,7 +195,7 @@ program nwdynam, eclass
 	}
 	else if "`submodel'" == "rate" {
 		if "`inertia'`recip'`same'`diff'`sim'`alter'`trans'`cycle'`commonsender'`commonreceiver'`four'`egoalterint'`tie'" != "" {
-			di as error "inertia/recip/same()/diff()/sim()/alter()/trans/cycle/commonsender/commonreceiver/four/egoalterint()/tie() are choice sub-model effects ({bf:submodel(choice)}), not available with submodel(rate) - see {help nwdynam}."
+			di as error "{p 0 0 2}inertia/recip/same()/diff()/sim()/alter()/trans/cycle/commonsender/commonreceiver/four/egoalterint()/tie() are choice sub-model effects ({bf:submodel(choice)}), not available with submodel(rate) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		local __nwdynam_effnames "indeg outdeg ego nodetrans tertius"
@@ -225,7 +225,7 @@ program nwdynam, eclass
 		// `mixedTrans' remain real-goldfish-eligible but not yet wired -
 		// a real, disclosed gap, not a blanket restriction.
 		if "`recip'`outdeg'`cycle'`commonsender'`commonreceiver'`ego'" != "" {
-			di as error "recip/outdeg/cycle/commonsender/commonreceiver/ego() are not available with submodel(choice_coordination) - only inertia/indeg/same()/diff()/sim()/alter()/nodetrans/trans/tertius()/four/egoalterint()/tie() are wired for this sub-model so far (a real, disclosed gap for tertiusDiff/mixedTrans) - see {help nwdynam}."
+			di as error "{p 0 0 2}recip/outdeg/cycle/commonsender/commonreceiver/ego() are not available with submodel(choice_coordination) - only inertia/indeg/same()/diff()/sim()/alter()/nodetrans/trans/tertius()/four/egoalterint()/tie() are wired for this sub-model so far (a real, disclosed gap for tertiusDiff/mixedTrans) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		local __nwdynam_effnames "inertia indeg same diff sim alter nodetrans trans tertius four egoalterint tie"
@@ -285,16 +285,16 @@ program nwdynam, eclass
 		if "`submodel'" == "choice" {
 			local __nwdynam_defaulteffs "inertia indeg"
 			if "`recip'" != "" {
-				di as error "recip is not supported for two-mode (bipartite) networks - goldfish itself rejects it (mode 2 never sends, so a candidate can never have a tie back to the sender) - see {help nwdynam}."
+				di as error "{p 0 0 2}recip is not supported for two-mode (bipartite) networks - goldfish itself rejects it (mode 2 never sends, so a candidate can never have a tie back to the sender) - see {help nwdynam}.{p_end}"
 				error 198
 			}
 			if "`outdeg'" != "" {
-				di as error "outdeg is not supported for two-mode (bipartite) networks under submodel(choice) - goldfish itself rejects it (mode 2 never sends, so a candidate has no out-degree) - see {help nwdynam}."
+				di as error "{p 0 0 2}outdeg is not supported for two-mode (bipartite) networks under submodel(choice) - goldfish itself rejects it (mode 2 never sends, so a candidate has no out-degree) - see {help nwdynam}.{p_end}"
 				error 198
 			}
 			foreach __nwdynam_e in trans cycle commonsender commonreceiver four nodetrans tertius same diff sim alter egoalterint {
 				if "``__nwdynam_e''" != "" {
-					di as error "`__nwdynam_e' is not yet verified for two-mode (bipartite) networks - see {help nwdynam}."
+					di as error "{p 0 0 2}`__nwdynam_e' is not yet verified for two-mode (bipartite) networks - see {help nwdynam}.{p_end}"
 					error 198
 				}
 			}
@@ -302,22 +302,22 @@ program nwdynam, eclass
 		else {
 			local __nwdynam_defaulteffs "outdeg"
 			if "`indeg'" != "" {
-				di as error "indeg is not supported for two-mode (bipartite) networks under submodel(rate) - goldfish itself rejects it (mode 1 never receives, so a candidate sender has no in-degree) - see {help nwdynam}."
+				di as error "{p 0 0 2}indeg is not supported for two-mode (bipartite) networks under submodel(rate) - goldfish itself rejects it (mode 1 never receives, so a candidate sender has no in-degree) - see {help nwdynam}.{p_end}"
 				error 198
 			}
 			foreach __nwdynam_e in nodetrans tertius ego {
 				if "``__nwdynam_e''" != "" {
-					di as error "`__nwdynam_e' is not yet verified for two-mode (bipartite) networks - see {help nwdynam}."
+					di as error "{p 0 0 2}`__nwdynam_e' is not yet verified for two-mode (bipartite) networks - see {help nwdynam}.{p_end}"
 					error 198
 				}
 			}
 		}
 		if `inertiawindow' != -1 | `recipwindow' != -1 | `indegwindow' != -1 | `outdegwindow' != -1 {
-			di as error "windowed effects are not yet verified for two-mode (bipartite) networks - see {help nwdynam}."
+			di as error "{p 0 0 2}windowed effects are not yet verified for two-mode (bipartite) networks - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if "`weightedinertia'`weightedrecip'`weightedindeg'`weightedoutdeg'" != "" {
-			di as error "weighted effects are not yet verified for two-mode (bipartite) networks - see {help nwdynam}."
+			di as error "{p 0 0 2}weighted effects are not yet verified for two-mode (bipartite) networks - see {help nwdynam}.{p_end}"
 			error 198
 		}
 	}
@@ -341,11 +341,11 @@ program nwdynam, eclass
 	local __nwdynam_windowrecip = 1e300
 	if `inertiawindow' != -1 {
 		if "`submodel'" != "choice" {
-			di as error "inertiawindow() only applies to the choice sub-model's inertia effect - see {help nwdynam}."
+			di as error "{p 0 0 2}inertiawindow() only applies to the choice sub-model's inertia effect - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if `inertiawindow' <= 0 {
-			di as error "inertiawindow() must be a positive number (in the same time units as the network's own eventtime())."
+			di as error "{p 0 0 2}inertiawindow() must be a positive number (in the same time units as the network's own eventtime()).{p_end}"
 			error 198
 		}
 		local __nwdynam_windowinertia = `inertiawindow'
@@ -353,11 +353,11 @@ program nwdynam, eclass
 	}
 	if `recipwindow' != -1 {
 		if "`submodel'" != "choice" {
-			di as error "recipwindow() only applies to the choice sub-model's recip effect - see {help nwdynam}."
+			di as error "{p 0 0 2}recipwindow() only applies to the choice sub-model's recip effect - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if `recipwindow' <= 0 {
-			di as error "recipwindow() must be a positive number (in the same time units as the network's own eventtime())."
+			di as error "{p 0 0 2}recipwindow() must be a positive number (in the same time units as the network's own eventtime()).{p_end}"
 			error 198
 		}
 		local __nwdynam_windowrecip = `recipwindow'
@@ -382,11 +382,11 @@ program nwdynam, eclass
 	local __nwdynam_windowoutdeg = 1e300
 	if `indegwindow' != -1 {
 		if "`submodel'" != "rate" {
-			di as error "indegwindow() only applies to the rate sub-model's indeg effect - see {help nwdynam}."
+			di as error "{p 0 0 2}indegwindow() only applies to the rate sub-model's indeg effect - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if `indegwindow' <= 0 {
-			di as error "indegwindow() must be a positive number (in the same time units as the network's own eventtime())."
+			di as error "{p 0 0 2}indegwindow() must be a positive number (in the same time units as the network's own eventtime()).{p_end}"
 			error 198
 		}
 		local __nwdynam_windowindeg = `indegwindow'
@@ -394,11 +394,11 @@ program nwdynam, eclass
 	}
 	if `outdegwindow' != -1 {
 		if "`submodel'" != "rate" {
-			di as error "outdegwindow() only applies to the rate sub-model's outdeg effect - see {help nwdynam}."
+			di as error "{p 0 0 2}outdegwindow() only applies to the rate sub-model's outdeg effect - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if `outdegwindow' <= 0 {
-			di as error "outdegwindow() must be a positive number (in the same time units as the network's own eventtime())."
+			di as error "{p 0 0 2}outdegwindow() must be a positive number (in the same time units as the network's own eventtime()).{p_end}"
 			error 198
 		}
 		local __nwdynam_windowoutdeg = `outdegwindow'
@@ -425,7 +425,7 @@ program nwdynam, eclass
 	local __nwdynam_weightedoutdeg = 0
 	if "`weightedinertia'" != "" {
 		if "`submodel'" != "choice" {
-			di as error "weightedinertia only applies to the choice sub-model's inertia effect - see {help nwdynam}."
+			di as error "{p 0 0 2}weightedinertia only applies to the choice sub-model's inertia effect - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if `__nwdynam_windowinertia' < 1e300 {
@@ -437,7 +437,7 @@ program nwdynam, eclass
 	}
 	if "`weightedrecip'" != "" {
 		if "`submodel'" != "choice" {
-			di as error "weightedrecip only applies to the choice sub-model's recip effect - see {help nwdynam}."
+			di as error "{p 0 0 2}weightedrecip only applies to the choice sub-model's recip effect - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if `__nwdynam_windowrecip' < 1e300 {
@@ -449,7 +449,7 @@ program nwdynam, eclass
 	}
 	if "`weightedindeg'" != "" {
 		if "`submodel'" == "choice_coordination" {
-			di as error "weightedindeg is not yet supported for submodel(choice_coordination) - a real, disclosed v1 gap - see {help nwdynam}."
+			di as error "{p 0 0 2}weightedindeg is not yet supported for submodel(choice_coordination) - a real, disclosed v1 gap - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if "`submodel'" == "rate" & `__nwdynam_windowindeg' < 1e300 {
@@ -461,7 +461,7 @@ program nwdynam, eclass
 	}
 	if "`weightedoutdeg'" != "" {
 		if "`submodel'" == "choice_coordination" {
-			di as error "weightedoutdeg is not available with submodel(choice_coordination) - outdeg itself is not either (indeg and outdeg coincide for an undirected network) - see {help nwdynam}."
+			di as error "{p 0 0 2}weightedoutdeg is not available with submodel(choice_coordination) - outdeg itself is not either (indeg and outdeg coincide for an undirected network) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if "`submodel'" == "rate" & `__nwdynam_windowoutdeg' < 1e300 {
@@ -524,7 +524,7 @@ program nwdynam, eclass
 			error 198
 		}
 		if `__nwdynam_windowindeg' < 1e300 | `__nwdynam_windowoutdeg' < 1e300 {
-			di as error "intercept is not yet verified together with indegwindow()/outdegwindow() - a real, disclosed architectural gap (goldfish's own window() mechanism needs synthetic mid-interval expiry events this engine does not yet inject) - see {help nwdynam}."
+			di as error "{p 0 0 2}intercept is not yet verified together with indegwindow()/outdegwindow() - a real, disclosed architectural gap (goldfish's own window() mechanism needs synthetic mid-interval expiry events this engine does not yet inject) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 	}
@@ -585,12 +585,12 @@ program nwdynam, eclass
 		if "``__nwdynam_cv''" != "" {
 			capture confirm numeric variable ``__nwdynam_cv''
 			if _rc {
-				di as error "``__nwdynam_cv'' is not a numeric variable in the current dataset - `__nwdynam_cv'() must be a per-actor covariate, one row per node in the same order as `netname''s own actors (see {help nwload}'s {bf:xvars} option to load that dataset first)."
+				di as error "{p 0 0 2}``__nwdynam_cv'' is not a numeric variable in the current dataset - `__nwdynam_cv'() must be a per-actor covariate, one row per node in the same order as `netname''s own actors (see {help nwload}'s {bf:xvars} option to load that dataset first).{p_end}"
 				error 198
 			}
 			capture assert _N == `nodes'
 			if _rc {
-				di as error "the current dataset has `=_N' observations but `netname' has `nodes' actors - `__nwdynam_cv'() requires exactly one row per actor, in actor order (see {help nwload}'s {bf:xvars} option)."
+				di as error "{p 0 0 2}the current dataset has `=_N' observations but `netname' has `nodes' actors - `__nwdynam_cv'() requires exactly one row per actor, in actor order (see {help nwload}'s {bf:xvars} option).{p_end}"
 				error 198
 			}
 			mata: `__nwdynam_`__nwdynam_cv'' = st_data(1::`nodes', "``__nwdynam_cv''")'
@@ -609,7 +609,7 @@ program nwdynam, eclass
 		local __nwdynam_ea2 : word 2 of `egoalterint'
 		capture assert _N == `nodes'
 		if _rc {
-			di as error "the current dataset has `=_N' observations but `netname' has `nodes' actors - egoalterint() requires exactly one row per actor, in actor order (see {help nwload}'s {bf:xvars} option)."
+			di as error "{p 0 0 2}the current dataset has `=_N' observations but `netname' has `nodes' actors - egoalterint() requires exactly one row per actor, in actor order (see {help nwload}'s {bf:xvars} option).{p_end}"
 			error 198
 		}
 		mata: `__nwdynam_egoalterint1' = st_data(1::`nodes', "`__nwdynam_ea1'")'
@@ -665,19 +665,19 @@ program nwdynam, eclass
 	tempname __nwdynam_oppmat
 	if "`opportunities'" != "" {
 		if "`submodel'" != "choice" {
-			di as error "opportunities() only applies to the choice sub-model (goldfish's own opportunitiesList is choice-only) - see {help nwdynam}."
+			di as error "{p 0 0 2}opportunities() only applies to the choice sub-model (goldfish's own opportunitiesList is choice-only) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		local __nwdynam_oppev : word 1 of `opportunities'
 		local __nwdynam_oppact : word 2 of `opportunities'
 		capture assert `__nwdynam_oppev' >= 1 & `__nwdynam_oppev' <= `nevents' if !missing(`__nwdynam_oppev')
 		if _rc {
-			di as error "`__nwdynam_oppev' must be between 1 and `nevents' (the event sequence number, matching `netname''s own chronological event order) - see {help nwdynam}."
+			di as error "{p 0 0 2}`__nwdynam_oppev' must be between 1 and `nevents' (the event sequence number, matching `netname''s own chronological event order) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		capture assert `__nwdynam_oppact' >= 1 & `__nwdynam_oppact' <= `nodes' if !missing(`__nwdynam_oppact')
 		if _rc {
-			di as error "`__nwdynam_oppact' must be between 1 and `nodes' (the actor ID, matching `netname''s own actor order) - see {help nwdynam}."
+			di as error "{p 0 0 2}`__nwdynam_oppact' must be between 1 and `nodes' (the actor ID, matching `netname''s own actor order) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		mata: `__nwdynam_oppmat' = J(`nevents', `nodes', 0)
@@ -719,16 +719,16 @@ program nwdynam, eclass
 	tempname __nwdynam_tiemat
 	if "`tie'" != "" {
 		if "`submodel'" == "rate" {
-			di as error "tie() only applies to submodel(choice) or submodel(choice_coordination) - see {help nwdynam}."
+			di as error "{p 0 0 2}tie() only applies to submodel(choice) or submodel(choice_coordination) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		_nwsyntax `tie', other(__nwdynam_tienet_) max(1)
 		if "`__nwdynam_tienet_istemporal'" == "true" {
-			di as error "tie(`tie') is an event-type (eventtime()-declared) network - tie() in this release only supports a STATIC exogenous network (a real, disclosed v1 scope limit; genuinely dynamically-evolving cross-network effects are not yet implemented) - see {help nwdynam}."
+			di as error "{p 0 0 2}tie(`tie') is an event-type (eventtime()-declared) network - tie() in this release only supports a STATIC exogenous network (a real, disclosed v1 scope limit; genuinely dynamically-evolving cross-network effects are not yet implemented) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if `__nwdynam_tienet_nodes' != `nodes' {
-			di as error "tie(`tie') has `__nwdynam_tienet_nodes' actors but `netname' has `nodes' - tie() requires the exogenous network to have exactly the same number of actors, in the same order (row/index correspondence, not label matching) - see {help nwdynam}."
+			di as error "{p 0 0 2}tie(`tie') has `__nwdynam_tienet_nodes' actors but `netname' has `nodes' - tie() requires the exogenous network to have exactly the same number of actors, in the same order (row/index correspondence, not label matching) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		mata: `__nwdynam_tiemat' = (*(`__nwdynam_tienet_netobj'->get_matrix()) :> 0) :& (*(`__nwdynam_tienet_netobj'->get_matrix()) :!= .)
@@ -748,7 +748,7 @@ program nwdynam, eclass
 		local __nwdynam_baddir = __nwdynam_baddir
 		scalar drop __nwdynam_baddir
 		if `__nwdynam_baddir' > 0 {
-			di as error "nwdynam requires every event's sender to be mode 1 and receiver to be mode 2 for a two-mode (bipartite) network - `netname' has `__nwdynam_baddir' event(s) violating this (matching goldfish's own one-directional two-mode DyNAM architecture) - see {help nwdynam}."
+			di as error "{p 0 0 2}nwdynam requires every event's sender to be mode 1 and receiver to be mode 2 for a two-mode (bipartite) network - `netname' has `__nwdynam_baddir' event(s) violating this (matching goldfish's own one-directional two-mode DyNAM architecture) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 	}
@@ -810,7 +810,7 @@ program nwdynam, eclass
 
 	ereturn post `b' `V', obs(`nevents')
 	ereturn local cmd "nwdynam"
-	ereturn local version "1.2.2"
+	ereturn local version "1.2.3"
 	ereturn local title "`__nwdynam_title'"
 	ereturn local depvar "`netname'"
 	ereturn local submodel "`submodel'"
@@ -826,8 +826,8 @@ program nwdynam, eclass
 	di as text "Network: " as result "`netname'" _col(40) as text "Actors: " as result `nodes'
 	di as text "Events: " as result `nevents' _col(40) as text "Log likelihood: " as result %9.4f `__nwdynam_ll'
 	if `__nwdynam_ntimes' < `nevents' {
-		if "`sequential'" != "" di as text "Note: " as result `=`nevents'-`__nwdynam_ntimes'' as text " events share a time point; processed one after another (option sequential)."
-		else di as text "Note: " as result `=`nevents'-`__nwdynam_ntimes'' as text " events share a time point with an earlier event; events with equal times are simultaneous (as in goldfish)."
+		if "`sequential'" != "" di as text "{p 0 0 2}Note: " as result `=`nevents'-`__nwdynam_ntimes'' as text " events share a time point; processed one after another (option sequential).{p_end}"
+		else di as text "{p 0 0 2}Note: " as result `=`nevents'-`__nwdynam_ntimes'' as text " events share a time point with an earlier event; events with equal times are simultaneous (as in goldfish).{p_end}"
 	}
 	di as text "{hline 60}"
 	ereturn display
@@ -842,8 +842,8 @@ program nwdynam, eclass
 	}
 	ereturn local unidentified "`=trim("`__nwdynam_bad'")'"
 	if "`__nwdynam_bad'" != "" {
-		di as text "Note: no usable standard error for" as result "`__nwdynam_bad'" as text "."
-		di as text "      These effects are probably not identified (too few events, a perfectly predicted pattern, or effects"
-		di as text "      that are linear functions of each other). Do not interpret their estimates; drop or recode the effect."
+		di as text "{p 0 6 2}Note: no usable standard error for" as result "`__nwdynam_bad'" as text ".{p_end}"
+		di as text "{p 6 6 2}These effects are probably not identified (too few events, a perfectly predicted pattern, or effects"   ///
+			" that are linear functions of each other). Do not interpret their estimates; drop or recode the effect.{p_end}"
 	}
 end

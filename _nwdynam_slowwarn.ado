@@ -1,4 +1,4 @@
-*! version 1.2.2  09nov2026 _nwdynam_slowwarn: warning line when the Mata fallback replaces the compiled plugin
+*! version 1.2.3  11nov2026 _nwdynam_slowwarn: warning line when the Mata fallback replaces the compiled plugin
 * Copyright (C) 2026 Thomas U. Grund
 * This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
 * nwdynam is free software: you can redistribute it and/or modify it under the terms of the GNU General
@@ -10,5 +10,5 @@
 capture program drop _nwdynam_slowwarn
 program _nwdynam_slowwarn
 	local os = cond(c(os) == "Windows", "windows", cond(c(os) == "MacOSX", "macos", "unix"))
-	di as txt "(Warning: the compiled plugin is not used for this fit (the plugin file dynam_sim_`os'.plugin was not found; reinstall the package with {bf:net install nwdynam, replace}); the Mata fallback gives the same results but is slower. See {help nwdynam##native:Performance}.)"
+	di as txt "{p 0 0 2}(Warning: the compiled plugin is not used for this fit (the plugin file dynam_sim_`os'.plugin was not found; reinstall the package with {bf:net install nwdynam, replace}); the Mata fallback gives the same results but is slower. See {help nwdynam##native:Performance}.){p_end}"
 end
