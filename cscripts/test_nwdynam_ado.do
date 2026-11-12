@@ -366,13 +366,13 @@ assert colsof(e(b)) == 2
 assert "`e(effects)'" == "indeg outdeg"
 di as text "  rate(weightedindeg, weightedoutdeg): " e(b)[1,1] " " e(b)[1,2]
 
-* weighted and window are mutually exclusive for the SAME effect.
-capture noisily nwdynam chatlog, weightedinertia inertiawindow(50)
-assert _rc == 198
-di as text "  correctly rejected weightedinertia + inertiawindow() together (rc=" _rc ")"
-capture noisily nwdynam chatlog, submodel(rate) weightedindeg indegwindow(50)
-assert _rc == 198
-di as text "  correctly rejected weightedindeg + indegwindow() together (rc=" _rc ")"
+* weighted and window combine for the SAME effect (goldfish: the summed value of the events within the window;
+* compared with goldfish in test_nwdynam_eventvalues.do).
+nwdynam chatlog, weightedinertia inertiawindow(50)
+assert "`e(effects)'" == "inertia"
+nwdynam chatlog, submodel(rate) weightedindeg indegwindow(50)
+assert "`e(effects)'" == "indeg"
+di as text "  weightedinertia + inertiawindow() and weightedindeg + indegwindow() combine"
 
 * weightedinertia/weightedrecip are choice-only.
 capture noisily nwdynam chatlog, submodel(rate) weightedinertia

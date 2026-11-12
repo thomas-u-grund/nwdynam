@@ -145,3 +145,15 @@ do not check either; `nwdynam.ado` refuses both before the fit (r(416)).
 
 `nwdynam` alone used to fit the default model of the current network, and `estimates replay` ran exactly that, so it
 refitted. Now `nwdynam` alone replays when `e(cmd)` is nwdynam, and still fits otherwise.
+
+## Event values: column 4 of the event list, the native kernel only gets them when some value is 0 or below
+
+Since the core keeps event values (`nwset sender receiver value, eventtime(t)`), `get_eventlist()` returns 4 columns
+(sender, receiver, time, value; value 1 without a value variable); `DynamState::init` pads an older 3-column list with 1.
+Every likelihood loop keeps `tieval` (summed values, goldfish's increments): unweighted effects test `tieval > 0`
+(inertia, recip, closure effects), but the unweighted indeg/outdeg add `sign(tieval)` as goldfish does (a tie below 0
+counts -1; inside a window this happens when a negative event outlives the event it cancelled - found because the rate
+window test disagreed with goldfish while the choice one agreed). Windows keep their own summed matrix, expired with
+`dynam_window_expire()`. With only positive values the binary state equals the old "any event" state, so the native
+kernel gets the values (v5, codes 101/102/111/112) only when some value is 0 or below: the stale Linux/Windows plugins
+answer those codes with r(198) until CI rebuilds them.

@@ -104,11 +104,9 @@ capture noisily {
 	set obs 41
 	replace receiver = 2 in 41
 	replace t = 41 in 41
-	nwset sender receiver, eventtime(t) directed name(wmis)
-	capture noisily nwdynam wmis, seed(1)
-	local rc = _rc
-	if `rc' == 0 assert e(N) == 40
-	else assert `rc' < 3000 | `rc' > 3999
+	* the core now refuses the event at nwset (r(416), a message, nothing created)
+	capture noisily nwset sender receiver, eventtime(t) directed name(wmis)
+	assert _rc == 416
 }
 if _rc {
 	local ++fails
@@ -130,15 +128,9 @@ capture noisily {
 	nwclear
 	xt_w40
 	replace t = . in 10
-	nwset sender receiver, eventtime(t) directed name(wmt)
-	capture noisily nwdynam wmt, seed(1)
-	local rc = _rc
-	if `rc' == 0 assert e(N) == 39
-	else assert `rc' < 3000 | `rc' > 3999
-	capture noisily nwdynam wmt, submodel(rate) intercept seed(1)
-	local rc = _rc
-	if `rc' == 0 assert e(N) == 39 & !missing(e(ll))
-	else assert `rc' < 3000 | `rc' > 3999
+	* the core now refuses the event at nwset (r(416), a message, nothing created)
+	capture noisily nwset sender receiver, eventtime(t) directed name(wmt)
+	assert _rc == 416
 }
 if _rc {
 	local ++fails
@@ -339,11 +331,10 @@ capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
-* S12 (CORE-DEPENDENT): goldfish adds the event values as increments of weighted statistics (R 2026-11-12:
-* 0.1389639466 / -39.2302174436; rate -0.009244684541 -0.038039028077 / -55.218661708709). The core event list holds no
-* per-event values, so nwdynam counts events (increment 1: 0.2889076707 / -37.7174439566; rate -0.08797114084
-* -0.11872452538 / -55.01240505209, as in xt_dyn_options.do); the help documents the deviation and a note is shown.
-di as text "S12: weighted effects on a valued event network count events (documented deviation from goldfish)"
+* S12 (FIXED): goldfish adds the event values as increments of weighted statistics (R 2026-11-12:
+* 0.1389639466 / -39.2302174436; rate -0.009244684541 -0.038039028077 / -55.218661708709). The core event list now
+* carries the value of each event and nwdynam adds it (counting events gave 0.2889076707 / -37.7174439566).
+di as text "S12: weighted effects on a valued event network use the event values (goldfish)"
 di as text "{hline 60}"
 capture noisily {
 	nwclear
@@ -351,19 +342,19 @@ capture noisily {
 	gen double w = mod(_n, 3) + 1
 	nwset sender receiver w, eventtime(t) directed name(wval)
 	nwdynam wval, weightedinertia seed(1)
-	assert abs(el(e(b),1,1) - 0.2889076707) < 2e-3
-	assert reldif(e(ll), -37.7174439566) < 1e-5
+	assert abs(el(e(b),1,1) - 0.1389639466) < 1e-4
+	assert reldif(e(ll), -39.2302174436) < 1e-6
 	nwdynam wval, submodel(rate) weightedindeg weightedoutdeg seed(1)
-	assert abs(el(e(b),1,1) - (-0.08797114084)) < 2e-3
-	assert abs(el(e(b),1,2) - (-0.11872452538)) < 2e-3
-	assert reldif(e(ll), -55.01240505209) < 1e-5
+	assert abs(el(e(b),1,1) - (-0.009244684541)) < 1e-4
+	assert abs(el(e(b),1,2) - (-0.038039028077)) < 1e-4
+	assert reldif(e(ll), -55.218661708709) < 1e-6
 }
 if _rc {
 	local ++fails
 	local failed "`failed' S12"
 	di as error "  FAIL S12: weighted effects on a valued event network"
 }
-else di as text "  PASS: S12 (counts events; goldfish's value increments need per-event values from the core)"
+else di as text "  PASS: S12 (event values added as in goldfish)"
 capture frame change default
 capture frame drop __nwdynam_native
 
@@ -432,9 +423,10 @@ capture noisily {
 	mata: st_store((1::8), ("sender","receiver"), (1,2\2,3\3,1\1,3\2,1\4,2\1,4\3,4))
 	quietly replace sender = 2 in 9
 	quietly gen double t = _n
-	nwset sender receiver, eventtime(t) directed name(wfail)
-	capture noisily nwdynam wfail, seed(1)
-	local rc1 = _rc
+	* the core now refuses the event with the missing receiver at nwset (r(416)), so this fault no longer reaches the
+	* native fit; nwdynam's own checks also come before the helper frame is created
+	capture noisily nwset sender receiver, eventtime(t) directed name(wfail)
+	assert _rc == 416
 	assert "`c(frame)'" == "default"
 	nwclear
 	xt_w40

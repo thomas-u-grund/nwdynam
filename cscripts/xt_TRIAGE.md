@@ -59,8 +59,8 @@ Counts: CONFIRMED 19 (S1-S13, I11, N2, N3, item 12, item 14; S13 by owner decisi
 ## Fixes (2026-11-12, Unreleased)
 
 Fixed in nwdynam: S3, S4 (r(416)), S5 (r(198), as goldfish), S6 (r(416)), S7, S8, S9, S10, S11 (r(416)), S13 (match by
-`_nwnode`), I11 (frame restored after any failed fit), N2, item 12 (help), N1 (replay, level()). S12: documented as a
-deviation plus a note after the fit; using the values as goldfish does needs per-event values that the core event list
-does not store (core change). Core-caused, left for the core: S1, S2 (nwdynam refuses the unmatched events cleanly,
+`_nwnode`), I11 (frame restored after any failed fit), N2, item 12 (help), N1 (replay, level()). S12: fixed with the core
+change (event values in the event list, column 4): weighted effects sum the values as goldfish, values of 0 or below
+dissolve ties, weighted + window combine; checked against goldfish in test_nwdynam_eventvalues.do. Core-caused, left for the core: S1, S2 (nwdynam refuses the unmatched events cleanly,
 r(416)), N3 (two-mode string ids mode split), item 14 (_nwsyntax message). All xt_dyn_*.do end with ALL PASS under
 Stata 17.

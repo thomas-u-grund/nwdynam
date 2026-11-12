@@ -15,13 +15,17 @@ project uses [Semantic Versioning](https://semver.org/).
 - An effect with zero variance (for example a window that no earlier event falls into) is listed in `e(unidentified)` and in the note.
 - The window options and `seed()` no longer treat -1 as "not given": windows must be positive numbers, `seed()` an integer from 0 to 2147483647 (r(198) otherwise).
 - `nwdynam` without arguments (or with `level()` only) after an `nwdynam` fit redisplays the results, and `estimates replay` works (it used to refit the current network); new option `level()`, new stored result `e(header)`.
-- Help: `seed()` describes which effect sets start from random values (the default effect sets use fixed starts); weighted effects on a valued event network count events, a documented deviation from goldfish (which adds the event values); a note says so after the fit.
+- Help: `seed()` describes which effect sets start from random values (the default effect sets use fixed starts).
+- Event values are used as in goldfish (needs the core with event values, `nwset sender receiver value, eventtime(time)`): the value of an event is added to the tie (goldfish's `increment`); a tie exists while its value is above 0. Before, every event counted 1 and the values were ignored. Events with a missing value are refused (r(416)).
+- A weighted effect can be combined with its own window (`weightedinertia inertiawindow()`, `weightedrecip recipwindow()`, `weightedindeg indegwindow()`, `weightedoutdeg outdegwindow()`): the summed value of the events within the window, as goldfish's `weighted = TRUE, window =`. Before, the combination was refused (r(198)).
 
 ### Results that change
 - Covariate effects on a dataset whose rows are not in actor order but carry `_nwnode`: the covariate is now matched to the right actors.
 - Fits that silently used events with a missing time or a missing actor now stop with r(416).
+- Valued event networks (a third variable in `nwset ..., eventtime()`): `weightedinertia`, `weightedrecip`, `weightedindeg` and `weightedoutdeg` sum the event values instead of counting events, as goldfish does. Values of 0 or below also change the unweighted effects: an event with the value 0 creates no tie, a negative value can remove one (every effect then sees the tie as absent), and the unweighted `indeg`/`outdeg` add the sign of each tie value (a tie below 0 counts -1), all as in goldfish. With only positive values the unweighted effects do not change; networks without a value variable do not change at all.
+- Windows on a network with values of 0 or below use the summed value of the events within the window (a tie is present while it is above 0); with positive values nothing changes.
 
-Mata library `lnwdynam.mlib` rebuilt with Stata 17 (new function `dynam_node_rows()`, self-loop message). No plugin change.
+Mata library `lnwdynam.mlib` rebuilt with Stata 17 against the new core library (new functions `dynam_node_rows()` and `dynam_window_expire()`, self-loop message, event values). The native plugin `dynam_sim` takes the event values (codes 101/102/111/112, used only when some value is 0 or below); macOS rebuilt, Linux and Windows are rebuilt by CI.
 
 ## [1.2.5] - 2026-11-12
 

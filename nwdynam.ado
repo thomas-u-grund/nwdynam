@@ -454,17 +454,15 @@ program nwdynam, eclass
 	// weightedinertia/weightedrecip/weightedindeg/weightedoutdeg (added
 	// 2026-09-02, "expansion batch 8" - user: "work your way through
 	// the list"): goldfish's own `weighted=TRUE' argument on
-	// inertia/recip/indeg/outdeg - the effect reads the cumulative
-	// COUNT of prior events for that dyad/actor instead of binary
-	// presence. Self-activating, matching inertiawindow()/recipwindow()'s
+	// inertia/recip/indeg/outdeg - the effect reads the value of the
+	// tie (the sum of the values of its prior events, 1 per event when
+	// the network has no event values) instead of binary presence.
+	// With a window the value within the window, as goldfish. Self-activating, matching inertiawindow()/recipwindow()'s
 	// own gwesp-style convention exactly - no separate boolean flag
 	// needed. `weightedindeg'/`weightedoutdeg' are valid under BOTH
 	// sub-models (goldfish's own table confirms this, unlike
 	// indegwindow()/outdegwindow() which remain rate-only - a real,
 	// disclosed choice-side windowing gap, not a weighted one).
-	// Mutually exclusive with that SAME effect's own window - not yet
-	// verified together against goldfish, so rejected outright rather
-	// than silently picking one.
 	local __nwdynam_weightedinertia = 0
 	local __nwdynam_weightedrecip = 0
 	local __nwdynam_weightedindeg = 0
@@ -472,10 +470,6 @@ program nwdynam, eclass
 	if "`weightedinertia'" != "" {
 		if "`submodel'" != "choice" {
 			di as error "{p 0 0 2}weightedinertia only applies to the choice sub-model's inertia effect - see {help nwdynam}.{p_end}"
-			error 198
-		}
-		if `__nwdynam_windowinertia' < 1e300 {
-			di as error "weightedinertia cannot be combined with inertiawindow() - see {help nwdynam}."
 			error 198
 		}
 		local __nwdynam_weightedinertia = 1
@@ -486,10 +480,6 @@ program nwdynam, eclass
 			di as error "{p 0 0 2}weightedrecip only applies to the choice sub-model's recip effect - see {help nwdynam}.{p_end}"
 			error 198
 		}
-		if `__nwdynam_windowrecip' < 1e300 {
-			di as error "weightedrecip cannot be combined with recipwindow() - see {help nwdynam}."
-			error 198
-		}
 		local __nwdynam_weightedrecip = 1
 		local recip "recip"
 	}
@@ -498,20 +488,12 @@ program nwdynam, eclass
 			di as error "{p 0 0 2}weightedindeg is not yet supported for submodel(choice_coordination) - a real, disclosed v1 gap - see {help nwdynam}.{p_end}"
 			error 198
 		}
-		if "`submodel'" == "rate" & `__nwdynam_windowindeg' < 1e300 {
-			di as error "weightedindeg cannot be combined with indegwindow() - see {help nwdynam}."
-			error 198
-		}
 		local __nwdynam_weightedindeg = 1
 		local indeg "indeg"
 	}
 	if "`weightedoutdeg'" != "" {
 		if "`submodel'" == "choice_coordination" {
 			di as error "{p 0 0 2}weightedoutdeg is not available with submodel(choice_coordination) - outdeg itself is not either (indeg and outdeg coincide for an undirected network) - see {help nwdynam}.{p_end}"
-			error 198
-		}
-		if "`submodel'" == "rate" & `__nwdynam_windowoutdeg' < 1e300 {
-			di as error "weightedoutdeg cannot be combined with outdegwindow() - see {help nwdynam}."
 			error 198
 		}
 		local __nwdynam_weightedoutdeg = 1
@@ -694,13 +676,17 @@ program nwdynam, eclass
 	// that have no time cannot be placed in the event sequence: refuse them
 	mata: st_local("__nwdynam_bad0", strofreal(sum((`__nwdynam_events'[., 1] :< 1) :| (`__nwdynam_events'[., 2] :< 1) :| missing(`__nwdynam_events'[., 1]) :| missing(`__nwdynam_events'[., 2]))))
 	mata: st_local("__nwdynam_badt", strofreal(missing(`__nwdynam_events'[., 3])))
-	if `__nwdynam_bad0' > 0 | `__nwdynam_badt' > 0 {
+	mata: st_local("__nwdynam_badv", strofreal(cols(`__nwdynam_events') >= 4 ? missing(`__nwdynam_events'[., cols(`__nwdynam_events') >= 4 ? 4 : 3]) : 0))
+	if `__nwdynam_bad0' > 0 | `__nwdynam_badt' > 0 | `__nwdynam_badv' > 0 {
 		_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2'
 		if `__nwdynam_bad0' > 0 {
 			di as error "{p 0 0 2}`__nwdynam_bad0' event(s) of `netname' have a sender or receiver that is not an actor of the network (a missing actor id, or an id that does not match a node label); drop these events before {cmd:nwset}.{p_end}"
 		}
 		if `__nwdynam_badt' > 0 {
 			di as error "{p 0 0 2}`__nwdynam_badt' event(s) of `netname' have a missing event time; drop these events before {cmd:nwset}.{p_end}"
+		}
+		if `__nwdynam_badv' > 0 {
+			di as error "{p 0 0 2}`__nwdynam_badv' event(s) of `netname' have a missing value; drop these events before {cmd:nwset}.{p_end}"
 		}
 		error 416
 	}
@@ -944,9 +930,6 @@ program nwdynam, eclass
 	}
 	ereturn local unidentified "`=trim("`__nwdynam_bad'")'"
 	_nwdynam_display, level(`level')
-	if "`valued'" == "true" & (`__nwdynam_weightedinertia' | `__nwdynam_weightedrecip' | `__nwdynam_weightedindeg' | `__nwdynam_weightedoutdeg') {
-		di as text "{p 0 6 2}Note: the weighted effects count events; the tie values of the valued event network `netname' are not used.{p_end}"
-	}
 end
 
 capture program drop _nwdynam_display

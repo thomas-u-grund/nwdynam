@@ -241,7 +241,7 @@ xt_same "actor permutation, rate" 1e-6 R
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
-di as text "Block F: a valued event network (third variable): unweighted effects ignore the values"
+di as text "Block F: a valued event network with positive values (third variable): unweighted effects as without values"
 di as text "{hline 60}"
 nwclear
 xt_w40

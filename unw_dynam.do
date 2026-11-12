@@ -118,6 +118,7 @@ capture mata: mata drop dynam_rate_loglik_grad_multi()
 capture mata: mata drop dynam_rate_loglik_multi()
 capture mata: mata drop dynam_rate_eval_multi()
 capture mata: mata drop DynamRateFitMulti()
+capture mata: mata drop dynam_window_expire()
 
 mata:
 mata set matastrict off
@@ -133,12 +134,14 @@ mata set matastrict off
 	precompute here.
 */
 class DynamState {
-	real matrix events     // nevents x 3: (sender, receiver, time), SORTED ascending by time
+	real matrix events     // nevents x 4: (sender, receiver, time, value), SORTED ascending by time; value 1 when the
+	                       // network has no event values (as goldfish, the value is the increment of the tie)
 	real scalar n          // number of actors
 	real scalar nevents
 	real colvector gfirst  // for each event: row of the first event of its group of equal times (its own row if sequential)
 	real scalar sequential // 1 = events with equal times are processed one after another (old behaviour)
 	real scalar ngroups    // number of distinct time groups
+	real scalar nativevalued // 1 = the native kernel gets the event values (v5): some value is 0 or below
 
 	void init()
 }
@@ -152,6 +155,25 @@ real scalar dynam_group_end(pointer(class DynamState scalar) scalar pS, real sca
 	if (i == (*pS).nevents) return((*pS).gfirst[i])
 	if ((*pS).gfirst[i+1] == i+1) return((*pS).gfirst[i])
 	return(0)
+}
+
+/*
+	Windowed tie values (goldfish's window argument): W holds, for every pair, the summed value of the events already
+	applied (rows 1..upto, chronological) whose time lies within `window' of tcur; ptr is the first such row. goldfish
+	removes the increment of an event again at its time + window, after the dependent events of that time point, so an
+	event exactly `window' before tcur still counts. sym = 1 updates both cells (undirected network).
+*/
+void dynam_window_expire(pointer(class DynamState scalar) scalar pS, real matrix W, real scalar ptr,
+		real scalar upto, real scalar tcur, real scalar window, real scalar sym) {
+	real scalar a, b
+	while (ptr <= upto) {
+		if (tcur - (*pS).events[ptr,3] <= window) break
+		a = (*pS).events[ptr,1]
+		b = (*pS).events[ptr,2]
+		W[a,b] = W[a,b] - (*pS).events[ptr,4]
+		if (sym) W[b,a] = W[b,a] - (*pS).events[ptr,4]
+		ptr = ptr + 1
+	}
 }
 
 /*
@@ -205,6 +227,9 @@ void DynamState::init(real matrix rawevents, real scalar nn) {
 	ord = order((rawevents[.,3], (1::rows(rawevents))), (1, 2))
 	events = rawevents[ord,.]
 	nevents = rows(events)
+	// column 4: the value of each event (an event list without values, from an older core, counts every event as 1)
+	if (cols(events) < 4) events = (events[., 1..3], J(nevents, 1, 1))
+	else events = events[., 1..4]
 	// option sequential (scalar __nwdynam_sequential = 1): old behaviour, every event is its own group
 	sequential = (st_numscalar("__nwdynam_sequential") == 1)
 	gfirst = (1::nevents)
@@ -214,6 +239,7 @@ void DynamState::init(real matrix rawevents, real scalar nn) {
 		}
 	}
 	ngroups = sum(gfirst :== (1::nevents))
+	nativevalued = 0
 }
 
 /*
@@ -323,8 +349,8 @@ void dynam_choice_eval_unit1_native(real scalar todo, real rowvector theta, poin
 	string scalar argstr
 	real matrix res
 
-	argstr = strofreal(1 + 10*((*pS).ngroups < (*pS).nevents)) + " " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " " + strofreal(theta[1], "%25.17g") + " " + strofreal(theta[2], "%25.17g") + " " + strofreal(theta[3], "%25.17g")
-	stata("plugin call dynamnative v1 v2 v3" + (((*pS).ngroups < (*pS).nevents) ? " v4" : "") + ", " + char(34) + argstr + char(34))
+	argstr = strofreal(1 + 10*((*pS).ngroups < (*pS).nevents) + 100*(*pS).nativevalued) + " " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " " + strofreal(theta[1], "%25.17g") + " " + strofreal(theta[2], "%25.17g") + " " + strofreal(theta[3], "%25.17g")
+	stata("plugin call dynamnative v1 v2 v3" + ((((*pS).ngroups < (*pS).nevents) | (*pS).nativevalued) ? " v4" : "") + ((*pS).nativevalued ? " v5" : "") + ", " + char(34) + argstr + char(34))
 	res = st_data((1::4), "v3")
 	y = res[1,1]
 	if (todo >= 1) g = res[2::4,1]'
@@ -335,8 +361,8 @@ void dynam_rate_eval_unit1_native(real scalar todo, real rowvector theta, pointe
 	string scalar argstr
 	real matrix res
 
-	argstr = strofreal(2 + 10*((*pS).ngroups < (*pS).nevents)) + " " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " " + strofreal(theta[1], "%25.17g") + " " + strofreal(theta[2], "%25.17g")
-	stata("plugin call dynamnative v1 v2 v3" + (((*pS).ngroups < (*pS).nevents) ? " v4" : "") + ", " + char(34) + argstr + char(34))
+	argstr = strofreal(2 + 10*((*pS).ngroups < (*pS).nevents) + 100*(*pS).nativevalued) + " " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " " + strofreal(theta[1], "%25.17g") + " " + strofreal(theta[2], "%25.17g")
+	stata("plugin call dynamnative v1 v2 v3" + ((((*pS).ngroups < (*pS).nevents) | (*pS).nativevalued) ? " v4" : "") + ((*pS).nativevalued ? " v5" : "") + ", " + char(34) + argstr + char(34))
 	res = st_data((1::3), "v3")
 	y = res[1,1]
 	if (todo >= 1) g = res[2::3,1]'
@@ -395,14 +421,15 @@ void dynam_rate_eval_unit1_native(real scalar todo, real rowvector theta, pointe
 */
 void dynam_choice_loglik_grad_unit1(real rowvector theta, pointer(class DynamState scalar) scalar pS,
 		real scalar ll, real rowvector grad) {
-	real scalar i, s, r, n, mx, lrsum
-	real matrix tie
+	real scalar i, s, r, n, mx, lrsum, g0, k
+	real matrix tie, tieval
 	real rowvector inertia_i, recip_i, indeg_i, lp, P
 
 	n = (*pS).n
 	ll = 0
 	grad = J(1, 3, 0)
 	tie = J(n, n, 0)
+	tieval = J(n, n, 0)   // summed event values; a tie exists while the sum is above 0 (goldfish)
 
 	for (i=1; i<=(*pS).nevents; i++) {
 		s = (*pS).events[i,1]
@@ -410,7 +437,7 @@ void dynam_choice_loglik_grad_unit1(real rowvector theta, pointer(class DynamSta
 
 		inertia_i = tie[s,.]
 		recip_i = tie[.,s]'
-		indeg_i = colsum(tie)
+		indeg_i = colsum(sign(tieval))   // goldfish: sign of each tie value (-1 for a value below 0)
 
 		lp = theta[1] :* inertia_i :+ theta[2] :* recip_i :+ theta[3] :* indeg_i
 		lp[s] = -1e300   // sender cannot choose itself - exclude from the risk set
@@ -426,7 +453,10 @@ void dynam_choice_loglik_grad_unit1(real rowvector theta, pointer(class DynamSta
 		grad[3] = grad[3] + (indeg_i[r] - sum(indeg_i :* P))
 
 		// update AFTER using this event's own pre-event state (after the whole group of equal times)
-		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) tie[(*pS).events[k,1], (*pS).events[k,2]] = 1
+		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
+			tieval[(*pS).events[k,1], (*pS).events[k,2]] = tieval[(*pS).events[k,1], (*pS).events[k,2]] + (*pS).events[k,4]
+			tie[(*pS).events[k,1], (*pS).events[k,2]] = (tieval[(*pS).events[k,1], (*pS).events[k,2]] > 0)
+		}
 	}
 }
 
@@ -493,6 +523,13 @@ void DynamFitUnit1(real matrix eventmat, real scalar n, string scalar bname, str
 		gend = J(S.nevents, 1, 1)
 		if (S.nevents > 1) gend[1::(S.nevents-1)] = (S.gfirst[2::S.nevents] :== (2::S.nevents))
 		st_store((1::S.nevents), "v4", gend)
+		// event values: with only positive values a tie exists from the first event of a pair on, exactly as without
+		// values, so the kernel gets them (v5, plugin codes 101/102/111/112) only when some value is 0 or below
+		S.nativevalued = (min(S.events[., 4]) <= 0)
+		if (S.nativevalued) {
+			__junk = st_addvar("double", "v5")
+			st_store((1::S.nevents), "v5", S.events[., 4])
+		}
 		// See unw_ergm.do's ErgmNativeSampleCore()'s own identical
 		// comment on why redefining an already-loaded plugin-type
 		// program is left in place rather than dropped first.
@@ -581,21 +618,22 @@ void DynamFitUnit1(real matrix eventmat, real scalar n, string scalar bname, str
 */
 void dynam_rate_loglik_grad_unit1(real rowvector theta, pointer(class DynamState scalar) scalar pS,
 		real scalar ll, real rowvector grad) {
-	real scalar i, s, r, n, mx, lrsum
-	real matrix tie
+	real scalar i, s, r, n, mx, lrsum, g0, k
+	real matrix tie, tieval
 	real rowvector indeg_i, outdeg_i, lp, P
 
 	n = (*pS).n
 	ll = 0
 	grad = J(1, 2, 0)
 	tie = J(n, n, 0)
+	tieval = J(n, n, 0)   // summed event values; a tie exists while the sum is above 0 (goldfish)
 
 	for (i=1; i<=(*pS).nevents; i++) {
 		s = (*pS).events[i,1]
 		r = (*pS).events[i,2]
 
-		indeg_i = colsum(tie :> 0)
-		outdeg_i = rowsum(tie :> 0)'
+		indeg_i = colsum(sign(tieval))   // goldfish: sign of each tie value (-1 for a value below 0)
+		outdeg_i = rowsum(sign(tieval))'
 
 		lp = theta[1] :* indeg_i :+ theta[2] :* outdeg_i
 
@@ -609,7 +647,10 @@ void dynam_rate_loglik_grad_unit1(real rowvector theta, pointer(class DynamState
 		grad[2] = grad[2] + (outdeg_i[s] - sum(outdeg_i :* P))
 
 		// update AFTER using this event's own pre-event state (after the whole group of equal times)
-		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) tie[(*pS).events[k,1], (*pS).events[k,2]] = 1
+		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
+			tieval[(*pS).events[k,1], (*pS).events[k,2]] = tieval[(*pS).events[k,1], (*pS).events[k,2]] + (*pS).events[k,4]
+			tie[(*pS).events[k,1], (*pS).events[k,2]] = (tieval[(*pS).events[k,1], (*pS).events[k,2]] > 0)
+		}
 	}
 }
 
@@ -662,6 +703,13 @@ void DynamFitRateUnit1(real matrix eventmat, real scalar n, string scalar bname,
 		gend = J(S.nevents, 1, 1)
 		if (S.nevents > 1) gend[1::(S.nevents-1)] = (S.gfirst[2::S.nevents] :== (2::S.nevents))
 		st_store((1::S.nevents), "v4", gend)
+		// event values: with only positive values a tie exists from the first event of a pair on, exactly as without
+		// values, so the kernel gets them (v5, plugin codes 101/102/111/112) only when some value is 0 or below
+		S.nativevalued = (min(S.events[., 4]) <= 0)
+		if (S.nativevalued) {
+			__junk = st_addvar("double", "v5")
+			st_store((1::S.nevents), "v5", S.events[., 4])
+		}
 		stata("capture program dynamnative, plugin using(" + char(34) + DynamNativePluginPath() + char(34) + ")")
 		evalfunc = &dynam_rate_eval_unit1_native()
 	}
@@ -833,6 +881,15 @@ void DynamFitRateUnit1(real matrix eventmat, real scalar n, string scalar bname,
 	unwindowed) is likewise derived from `lastcontact :> -1e300` rather
 	than a separately-maintained matrix, so only ONE tracking structure
 	is kept, not three redundant ones.
+
+	UPDATE (event values): `lastcontact'/`tiecount' are replaced by `tieval', the value of each tie = the sum of the
+	values of its events (column 4 of the event list, 1 without values), exactly as goldfish adds the increment of each
+	event to the network. A tie exists while its value is above 0 (unweighted effects); weighted effects read the value.
+	The unweighted indeg and outdeg add the SIGN of each tie value, as goldfish does: a tie whose value is below 0
+	counts -1. Inside a window this happens when an event with a negative value outlives the event it cancelled.
+	A window keeps its own matrix of the values of the events inside the window (dynam_window_expire(), goldfish's
+	dissolve events at time + window), so `weighted' and a window combine as in goldfish. With every value positive all
+	unweighted statistics are the same as before.
 
 	Effect 8 (outdeg, "expansion batch 5", added 2026-09-02, user
 	report that the help file's own "outdeg: rate sub-model only" label
@@ -1106,8 +1163,8 @@ void dynam_choice_loglik_grad_multi(real rowvector theta, real rowvector active,
 		pointer(class DynamState scalar) scalar pS, real scalar ll, real rowvector grad) {
 	real scalar i, s, r, n, mx, lrsum, j, e, tcur, nowindowinertia, nowindowrecip
 	real scalar needAA, needAtA, needAAt, windowinertia, windowrecip
-	real scalar weightedinertia, weightedrecip, weightedindeg, weightedoutdeg
-	real matrix lastcontact, tiecount, A, AA, AtA, AAt, AAtA
+	real scalar weightedinertia, weightedrecip, weightedindeg, weightedoutdeg, g0, k, a, b, v, pwi, pwr
+	real matrix tieval, winertia, wrecip, A, AA, AtA, AAt, AAtA
 	real rowvector inertia_i, recip_i, indeg_i, outdeg_i, same_i, diff_i, sim_i
 	real rowvector trans_i, cycle_i, commonsender_i, commonreceiver_i, four_i, nodetrans_i
 	real rowvector egoalterint_i, tertius_i, tertiusnumer, tertiusdenom, hasin, tie_i
@@ -1148,8 +1205,13 @@ void dynam_choice_loglik_grad_multi(real rowvector theta, real rowvector active,
 	n = (*pS).n
 	ll = 0
 	gradfull = J(1, 17, 0)
-	lastcontact = J(n, n, -1e300)
-	tiecount = J(n, n, 0)
+	// tieval: the value of every tie, the sum of the values of its events so far (goldfish: each event adds its value,
+	// the increment); a tie exists while its value is above 0 (A). winertia/wrecip: the same within the windows.
+	tieval = J(n, n, 0)
+	winertia = J(n, n, 0)
+	wrecip = J(n, n, 0)
+	pwi = 1
+	pwr = 1
 	same_i = J(1, n, 0)
 	diff_i = J(1, n, 0)
 	sim_i = J(1, n, 0)
@@ -1174,24 +1236,36 @@ void dynam_choice_loglik_grad_multi(real rowvector theta, real rowvector active,
 		r = (*pS).events[i,2]
 		tcur = (*pS).events[i,3]
 
-		if (weightedinertia) inertia_i = tiecount[s,.]
-		else if (nowindowinertia) inertia_i = (lastcontact[s,.] :> -1e300)
-		else inertia_i = ((tcur :- lastcontact[s,.]) :<= windowinertia)
-		if (weightedrecip) recip_i = tiecount[.,s]'
-		else if (nowindowrecip) recip_i = (lastcontact[.,s]' :> -1e300)
-		else recip_i = ((tcur :- lastcontact[.,s])' :<= windowrecip)
-		if (weightedindeg) indeg_i = colsum(tiecount)
-		else indeg_i = colsum(lastcontact :> -1e300)
+		A = (tieval :> 0)
+		if (!nowindowinertia) dynam_window_expire(pS, winertia, pwi, (*pS).gfirst[i] - 1, tcur, windowinertia, 0)
+		if (!nowindowrecip) dynam_window_expire(pS, wrecip, pwr, (*pS).gfirst[i] - 1, tcur, windowrecip, 0)
+		if (nowindowinertia) {
+			if (weightedinertia) inertia_i = tieval[s,.]
+			else inertia_i = A[s,.]
+		}
+		else {
+			if (weightedinertia) inertia_i = winertia[s,.]
+			else inertia_i = (winertia[s,.] :> 0)
+		}
+		if (nowindowrecip) {
+			if (weightedrecip) recip_i = tieval[.,s]'
+			else recip_i = A[.,s]'
+		}
+		else {
+			if (weightedrecip) recip_i = wrecip[.,s]'
+			else recip_i = (wrecip[.,s]' :> 0)
+		}
+		if (weightedindeg) indeg_i = colsum(tieval)
+		else indeg_i = colsum(sign(tieval))
 		if (active[8]) {
-			if (weightedoutdeg) outdeg_i = rowsum(tiecount)'
-			else outdeg_i = rowsum(lastcontact :> -1e300)'
+			if (weightedoutdeg) outdeg_i = rowsum(tieval)'
+			else outdeg_i = rowsum(sign(tieval))'
 		}
 		if (active[4]) same_i = (samevec :== samevec[s])
 		if (active[5]) diff_i = abs(diffvec :- diffvec[s])
 		if (active[6]) sim_i = -abs(simvec :- simvec[s])
 		if (active[15]) egoalterint_i = egoalterint1vec[s] :* egoalterint2vec
 
-		if (needAA | needAtA | needAAt) A = (lastcontact :> -1e300)
 		if (needAA) AA = A * A
 		if (needAtA) AtA = A' * A
 		if (needAAt) AAt = A * A'
@@ -1205,7 +1279,6 @@ void dynam_choice_loglik_grad_multi(real rowvector theta, real rowvector active,
 		}
 		if (active[14]) nodetrans_i = rowsum(A :* AA)'
 		if (active[16]) {
-			if (needAA==0 & needAtA==0 & needAAt==0) A = (lastcontact :> -1e300)
 			tertiusnumer = tertiusvec * A
 			// Always the count of DISTINCT in-neighbors, never the
 			// weighted indegree - `indeg_i' above may itself be
@@ -1292,8 +1365,12 @@ void dynam_choice_loglik_grad_multi(real rowvector theta, real rowvector active,
 		if (active[17]) gradfull[17] = gradfull[17] + (tie_i[r] - sum(tie_i :* P))
 
 		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
-			lastcontact[(*pS).events[k,1], (*pS).events[k,2]] = tcur
-			tiecount[(*pS).events[k,1], (*pS).events[k,2]] = tiecount[(*pS).events[k,1], (*pS).events[k,2]] + 1
+			a = (*pS).events[k,1]
+			b = (*pS).events[k,2]
+			v = (*pS).events[k,4]
+			tieval[a,b] = tieval[a,b] + v
+			if (!nowindowinertia) winertia[a,b] = winertia[a,b] + v
+			if (!nowindowrecip) wrecip[a,b] = wrecip[a,b] + v
 		}
 	}
 
@@ -1501,15 +1578,20 @@ void dynam_rate_loglik_grad_multi(real rowvector theta, real rowvector active,
 		real rowvector egovec, real rowvector tertiusvec, real scalar windowindeg, real scalar windowoutdeg,
 		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1,
 		pointer(class DynamState scalar) scalar pS, real scalar ll, real rowvector grad) {
-	real scalar i, s, r, n, mx, lrsum, j, e, tcur, nowindowindeg, nowindowoutdeg
-	real matrix lastcontact, tiecount, A, AA
+	real scalar i, s, r, n, mx, lrsum, j, e, tcur, nowindowindeg, nowindowoutdeg, g0, k, a, b, v, pwd, pwo
+	real matrix tieval, windeg, woutdeg, A, AA
 	real rowvector indeg_i, outdeg_i, nodetrans_i, tertius_i, tertiusnumer, tertiusdenom, hasin, lp, P, gradfull, idx
 
 	n = (*pS).n
 	ll = 0
 	gradfull = J(1, 5, 0)
-	lastcontact = J(n, n, -1e300)
-	tiecount = J(n, n, 0)
+	// tieval, windeg, woutdeg: tie values (summed event values) overall and within the windows - see
+	// dynam_choice_loglik_grad_multi()
+	tieval = J(n, n, 0)
+	windeg = J(n, n, 0)
+	woutdeg = J(n, n, 0)
+	pwd = 1
+	pwo = 1
 	nowindowindeg = (windowindeg >= 1e300)
 	nowindowoutdeg = (windowoutdeg >= 1e300)
 
@@ -1527,13 +1609,25 @@ void dynam_rate_loglik_grad_multi(real rowvector theta, real rowvector active,
 		r = (*pS).events[i,2]
 		tcur = (*pS).events[i,3]
 
-		if (weightedindeg) indeg_i = colsum(tiecount)
-		else if (nowindowindeg) indeg_i = colsum(lastcontact :> -1e300)
-		else indeg_i = colsum((tcur :- lastcontact) :<= windowindeg)
-		if (weightedoutdeg) outdeg_i = rowsum(tiecount)'
-		else if (nowindowoutdeg) outdeg_i = rowsum(lastcontact :> -1e300)'
-		else outdeg_i = rowsum((tcur :- lastcontact) :<= windowoutdeg)'
-		if (active[4] | active[5]) A = (lastcontact :> -1e300)
+		A = (tieval :> 0)
+		if (!nowindowindeg) dynam_window_expire(pS, windeg, pwd, (*pS).gfirst[i] - 1, tcur, windowindeg, 0)
+		if (!nowindowoutdeg) dynam_window_expire(pS, woutdeg, pwo, (*pS).gfirst[i] - 1, tcur, windowoutdeg, 0)
+		if (nowindowindeg) {
+			if (weightedindeg) indeg_i = colsum(tieval)
+			else indeg_i = colsum(sign(tieval))
+		}
+		else {
+			if (weightedindeg) indeg_i = colsum(windeg)
+			else indeg_i = colsum(sign(windeg))
+		}
+		if (nowindowoutdeg) {
+			if (weightedoutdeg) outdeg_i = rowsum(tieval)'
+			else outdeg_i = rowsum(sign(tieval))'
+		}
+		else {
+			if (weightedoutdeg) outdeg_i = rowsum(woutdeg)'
+			else outdeg_i = rowsum(sign(woutdeg))'
+		}
 		if (active[4]) {
 			AA = A * A
 			nodetrans_i = rowsum(A :* AA)'
@@ -1573,8 +1667,12 @@ void dynam_rate_loglik_grad_multi(real rowvector theta, real rowvector active,
 		if (active[5]) gradfull[5] = gradfull[5] + (tertius_i[s] - sum(tertius_i :* P))
 
 		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
-			lastcontact[(*pS).events[k,1], (*pS).events[k,2]] = tcur
-			tiecount[(*pS).events[k,1], (*pS).events[k,2]] = tiecount[(*pS).events[k,1], (*pS).events[k,2]] + 1
+			a = (*pS).events[k,1]
+			b = (*pS).events[k,2]
+			v = (*pS).events[k,4]
+			tieval[a,b] = tieval[a,b] + v
+			if (!nowindowindeg) windeg[a,b] = windeg[a,b] + v
+			if (!nowindowoutdeg) woutdeg[a,b] = woutdeg[a,b] + v
 		}
 	}
 
@@ -1779,16 +1877,21 @@ void dynam_rateint_loglik_grad_multi(real rowvector theta, real rowvector active
 		pointer(class DynamState scalar) scalar pS, real scalar ll, real rowvector grad) {
 	real scalar i, s, r, n, j, e, tcur, tprev, dt, intercept
 	real scalar windowindeg, windowoutdeg, weightedindeg, weightedoutdeg, n1
-	real scalar nowindowindeg, nowindowoutdeg
-	real matrix lastcontact, tiecount, A, AA
+	real scalar nowindowindeg, nowindowoutdeg, g0, k, a, b, v, pwd, pwo
+	real matrix tieval, windeg, woutdeg, A, AA
 	real rowvector indeg_i, outdeg_i, nodetrans_i, tertius_i, tertiusnumer, tertiusdenom, hasin
 	real rowvector lp, haz, gradfull, idx
 
 	n = (*pS).n
 	ll = 0
 	gradfull = J(1, 6, 0)
-	lastcontact = J(n, n, -1e300)
-	tiecount = J(n, n, 0)
+	// tieval, windeg, woutdeg: tie values (summed event values) overall and within the windows - see
+	// dynam_choice_loglik_grad_multi()
+	tieval = J(n, n, 0)
+	windeg = J(n, n, 0)
+	woutdeg = J(n, n, 0)
+	pwd = 1
+	pwo = 1
 	intercept = theta[1]
 
 	windowindeg = modvec[1]
@@ -1813,13 +1916,25 @@ void dynam_rateint_loglik_grad_multi(real rowvector theta, real rowvector active
 		r = (*pS).events[i,2]
 		tcur = (*pS).events[i,3]
 
-		if (weightedindeg) indeg_i = colsum(tiecount)
-		else if (nowindowindeg) indeg_i = colsum(lastcontact :> -1e300)
-		else indeg_i = colsum((tcur :- lastcontact) :<= windowindeg)
-		if (weightedoutdeg) outdeg_i = rowsum(tiecount)'
-		else if (nowindowoutdeg) outdeg_i = rowsum(lastcontact :> -1e300)'
-		else outdeg_i = rowsum((tcur :- lastcontact) :<= windowoutdeg)'
-		if (active[4] | active[5]) A = (lastcontact :> -1e300)
+		A = (tieval :> 0)
+		if (!nowindowindeg) dynam_window_expire(pS, windeg, pwd, (*pS).gfirst[i] - 1, tcur, windowindeg, 0)
+		if (!nowindowoutdeg) dynam_window_expire(pS, woutdeg, pwo, (*pS).gfirst[i] - 1, tcur, windowoutdeg, 0)
+		if (nowindowindeg) {
+			if (weightedindeg) indeg_i = colsum(tieval)
+			else indeg_i = colsum(sign(tieval))
+		}
+		else {
+			if (weightedindeg) indeg_i = colsum(windeg)
+			else indeg_i = colsum(sign(windeg))
+		}
+		if (nowindowoutdeg) {
+			if (weightedoutdeg) outdeg_i = rowsum(tieval)'
+			else outdeg_i = rowsum(sign(tieval))'
+		}
+		else {
+			if (weightedoutdeg) outdeg_i = rowsum(woutdeg)'
+			else outdeg_i = rowsum(sign(woutdeg))'
+		}
 		if (active[4]) {
 			AA = A * A
 			nodetrans_i = rowsum(A :* AA)'
@@ -1866,8 +1981,12 @@ void dynam_rateint_loglik_grad_multi(real rowvector theta, real rowvector active
 		}
 
 		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
-			lastcontact[(*pS).events[k,1], (*pS).events[k,2]] = tcur
-			tiecount[(*pS).events[k,1], (*pS).events[k,2]] = tiecount[(*pS).events[k,1], (*pS).events[k,2]] + 1
+			a = (*pS).events[k,1]
+			b = (*pS).events[k,2]
+			v = (*pS).events[k,4]
+			tieval[a,b] = tieval[a,b] + v
+			if (!nowindowindeg) windeg[a,b] = windeg[a,b] + v
+			if (!nowindowoutdeg) woutdeg[a,b] = woutdeg[a,b] + v
 		}
 		tprev = tcur
 	}
@@ -2107,8 +2226,8 @@ void DynamRateInterceptFitMulti(real matrix eventmat, real scalar n, real rowvec
 void dynam_coord_loglik_grad_multi(real rowvector theta, real rowvector active,
 		real matrix covmat, real matrix tiemat,
 		pointer(class DynamState scalar) scalar pS, real scalar ll, real rowvector grad) {
-	real scalar i, s, r, n, j, e, tcur, Z
-	real matrix lastcontact, statmat, praw, p, P, Pnorm, S_inertia, S_indeg, S_same, S_diff, S_sim, S_alter
+	real scalar i, s, r, n, j, e, tcur, Z, g0, k, a, b, v
+	real matrix tieval, statmat, praw, p, P, Pnorm, S_inertia, S_indeg, S_same, S_diff, S_sim, S_alter
 	real matrix A, AA, AtA, AAtA, S_nodetrans, S_trans, S_tertius, S_four, S_egoalterint, S_tie
 	real rowvector samevec, diffvec, simvec, altervec, tertiusvec, egoalterint1vec, egoalterint2vec
 	real rowvector indegvec, nodetransvec, idx, gradfull
@@ -2127,7 +2246,8 @@ void dynam_coord_loglik_grad_multi(real rowvector theta, real rowvector active,
 	n = (*pS).n
 	ll = 0
 	gradfull = J(1, 12, 0)
-	lastcontact = J(n, n, -1e300)
+	// tieval: tie values of the undirected network (summed event values, both cells); a tie exists while above 0
+	tieval = J(n, n, 0)
 
 	idx = J(1, 12, 0)
 	j = 0
@@ -2180,8 +2300,8 @@ void dynam_coord_loglik_grad_multi(real rowvector theta, real rowvector active,
 		r = (*pS).events[i,2]
 		tcur = (*pS).events[i,3]
 
-		S_inertia = (lastcontact :> -1e300)
-		indegvec = colsum(S_inertia)
+		S_inertia = (tieval :> 0)
+		indegvec = colsum(sign(tieval))
 		S_indeg = J(n, 1, 1) * indegvec
 		if (active[7] | active[8] | active[9] | active[10]) {
 			A = S_inertia
@@ -2308,8 +2428,11 @@ void dynam_coord_loglik_grad_multi(real rowvector theta, real rowvector active,
 		}
 
 		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
-			lastcontact[(*pS).events[k,1], (*pS).events[k,2]] = tcur
-			lastcontact[(*pS).events[k,2], (*pS).events[k,1]] = tcur
+			a = (*pS).events[k,1]
+			b = (*pS).events[k,2]
+			v = (*pS).events[k,4]
+			tieval[a,b] = tieval[a,b] + v
+			tieval[b,a] = tieval[b,a] + v
 		}
 	}
 

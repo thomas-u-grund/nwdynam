@@ -6,7 +6,7 @@ cscript
 *   198  not an event network (52-56); submodel() unknown (79-82); choice_coordination on a two-mode (124-127) or a
 *        directed network (128-131); choice/rate on an undirected one-mode network (133-136); effects of the wrong
 *        sub-model (178-181, 212-215, 242-245); two-mode restrictions (302-341); windows: wrong sub-model or <= 0
-*        (362-422); weighted: wrong sub-model or combined with a window (446-489); intercept outside rate or with a
+*        (362-422); weighted: wrong sub-model (446-489; with the same effect's window it now runs, as goldfish); intercept outside rate or with a
 *        rate window (541-548); covariate dataset with _N != nodes (611-614, 630-633); opportunities() with a
 *        covariate option (32-35), outside choice (686-689), event or actor number out of range (693-701); tie() with
 *        rate (212-215), an event network (745-748) or another actor count (749-752)
@@ -109,7 +109,8 @@ di as text "{hline 60}"
 di as text "Block A: networks and sub-models"
 di as text "{hline 60}"
 xt_err 482 nwdynam nosuchnet
-xt_err 482 nwdynam w40 static
+* two networks given: the core says only one network is allowed (r(198); r(482) "Network w40 static not found" before)
+xt_err 198 nwdynam w40 static
 xt_err 198 nwdynam static
 xt_err 198 nwdynam five
 xt_err 198 nwdynam w40, submodel(foo)
@@ -161,13 +162,14 @@ xt_err 198 nwdynam w40, outdegwindow(5)
 xt_err 198 nwdynam w40, submodel(rate) outdegwindow(-0.5)
 xt_err 198 nwdynam wu, submodel(choice_coordination) inertiawindow(5)
 xt_err 198 nwdynam w40, submodel(rate) weightedinertia
-xt_err 198 nwdynam w40, weightedinertia inertiawindow(5)
 xt_err 198 nwdynam w40, submodel(rate) weightedrecip
-xt_err 198 nwdynam w40, weightedrecip recipwindow(5)
 xt_err 198 nwdynam wu, submodel(choice_coordination) weightedindeg
-xt_err 198 nwdynam w40, submodel(rate) weightedindeg indegwindow(5)
 xt_err 198 nwdynam wu, submodel(choice_coordination) weightedoutdeg
-xt_err 198 nwdynam w40, submodel(rate) weightedoutdeg outdegwindow(5)
+* a weighted effect together with its own window runs (as goldfish; compared in test_nwdynam_eventvalues.do)
+foreach spec in "weightedinertia inertiawindow(5)" "weightedrecip recipwindow(5)" "submodel(rate) weightedindeg indegwindow(5)" "submodel(rate) weightedoutdeg outdegwindow(5)" {
+	quietly nwdynam w40, `spec' seed(1)
+}
+di as text "  PASS: weighted effect + own window run"
 xt_err 198 nwdynam w40, intercept
 xt_err 198 nwdynam wu, submodel(choice_coordination) intercept
 xt_err 198 nwdynam w40, submodel(rate) intercept indegwindow(5)

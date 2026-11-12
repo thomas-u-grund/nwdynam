@@ -84,7 +84,7 @@
 {synopt:{opt indegwindow(#)}}rate sub-model only - recency cutoff on {opt indeg}; self-activates {opt indeg}{p_end}
 {synopt:{opt outdegwindow(#)}}rate sub-model only - recency cutoff on {opt outdeg}; self-activates {opt outdeg}{p_end}
 
-{syntab:Weighted effects (count instead of presence - self-activating, see Description)}
+{syntab:Weighted effects (tie value instead of presence - self-activating, see Description)}
 {synopt:{opt weightedinertia}}choice sub-model only - self-activates {opt inertia}{p_end}
 {synopt:{opt weightedrecip}}choice sub-model only - self-activates {opt recip}{p_end}
 {synopt:{opt weightedindeg}}choice and rate sub-models - self-activates {opt indeg}{p_end}
@@ -107,6 +107,16 @@ default model of the current network.{p_end}
 {pstd}{bf:Event data}: every event must have a time, a sender and a receiver that are actors of the network, and a
 sender different from the receiver. Events without a time or with a missing actor are refused (error 416), and so are
 self-loops (error 3498); drop such rows before {help nwset}.{p_end}
+
+{pstd}{bf:Event values}: a third variable in {help nwset} gives each event a value
+({cmd:nwset sender receiver value, eventtime(time)}); without it every event has the value 1. As in {cmd:goldfish},
+where the value is the {it:increment} of the event, the value of an event is added to the tie from its sender to its
+receiver (on an undirected network to the tie between the two). A tie exists while its value is above 0: an event with
+the value 0 creates no tie, and a negative value can remove one. The unweighted effects use whether a tie exists, the
+weighted effects use the value of the tie. As in {cmd:goldfish}, the unweighted {opt indeg} and {opt outdeg} add the
+sign of each tie value, so a tie whose value is below 0 counts -1 (inside a window this happens when an event with a
+negative value outlives the event it cancelled). With only positive values, the unweighted effects are the same as
+without values. Events with a missing value are refused (error 416).{p_end}
 {pstd}Giving no effect option at all fits the default effects of the chosen sub-model ({opt inertia}, {opt recip}, {opt indeg} for choice;
 {opt indeg}, {opt outdeg} for rate; {opt inertia}, {opt indeg} for choice_coordination). Giving
 one or more restricts the fit to exactly those. See {bf:Effect selection} below.{p_end}
@@ -407,10 +417,12 @@ to add - {opt ego()} already is it.
 {bf:Windowed effects}: by default {opt inertia}, {opt recip} (choice sub-model) and {opt indeg},
 {opt outdeg} (rate sub-model) look back over the entire prior event history with no time limit.
 {opt inertiawindow(#)}, {opt recipwindow(#)}, {opt indegwindow(#)}, {opt outdegwindow(#)} each
-restrict their own effect independently to a real-time recency cutoff instead - a tie counts as
-present only if its most recent occurrence happened within {it:#} time units of the current event
-(a hard cutoff, not a decaying weight; a tie can expire once too much time has passed, even though
-it was present a moment earlier). {it:#} is a positive number, in the same time units as the network's own
+restrict their own effect independently to a real-time recency cutoff instead - only the events within {it:#}
+time units of the current event count, and a tie is present if the summed value of these events is above 0 (with
+positive values: if an event of that pair happened within the window). This is {cmd:goldfish}'s
+{opt window} argument, which removes the value of each event again at its time + {it:#}; an event exactly {it:#} time
+units before the current event still counts (a hard cutoff, not a decaying weight; a tie can expire once too much time
+has passed, even though it was present a moment earlier). {it:#} is a positive number, in the same time units as the network's own
 {opt eventtime()} values. Each window option on its own both selects its own effect and sets its
 window - no separate {opt inertia}, {opt recip}, {opt indeg}, or {opt outdeg} flag is needed (the
 same convention {help nwergm}'s own {opt gwesp(real)} uses). {opt inertiawindow()} and
@@ -426,22 +438,21 @@ values for each.
 
 {pstd}
 {bf:Weighted effects}: by default {opt inertia}, {opt recip}, {opt indeg}, and {opt outdeg} each
-count tie PRESENCE (has this ever happened, yes or no). {opt weightedinertia}, {opt weightedrecip},
-{opt weightedindeg}, {opt weightedoutdeg} switch that same effect to count the cumulative NUMBER of
-prior events instead (repeated events between the same dyad, or by the same actor, all count) -
-matching {cmd:goldfish}'s own {opt weighted(TRUE)} argument when every event counts 1. Deviation from
-{cmd:goldfish}: the tie values of a valued event network are not used; {cmd:goldfish} adds them as increments
-of the weighted statistics, {cmd:nwdynam} adds 1 per event (a note says so after the fit). Self-activating, the same convention
+use tie PRESENCE (does the tie exist, yes or no). {opt weightedinertia}, {opt weightedrecip},
+{opt weightedindeg}, {opt weightedoutdeg} switch that same effect to the VALUE of the tie instead: the sum of the
+values of all prior events of that pair ({opt weightedindeg}: of all ties to the actor; {opt weightedoutdeg}: of all
+ties from the actor) - {cmd:goldfish}'s {opt weighted = TRUE} argument. Without event values every event counts 1, so
+the weighted effects count the prior events. Self-activating, the same convention
 as the window options above - {opt weightedinertia} alone both selects {opt inertia} and switches
-it to counting. {opt weightedindeg} and {opt weightedoutdeg} apply under BOTH sub-models (unlike
+it to the tie value. {opt weightedindeg} and {opt weightedoutdeg} apply under BOTH sub-models (unlike
 {opt indegwindow()} and {opt outdegwindow()}, which remain {opt submodel(rate)}-only - a real, disclosed
-gap in choice-side windowing, not in choice-side weighting). A weighted effect and that SAME
-effect's own window cannot be combined (not yet verified together against {cmd:goldfish}) - use one
-or the other, never both, for the same effect.
+gap in choice-side windowing, not in choice-side weighting). A weighted effect combined with that same effect's
+window uses the summed value of the events within the window, as in {cmd:goldfish}.
 
 	{cmd:. nwdynam mynet, weightedinertia}
 	{cmd:. nwdynam mynet, weightedinertia weightedrecip}
 	{cmd:. nwdynam mynet, submodel(rate) weightedindeg weightedoutdeg}
+	{cmd:. nwdynam mynet, weightedinertia inertiawindow(604800)}
 
 {pstd}
 {opt same()}, {opt diff()}, {opt sim()}, {opt ego()}, {opt alter()}, and {opt egoalterint()} have
