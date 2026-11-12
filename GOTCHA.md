@@ -122,3 +122,26 @@ A do-file comment such as `* a tree without lib/plugins/* (...)` contains `/*`, 
 ## `nwinstall, buildmata(nwdynam)` compiles the source files listed in the core (2026-11-03)
 
 The user-side rebuild of lnwdynam.mlib lives in the core (`nwinstall_buildmata.ado`, table `nwinstall_buildmata_tab`): it lists the source files of this package, the library names and the `mata mlib add` patterns copied from `lib/build.do`. If this package gets a new Mata source file (as nwsaom did with `unw_saom_struct.do`, included by `unw_saom.do`) or another library, the table must change, or the rebuild fails with "file ... not found" (r(601)) or leaves functions out. The sources fetched are those on `main`.
+
+## Mata `_error("long text")` loses the message (r(3300))
+
+`_error(errtxt)` fails itself with r(3300) "argument out of range" when the text is longer than about 110 characters,
+and the intended message is never shown. Print long messages with `errprintf()` and leave with `exit(rc)`.
+
+## The native engines switch to the frame `__nwdynam_native`
+
+`DynamFitUnit1()`/`DynamFitRateUnit1()` work in a frame of their own and switch back only on the normal path. An error
+inside Mata (for example the optimizer failing) used to leave the user in that frame, and every later call failed with
+r(3598) "frame already defined". `nwdynam.ado` therefore runs the fit inside `capture noisily { }` and restores the
+frame, drops the helper frame, scalars and Mata globals before passing the error on.
+
+## Event lists can hold actor index 0 or a missing time
+
+The core's `build_eventlist()` gives index 0 to an event whose sender or receiver label is not a node name (missing id,
+or numeric ids >= 1e7, labelled with %9.0g in core nwset), and `nwset` keeps missing event times. The native engines
+do not check either; `nwdynam.ado` refuses both before the fit (r(416)).
+
+## Replay without arguments
+
+`nwdynam` alone used to fit the default model of the current network, and `estimates replay` ran exactly that, so it
+refitted. Now `nwdynam` alone replays when `e(cmd)` is nwdynam, and still fits otherwise.

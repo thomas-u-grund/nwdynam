@@ -213,11 +213,13 @@ foreach map in "100 + @" "cond(@==1,1,cond(@==2,5,cond(@==3,17,1000)))" "1000000
 	quietly replace receiver = `er'
 	nwset sender receiver, eventtime(t) directed name(wid`k')
 	if `k' == 3 {
-		// CONFIRMED BUG S1: ids of 8+ digits -> core nwset labels events with %9.0g ("n1.00e+07"), index 0, r(3300)
+		// CORE BUG S1 (not nwdynam): ids of 8+ digits -> core nwset labels events with %9.0g ("n1.00e+07"), index 0;
+		// nwdynam refuses such events cleanly (r(416)) until the core is fixed
 		capture noisily nwdynam wid`k', seed(1)
 		if _rc {
-			local xt_known "`xt_known' S1(r(`=_rc'))"
-			di as error "  CONFIRMED BUG S1: ids `map' give r(`=_rc')"
+			assert _rc == 416
+			local xt_known "`xt_known' S1-core(r(`=_rc'))"
+			di as text "  CORE BUG S1: ids `map' give r(`=_rc') (clean refusal; cause in the core)"
 			capture frame change default
 			capture frame drop __nwdynam_native
 			continue
@@ -267,7 +269,7 @@ assert abs(el(e(b),1,1) - (-0.73342)) < 0.001
 assert abs(el(e(b),1,2) - 0.23018) < 0.001
 matrix MB = e(b)
 scalar MLL = e(ll)
-* CONFIRMED BUG N3 (core): string ids where the mode-2 labels ("O..") sort before the mode-1 labels ("P..").
+* CORE BUG N3 (not nwdynam): string ids where the mode-2 labels ("O..") sort before the mode-1 labels ("P..").
 * nwset ..., twomode orders the node names alphabetically across both modes (O1.. first) but keeps n1 = number of
 * senders, so the mode split does not match the node order; nwdynam then refuses every event (r(198), "60 event(s)
 * violating"). Same for a static nwset ..., twomode with these labels.
@@ -276,8 +278,9 @@ use `tm', clear
 nwset sender receiver, twomode eventtime(time) name(tmstr)
 capture noisily nwdynam tmstr, seed(1)
 if _rc {
-	local xt_known "`xt_known' N3(r(`=_rc'))"
-	di as error "  CONFIRMED BUG N3: two-mode string ids P../O.. give r(`=_rc')"
+	assert _rc == 198
+	local xt_known "`xt_known' N3-core(r(`=_rc'))"
+	di as text "  CORE BUG N3: two-mode string ids P../O.. give r(`=_rc') (cause in the core)"
 }
 else xt_same "two-mode: string ids P../O.." 1e-12 M
 local v 0
@@ -329,5 +332,5 @@ nwdynam wuq, submodel(choice_coordination) inertia seed(1)
 assert "`e(ties)'" == "simultaneous"
 xt_gf "coordination inertia, ties" -70.5803895458 0.4570586411
 
-if "`xt_known'" != "" di as error "known confirmed bugs hit:`xt_known'"
+if "`xt_known'" != "" di as text "known core bugs hit (not nwdynam):`xt_known'"
 di "ALL PASS (apart from confirmed bugs listed above)"

@@ -232,8 +232,8 @@ di as text "{hline 60}"
 xt_err 2001 nwdynam one
 xt_err 2001 nwdynam one, submodel(rate)
 xt_err 2001 nwdynam one, submodel(rate) intercept
-// CONFIRMED BUG N2: the self-loop refusal (unw_dynam.do:167) passes a ~140-character text to Mata _error(), which
-// fails with r(3300) "argument out of range"; the message is lost. Wanted r(3498) with the message. Recorded, goes on.
+// N2 (fixed): the self-loop refusal gives r(3498) with its message (it used to be lost: Mata _error() fails with
+// r(3300) on long texts).
 local xt_known ""
 foreach c in "loop" "loop, submodel(rate)" "loop, inertia trans" "loop, submodel(rate) intercept" "loopu, submodel(choice_coordination)" {
 	capture noisily nwdynam `c'
@@ -243,10 +243,13 @@ foreach c in "loop" "loop, submodel(rate)" "loop, inertia trans" "loop, submodel
 	if `rc' == 3498 di as text "  PASS: r(3498): nwdynam `c'"
 	else {
 		local xt_known "`xt_known' N2(`c': r(`rc'))"
-		di as error "  CONFIRMED BUG N2: nwdynam `c' gives r(`rc'), not r(3498)"
+		di as error "  FAIL N2: nwdynam `c' gives r(`rc'), not r(3498)"
 	}
 	assert "`e(cmd)'" == "nwdynam"
 }
-if "`xt_known'" != "" di as error "known confirmed bugs hit:`xt_known'"
+if "`xt_known'" != "" {
+	di as error "failed:`xt_known'"
+	exit 9
+}
 
 di "ALL PASS"

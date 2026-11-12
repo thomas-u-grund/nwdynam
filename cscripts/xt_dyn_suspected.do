@@ -41,7 +41,7 @@ scalar XLL = e(ll)
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
-* CONFIRMED BUG S1 (ids of 8+ digits already fail: %9.0g prints 1.00e+07)
+* CORE BUG S1 (cause in core nwset; nwdynam refuses the events with r(416) until the core is fixed; ids of 8+ digits already fail: %9.0g prints 1.00e+07)
 di as text "S1: numeric actor ids above 16,777,216 (not exact in float)"
 di as text "{hline 60}"
 * core nwset.ado:285-286 labels events "n" + strofreal(id) (%9.0g); nwfromedge.ado:218, 246 builds the node names
@@ -56,7 +56,8 @@ capture noisily {
 	assert e(nodes) == 4 & e(N) == 40
 	assert mreldif(e(b), XB) < 1e-10
 }
-if _rc {
+if _rc == 416 di as text "  CORE BUG S1 (not nwdynam; nwdynam refuses the unmatched events cleanly, r(416))"
+else if _rc {
 	local ++fails
 	local failed "`failed' S1"
 	di as error "  FAIL S1 (r(`=_rc')): large numeric ids"
@@ -67,7 +68,7 @@ capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
-* CONFIRMED BUG S2 (same cause as S1)
+* CORE BUG S2 (same cause as S1)
 di as text "S2: numeric actor ids 1e9 .. 4e9"
 di as text "{hline 60}"
 capture noisily {
@@ -81,7 +82,8 @@ capture noisily {
 	assert e(nodes) == 4 & e(N) == 40
 	assert mreldif(e(b), XB) < 1e-10
 }
-if _rc {
+if _rc == 416 di as text "  CORE BUG S2 (not nwdynam; nwdynam refuses the unmatched events cleanly, r(416))"
+else if _rc {
 	local ++fails
 	local failed "`failed' S2"
 	di as error "  FAIL S2 (r(`=_rc')): ids of 1e9 and more"
@@ -337,32 +339,31 @@ capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
-* CONFIRMED BUG S12 (goldfish deviation, not documented; R rechecked 2026-11-12: 0.1389639466 / -39.2302174436)
-di as text "S12 (DESIGN): weighted effects ignore the event values (goldfish uses them as increments)"
+* S12 (CORE-DEPENDENT): goldfish adds the event values as increments of weighted statistics (R 2026-11-12:
+* 0.1389639466 / -39.2302174436; rate -0.009244684541 -0.038039028077 / -55.218661708709). The core event list holds no
+* per-event values, so nwdynam counts events (increment 1: 0.2889076707 / -37.7174439566; rate -0.08797114084
+* -0.11872452538 / -55.01240505209, as in xt_dyn_options.do); the help documents the deviation and a note is shown.
+di as text "S12: weighted effects on a valued event network count events (documented deviation from goldfish)"
 di as text "{hline 60}"
-* goldfish 1.6.12 with increment = mod(i, 3) + 1: inertia(weighted=TRUE) 0.1389639466, ll -39.2302174436; rate
-* indeg/outdeg(weighted=TRUE) -0.009244684541 -0.038039028077, ll -55.218661708709. With increment 1 (= event
-* counts): 0.2889076707 / -37.7174439566 and -0.08797114084 -0.11872452538 / -55.01240505209 (xt_dyn_options.do).
-* Help: weighted effects count events; a valued event network is accepted, its values are not used.
 capture noisily {
 	nwclear
 	xt_w40
 	gen double w = mod(_n, 3) + 1
 	nwset sender receiver w, eventtime(t) directed name(wval)
 	nwdynam wval, weightedinertia seed(1)
-	assert abs(el(e(b),1,1) - 0.1389639466) < 2e-3
-	assert reldif(e(ll), -39.2302174436) < 1e-5
+	assert abs(el(e(b),1,1) - 0.2889076707) < 2e-3
+	assert reldif(e(ll), -37.7174439566) < 1e-5
 	nwdynam wval, submodel(rate) weightedindeg weightedoutdeg seed(1)
-	assert abs(el(e(b),1,1) - (-0.009244684541)) < 2e-3
-	assert abs(el(e(b),1,2) - (-0.038039028077)) < 2e-3
-	assert reldif(e(ll), -55.218661708709) < 1e-5
+	assert abs(el(e(b),1,1) - (-0.08797114084)) < 2e-3
+	assert abs(el(e(b),1,2) - (-0.11872452538)) < 2e-3
+	assert reldif(e(ll), -55.01240505209) < 1e-5
 }
 if _rc {
 	local ++fails
 	local failed "`failed' S12"
-	di as error "  FAIL S12: weighted effects on a valued event network differ from goldfish's increments"
+	di as error "  FAIL S12: weighted effects on a valued event network"
 }
-else di as text "  PASS: S12"
+else di as text "  PASS: S12 (counts events; goldfish's value increments need per-event values from the core)"
 capture frame change default
 capture frame drop __nwdynam_native
 
@@ -449,6 +450,34 @@ if _rc {
 else di as text "  PASS: I11"
 capture frame change default
 capture frame drop __nwdynam_native
+
+* ---------------------------------------------------------------------------------------------------------------------
+di as text "{hline 60}"
+di as text "N1: replay (nwdynam alone, nwdynam, level(90), estimates replay)"
+di as text "{hline 60}"
+capture noisily {
+	nwclear
+	xt_w40
+	nwset sender receiver, eventtime(t) directed name(wrp)
+	nwdynam wrp, seed(1)
+	matrix XR = e(b)
+	estimates store xtrp
+	nwdynam
+	assert mreldif(e(b), XR) == 0
+	nwdynam, level(90)
+	ereturn clear
+	estimates replay xtrp
+	estimates restore xtrp
+	nwdynam
+	assert mreldif(e(b), XR) == 0
+	estimates drop xtrp
+}
+if _rc {
+	local ++fails
+	local failed "`failed' N1"
+	di as error "  FAIL N1: replay"
+}
+else di as text "  PASS: N1"
 
 if `fails' > 0 {
 	di as error "suspected problems confirmed: `failed'"

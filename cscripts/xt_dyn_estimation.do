@@ -70,10 +70,11 @@ program xt_post
 	estimates restore xt_st
 	assert mreldif(e(b), `b') == 0
 	assert "`e(cmd)'" == "nwdynam"
-	// POLICY N1 (owner: open): nwdynam has no replay; `nwdynam` alone refits the current network, so estimates replay
-	// fails (or refits). Recorded, not counted.
-	capture noisily estimates replay xt_st
-	if _rc di as text "  NOTE N1: estimates replay gives r(`=_rc') (no replay in nwdynam)"
+	// N1 (fixed): estimates replay and nwdynam alone (or with level()) redisplay the results without refitting
+	estimates replay xt_st
+	nwdynam
+	nwdynam, level(90)
+	assert mreldif(e(b), `b') == 0
 	estimates drop xt_st
 	di as text "  PASS: postestimation, `label'"
 end

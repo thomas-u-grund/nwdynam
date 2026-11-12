@@ -3,6 +3,26 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- Covariates (`same()`, `diff()`, `sim()`, `ego()`, `alter()`, `tertius()`, `egoalterint()`) are matched to the actors by their node labels (variable `_nwnode`, as after `nwload, xvars`) instead of by row position; a re-sorted dataset no longer misaligns them. Without `_nwnode` the data must still have one row per actor in actor order. An actor without a row, or with more than one, is refused (r(198)).
+- A missing covariate value is refused (r(416)); before, `alter()`/`ego()` failed with r(111) after many optimizer lines and `same()` silently treated missing as a category of its own.
+- Events with a missing time, or with a sender or receiver that is not an actor of the network (for example a missing id), are refused (r(416)); before, the native engines silently fitted them (an event without a time as the last event, a missing id as actor 0) and the other engines gave raw Mata errors.
+- `opportunities()`: as in goldfish, the realised receiver of every event must be among the available actors (r(198)); before, the fit ran with a log likelihood of -1e300. Rows with a missing value are refused (r(416)) instead of a raw Mata error.
+- A failed fit no longer leaves the user in the helper frame `__nwdynam_native` (which made every later `nwdynam` call fail with r(3598)); the helper scalar `__nwdynam_sequential` is removed after errors as well.
+- A self-loop event gives its message and r(3498); the message was lost (Mata r(3300)) because it was too long for Mata's `_error()`.
+- An effect with zero variance (for example a window that no earlier event falls into) is listed in `e(unidentified)` and in the note.
+- The window options and `seed()` no longer treat -1 as "not given": windows must be positive numbers, `seed()` an integer from 0 to 2147483647 (r(198) otherwise).
+- `nwdynam` without arguments (or with `level()` only) after an `nwdynam` fit redisplays the results, and `estimates replay` works (it used to refit the current network); new option `level()`, new stored result `e(header)`.
+- Help: `seed()` describes which effect sets start from random values (the default effect sets use fixed starts); weighted effects on a valued event network count events, a documented deviation from goldfish (which adds the event values); a note says so after the fit.
+
+### Results that change
+- Covariate effects on a dataset whose rows are not in actor order but carry `_nwnode`: the covariate is now matched to the right actors.
+- Fits that silently used events with a missing time or a missing actor now stop with r(416).
+
+Mata library `lnwdynam.mlib` rebuilt with Stata 17 (new function `dynam_node_rows()`, self-loop message). No plugin change.
+
 ## [1.2.5] - 2026-11-12
 
 ### Fixed

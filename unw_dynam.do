@@ -97,6 +97,7 @@
 */
 
 capture mata: mata drop DynamState()
+capture mata: mata drop dynam_node_rows()
 capture mata: mata drop DynamFitUnit1()
 capture mata: mata drop dynam_choice_loglik_unit1()
 capture mata: mata drop dynam_choice_eval_unit1()
@@ -153,6 +154,28 @@ real scalar dynam_group_end(pointer(class DynamState scalar) scalar pS, real sca
 	return(0)
 }
 
+/*
+	dynam_node_rows(): for every node name, its row in the label column lab of the data (0 when absent, -1 when the
+	label occurs more than once). Used by nwdynam.ado to match per-actor covariates to the actors by label.
+*/
+real colvector dynam_node_rows(string rowvector names, string colvector lab)
+{
+	transmorphic A
+	real colvector pos
+	real scalar k
+
+	A = asarray_create("string", 1)
+	for (k = 1; k <= rows(lab); k++) {
+		if (asarray_contains(A, lab[k])) asarray(A, lab[k], -1)
+		else asarray(A, lab[k], k)
+	}
+	pos = J(cols(names), 1, 0)
+	for (k = 1; k <= cols(names); k++) {
+		if (asarray_contains(A, names[k])) pos[k] = asarray(A, names[k])
+	}
+	return(pos)
+}
+
 void DynamState::init(real matrix rawevents, real scalar nn) {
 	real colvector ord
 	real scalar k
@@ -164,7 +187,9 @@ void DynamState::init(real matrix rawevents, real scalar nn) {
 	// must be rejected outright, not silently dropped.
 	for (k=1; k<=rows(rawevents); k++) {
 		if (rawevents[k,1] == rawevents[k,2]) {
-			_error("nwdynam: event " + strofreal(k) + " has sender == receiver (self-loop); DyNAM's choice sub-model is defined over i != j dyads only.")
+			// the message goes through errprintf(): _error() fails with r(3300) on texts longer than about 110 characters
+			errprintf("{p 0 0 2}nwdynam: event %s has sender == receiver (self-loop); DyNAM's choice sub-model is defined over i != j dyads only.{p_end}\n", strofreal(k))
+			exit(3498)
 		}
 	}
 

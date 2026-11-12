@@ -18,6 +18,7 @@
 {cmd:,}
 [{opt submodel(string)}
 {opt seed(#)}
+{opt level(#)}
 {opt sequential}
 {opt inertia}
 {opt recip}
@@ -54,7 +55,8 @@
 {synoptline}
 {syntab:General}
 {synopt:{opt submodel(string)}}which DyNAM sub-model to fit - {bf:choice} (the default), {bf:rate}, or {bf:choice_coordination}; see {bf:Description} below{p_end}
-{synopt:{opt seed(#)}}random-number seed set before estimation; most effect sets start the optimizer from random values near zero, so the seed makes the fit reproducible{p_end}
+{synopt:{opt seed(#)}}random-number seed set before estimation, an integer between 0 and 2147483647; the default effects of the choice and the rate sub-model (without window, weighted effect, {opt opportunities()}, {opt tie()} or two-mode network) start the optimizer from fixed values, all other effect sets from random values near zero, so the seed makes those fits reproducible{p_end}
+{synopt:{opt level(#)}}confidence level of the displayed intervals; default {cmd:level(95)}{p_end}
 {synopt:{opt sequential}}process events with identical times one after another instead of jointly; see {bf:Events with identical times}{p_end}
 
 {syntab:Effects (no decay - the entire prior event history counts equally)}
@@ -98,6 +100,13 @@
 {synopt:{opt intercept}}genuinely continuous-time competing-risks hazard; see {bf:Description} below{p_end}
 {synoptline}
 {p2colreset}{...}
+{pstd}Typed without arguments (or with {opt level()} only) after an {cmd:nwdynam} fit, {cmd:nwdynam} redisplays
+those results; {cmd:estimates replay} works as well. Without an earlier {cmd:nwdynam} fit, {cmd:nwdynam} alone fits the
+default model of the current network.{p_end}
+
+{pstd}{bf:Event data}: every event must have a time, a sender and a receiver that are actors of the network, and a
+sender different from the receiver. Events without a time or with a missing actor are refused (error 416), and so are
+self-loops (error 3498); drop such rows before {help nwset}.{p_end}
 {pstd}Giving no effect option at all fits the default effects of the chosen sub-model ({opt inertia}, {opt recip}, {opt indeg} for choice;
 {opt indeg}, {opt outdeg} for rate; {opt inertia}, {opt indeg} for choice_coordination). Giving
 one or more restricts the fit to exactly those. See {bf:Effect selection} below.{p_end}
@@ -260,10 +269,10 @@ ROW PER (event, available-actor) PAIR, not one row per actor. {it:evvar} is the 
 sequence number (1 through the number of events in {it:netname}, matching its own chronological
 event order); {it:actvar} is an actor ID (1 through the number of actors, matching {it:netname}'s
 own actor order) that was available as a candidate receiver for that event. An actor not listed for
-a given event is excluded from the risk set for that event only; an event with no rows at all in
-{it:evvar} and {it:actvar} has no candidates beyond the sender's own unconditional self-exclusion (still
-applied regardless of whether the sender itself is listed as available - checked directly against
-{cmd:goldfish}'s own behavior). Because {opt opportunities()} needs the event/available-actor shape
+a given event is excluded from the risk set for that event only; the sender is always excluded,
+whether or not it is listed (checked directly against {cmd:goldfish}'s own behavior). As in
+{cmd:goldfish}, the realised receiver of every event must be listed as available for that event
+(error 198 otherwise); rows with a missing value are refused (error 416). Because {opt opportunities()} needs the event/available-actor shape
 and {opt same()}, {opt diff()}, {opt sim()}, {opt alter()}, {opt ego()}, {opt tertius()}, and
 {opt egoalterint()} each need the one-row-per-actor shape, the current dataset cannot satisfy both
 at once - {opt opportunities()} cannot be combined with any of those seven options in the same
@@ -401,7 +410,7 @@ to add - {opt ego()} already is it.
 restrict their own effect independently to a real-time recency cutoff instead - a tie counts as
 present only if its most recent occurrence happened within {it:#} time units of the current event
 (a hard cutoff, not a decaying weight; a tie can expire once too much time has passed, even though
-it was present a moment earlier). {it:#} is in the same time units as the network's own
+it was present a moment earlier). {it:#} is a positive number, in the same time units as the network's own
 {opt eventtime()} values. Each window option on its own both selects its own effect and sets its
 window - no separate {opt inertia}, {opt recip}, {opt indeg}, or {opt outdeg} flag is needed (the
 same convention {help nwergm}'s own {opt gwesp(real)} uses). {opt inertiawindow()} and
@@ -420,7 +429,9 @@ values for each.
 count tie PRESENCE (has this ever happened, yes or no). {opt weightedinertia}, {opt weightedrecip},
 {opt weightedindeg}, {opt weightedoutdeg} switch that same effect to count the cumulative NUMBER of
 prior events instead (repeated events between the same dyad, or by the same actor, all count) -
-matching {cmd:goldfish}'s own {opt weighted(TRUE)} argument. Self-activating, the same convention
+matching {cmd:goldfish}'s own {opt weighted(TRUE)} argument when every event counts 1. Deviation from
+{cmd:goldfish}: the tie values of a valued event network are not used; {cmd:goldfish} adds them as increments
+of the weighted statistics, {cmd:nwdynam} adds 1 per event (a note says so after the fit). Self-activating, the same convention
 as the window options above - {opt weightedinertia} alone both selects {opt inertia} and switches
 it to counting. {opt weightedindeg} and {opt weightedoutdeg} apply under BOTH sub-models (unlike
 {opt indegwindow()} and {opt outdegwindow()}, which remain {opt submodel(rate)}-only - a real, disclosed
@@ -447,10 +458,13 @@ not yet wired here, a real, disclosed scope limit matching choice's own already-
 
 {pstd}
 Covariate options ({opt same()}, {opt diff()}, {opt sim()}, {opt ego()}, {opt alter()},
-{opt tertius()}, {opt egoalterint()}) require the current Stata dataset, at the time {cmd:nwdynam}
-is called, to have exactly one row per actor in {it:netname}'s own actor order - not the
-event-level dataset {it:netname} itself was declared from. Use {help nwload}'s {opt xvars} option
-first:
+{opt tertius()}, {opt egoalterint()}) are read from the current Stata dataset at the time
+{cmd:nwdynam} is called - not the event-level dataset {it:netname} itself was declared from. When the
+dataset has the node-label variable {bf:_nwnode} (as after {help nwload}'s {opt xvars} option), each
+actor is matched to its row by label, whatever the sort order of the data; every actor must have
+exactly one row. Without {bf:_nwnode} the dataset must have exactly one row per actor, in
+{it:netname}'s own actor order. A missing covariate value is refused (error 416). Use
+{help nwload}'s {opt xvars} option first:
 
 	{cmd:. nwload mynet, xvars}
 	{cmd:. gen floor = ...}
@@ -634,7 +648,8 @@ elapsed time between events, not just their order (combining {opt intercept} wit
 {synopt:{bf:e(submodel)}}{bf:choice}, {bf:rate} or {bf:choice_coordination}{p_end}
 {synopt:{bf:e(effects)}}space-separated list of the effects actually fit, in their fixed order{p_end}
 {synopt:{bf:e(ties)}}{bf:none} (all times distinct), {bf:simultaneous} or {bf:sequential} (option){p_end}
-{synopt:{bf:e(unidentified)}}effects without a usable standard error (missing or above 100); empty when all are identified{p_end}
+{synopt:{bf:e(unidentified)}}effects without a usable standard error (missing, zero or above 100); empty when all are identified{p_end}
+{synopt:{bf:e(header)}}heading of the results table{p_end}
 
 {p2col 5 20 24 2: Matrices}{p_end}
 {synopt:{bf:e(b)}}coefficient vector (columns named per {bf:e(effects)}; with {opt intercept} the first is {bf:Intercept}){p_end}
