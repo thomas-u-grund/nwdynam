@@ -13,11 +13,26 @@ program nwdynam, eclass
 		nwdynam_version
 		exit
 	}
-	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist numeric min=2 max=2) INERTIAWINDOW(real -1) RECIPWINDOW(real -1) INDEGWINDOW(real -1) OUTDEGWINDOW(real -1) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) INTERCEPT SEED(integer -1) SEQUENTIAL]
+	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(real -1) RECIPWINDOW(real -1) INDEGWINDOW(real -1) OUTDEGWINDOW(real -1) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) INTERCEPT SEED(integer -1) SEQUENTIAL]
 	set more off
 	_nwdynam_libcheck
 
 	_nwsyntax `netname', max(1)
+
+	if "`egoalterint'" != "" {
+		foreach __nwdynam_v of local egoalterint {
+			capture confirm numeric variable `__nwdynam_v'
+			if _rc {
+				di as error "{p 0 0 2}egoalterint(): {bf:`__nwdynam_v'} is a string variable; egoalterint() needs two numeric variables (make a numeric variable first, for example with {help encode}).{p_end}"
+				error 109
+			}
+		}
+	}
+	// opportunities() needs one row per (event, available actor); the covariate options need one row per actor
+	if "`opportunities'" != "" & "`same'`diff'`sim'`alter'`ego'`tertius'`egoalterint'" != "" {
+		di as error "{p 0 0 2}opportunities() cannot be combined with same(), diff(), sim(), alter(), ego(), tertius() or egoalterint(): opportunities() reads one row per event and available actor from the data in memory, the covariate options read one row per actor - see {help nwdynam}.{p_end}"
+		error 198
+	}
 
 	// `__nwdynam_n1' (mode-1 actor count, contiguous indices 1..n1 in
 	// this package's own combined actor-index convention) - 0 sentinel
@@ -318,6 +333,10 @@ program nwdynam, eclass
 		}
 		if "`weightedinertia'`weightedrecip'`weightedindeg'`weightedoutdeg'" != "" {
 			di as error "{p 0 0 2}weighted effects are not yet verified for two-mode (bipartite) networks - see {help nwdynam}.{p_end}"
+			error 198
+		}
+		if "`tie'`opportunities'" != "" {
+			di as error "{p 0 0 2}tie() and opportunities() are not yet verified for two-mode (bipartite) networks - see {help nwdynam}.{p_end}"
 			error 198
 		}
 	}

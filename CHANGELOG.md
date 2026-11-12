@@ -3,6 +3,13 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- `opportunities()` combined with `same()`, `diff()`, `sim()`, `alter()`, `ego()`, `tertius()` or `egoalterint()` stops with a clear error (error 198). The combination was documented as not possible but was not checked.
+- `tie()` and `opportunities()` on a two-mode network stop with a clear error (error 198), as the other effects not yet verified for two-mode networks do.
+- `egoalterint()` with a string variable stops with a message that names the option and the variable (error 109).
+
 ## [1.2.4] - 2026-11-12
 
 ### Fixed

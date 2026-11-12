@@ -74,7 +74,7 @@
 {synopt:{opth ego(varname)}}rate sub-model only - the candidate's own covariate value, no comparison{p_end}
 {synopt:{opth alter(varname)}}choice and choice_coordination sub-models - the candidate receiver's own covariate value, no comparison{p_end}
 {synopt:{opth tertius(varname)}}all sub-models - mean covariate value of the candidate's own in-neighbors{p_end}
-{synopt:{opt egoalterint(varlist)}}choice and choice_coordination sub-models - interaction of the sender's and candidate's own covariate values (exactly two variables){p_end}
+{synopt:{opt egoalterint(varlist)}}choice and choice_coordination sub-models - interaction of the sender's and candidate's own covariate values (exactly two numeric variables){p_end}
 
 {syntab:Windowed effects (real-time recency cutoff - self-activating, see Description)}
 {synopt:{opt inertiawindow(#)}}choice sub-model only - recency cutoff on {opt inertia}; self-activates {opt inertia}{p_end}
@@ -247,7 +247,7 @@ approach, traced to a {cmd:goldfish}-internal representation detail (its own "ex
 convention applied by raw row/column index rather than actual actor identity) that could not be
 confidently reverse-engineered in the time available - disclosed as a real gap rather than shipped
 with an unverified formula. {opt trans}, {opt cycle}, {opt commonsender}, {opt four},
-{opt nodetrans}, and every windowed or weighted effect are likewise not yet verified for two-mode
+{opt nodetrans}, {opt tie()}, {opt opportunities()} and every windowed or weighted effect are likewise not yet verified for two-mode
 and are rejected outright.
 
 {pstd}
@@ -267,7 +267,7 @@ applied regardless of whether the sender itself is listed as available - checked
 and {opt same()}, {opt diff()}, {opt sim()}, {opt alter()}, {opt ego()}, {opt tertius()}, and
 {opt egoalterint()} each need the one-row-per-actor shape, the current dataset cannot satisfy both
 at once - {opt opportunities()} cannot be combined with any of those seven options in the same
-{cmd:nwdynam} call.
+{cmd:nwdynam} call (it stops with error 198).
 
 	{cmd:. nwdynam mynet, inertia opportunities(evvar actvar)}
 
