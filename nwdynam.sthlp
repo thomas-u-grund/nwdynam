@@ -55,7 +55,7 @@
 {syntab:General}
 {synopt:{opt submodel(string)}}which DyNAM sub-model to fit - {bf:choice} (the default), {bf:rate}, or {bf:choice_coordination}; see {bf:Description} below{p_end}
 {synopt:{opt seed(#)}}random-number seed before estimation{p_end}
-{synopt:{opt sequential}}process events with identical times one after another (old behaviour); see {bf:Events with identical times}{p_end}
+{synopt:{opt sequential}}process events with identical times one after another instead of jointly; see {bf:Events with identical times}{p_end}
 
 {syntab:Effects (no decay - the entire prior event history counts equally)}
 {synopt:{opt inertia}}choice sub-model only{p_end}
@@ -132,7 +132,7 @@ the rows within a group therefore does not matter (all events of the group share
 contributes its own term to the log likelihood). With {opt intercept}, the time between events is zero inside a group.
 Windowed effects see the group at its common time. Data without tied times are not affected. Coarsening the time
 stamps of a log (rounding to days, say) creates ties and changes the estimates: that is intended, and it matches
-{cmd:goldfish}. {opt sequential} gives the behaviour of nwdynam before 1.1.0: events with equal times are processed
+{cmd:goldfish}. {opt sequential} processes events with equal times
 one after another in the order in which the network lists them, each seeing the earlier ones of its group (this is
 what {help nwrem} does). A note under the header says how many events share a time point.
 
@@ -154,7 +154,7 @@ network via {help nwset}'s {opt eventtime(varname)} option:
 	{cmd:. nwdynam mynet, submodel(rate)}
 
 {pstd}
-{opt intercept} ("expansion batch 17") requests goldfish's own genuinely continuous-time
+{opt intercept} requests goldfish's own genuinely continuous-time
 competing-risks hazard variant of the rate sub-model - each actor is modeled as an independent
 Poisson clock with hazard {it:exp(beta'X_i(t))}, and the fitted model becomes sensitive to the
 ACTUAL SCALE of elapsed real time between events (matching {it:netname}'s own {opt eventtime()}
@@ -168,7 +168,7 @@ against real {cmd:goldfish} - there is no assumed risk period before the first o
 {opt submodel(rate)} only, matching {cmd:goldfish}'s own architecture (only the rate sub-model has
 ever had an intercept concept - the choice sub-model's own conditional logit has none, by
 construction). {opt weightedindeg}, {opt weightedoutdeg}, and two-mode (bipartite) networks
-("expansion batch 18") are verified together with {opt intercept} - the same statistic swaps the
+are verified together with {opt intercept} - the same statistic swaps the
 NO-intercept engine already uses turned out to compose correctly with the hazard-integral
 aggregation exactly as written, confirmed by exact agreement with real {cmd:goldfish}.
 {opt indegwindow()} and {opt outdegwindow()} combined with {opt intercept} remain REJECTED - a real,
@@ -275,22 +275,20 @@ applied regardless of whether the sender itself is listed as available - checked
 and {opt same()}, {opt diff()}, {opt sim()}, {opt alter()}, {opt ego()}, {opt tertius()}, and
 {opt egoalterint()} each need the one-row-per-actor shape, the current dataset cannot satisfy both
 at once - {opt opportunities()} cannot be combined with any of those seven options in the same
-{cmd:nwdynam} call, a real, disclosed v1 limitation.
+{cmd:nwdynam} call.
 
 	{cmd:. nwdynam mynet, inertia opportunities(evvar actvar)}
 
 {pstd}
-{opt tie(netname)} ("cross-network effects, v1 scope") reads whether a tie exists in a SEPARATE,
+{opt tie(netname)} reads whether a tie exists in a SEPARATE,
 already-declared network (a tie is present when its value is greater than 0; negative values are not ties) - goldfish's own {cmd:tie(network, ...)} effect, {it:s(i,j,t,x) = I(x_ij>0)},
 identical in shape to {opt inertia} but reading a fixed, exogenous matrix instead of the
 dependent network's own event history. {it:netname} must be an ORDINARY (non-{opt eventtime()})
 network with exactly the same number of actors as the network being fit, in the same row/index
 order (row/index correspondence, not label matching, the same convention {opt same()} and
 {opt diff()} already use). Valid under {opt submodel(choice)} and {opt submodel(choice_coordination)}
-(extended to the latter "batch 16" - the coordination engine's own full-matrix requirement makes
-{opt tie()} the simplest possible addition there, since the exogenous matrix is used directly with
-no further computation), matching {cmd:goldfish}'s own effect table exactly; rejected under
-{opt submodel(rate)}. This v1 only supports a STATIC exogenous network - {it:netname} cannot itself
+(under the latter the exogenous matrix is used directly, with no further computation), matching {cmd:goldfish}'s own effect table exactly; rejected under
+{opt submodel(rate)}. Only a STATIC exogenous network is supported - {it:netname} cannot itself
 be an {opt eventtime()}-declared (dynamically evolving) network; {cmd:goldfish}'s own fuller
 generality, where the SECOND network can itself change over time, remains a real, disclosed
 follow-on. {opt weighted}, {opt window()}, and {opt ignoreRep} are likewise not yet supported for
@@ -479,7 +477,7 @@ tested, with matching coefficients to within 1e-2. The two-mode support, {opt op
 each compared with {cmd:goldfish} on small hand-traceable event sequences; the package's tests repeat these comparisons.
 
 {pstd}
-Selecting exactly the three original structural effects, with neither window active, reuses a
+Selecting exactly the default structural effects of the choice or rate sub-model, with no window active, reuses a
 native-eligible (C) engine - any other active set dispatches to a Mata-only engine instead
 (no native backend for a genuine subset or a windowed fit yet, a disclosed follow-on). Both
 engines were confirmed to agree with each other on the full structural-effect set.
@@ -492,7 +490,7 @@ itself always runs in Mata. If the compiled plugin file for the platform is miss
 fit runs on the pure-Mata engine, which gives the same results but is slower, and
 {cmd:nwdynam} prints one warning line (once per call) naming the missing file; reinstall the
 package with {bf:net install nwdynam, replace} to restore the plugin. The warning appears
-only for the original structural effect set of the choice and rate sub-models, the
+only for the default structural effect set of the choice and rate sub-models, the
 engines that use the plugin; all other effect sets always run in Mata and print no
 warning.
 
