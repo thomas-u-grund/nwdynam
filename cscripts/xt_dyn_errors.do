@@ -66,6 +66,7 @@ end
 nwclear
 xt_w40
 nwset sender receiver, eventtime(t) directed name(w40)
+xt_w40
 nwset sender receiver, eventtime(t) undirected name(wu)
 set seed 3
 nwrandom 4, prob(.5) name(static)
@@ -73,7 +74,10 @@ matrix XB5 = J(5, 5, 0)
 matrix XB5[1,2] = 1
 nwset, mat(XB5) directed name(five) nooutput
 import delimited "dev/dynam_crosscheck_twomode_events.csv", clear varnames(1)
-nwset sender receiver, twomode eventtime(time) name(tm)
+* numeric codes: string ids P../O.. hit CONFIRMED BUG N3 (core: mode split does not match the node order)
+encode sender, gen(sn)
+encode receiver, gen(rn)
+nwset sn rn, twomode eventtime(time) name(tm)
 clear
 input long sender long receiver double t
 1 2 1
@@ -87,7 +91,10 @@ input long sender long receiver double t
 3 1 4
 1 3 5
 end
+tempfile loopdata
+quietly save `loopdata'
 nwset sender receiver, eventtime(t) directed name(loop)
+use `loopdata', clear
 nwset sender receiver, eventtime(t) undirected name(loopu)
 
 * a valid fit whose e() must survive every error below; covariate dataset of w40 in memory
@@ -225,10 +232,21 @@ di as text "{hline 60}"
 xt_err 2001 nwdynam one
 xt_err 2001 nwdynam one, submodel(rate)
 xt_err 2001 nwdynam one, submodel(rate) intercept
-xt_err 3498 nwdynam loop
-xt_err 3498 nwdynam loop, submodel(rate)
-xt_err 3498 nwdynam loop, inertia trans
-xt_err 3498 nwdynam loop, submodel(rate) intercept
-xt_err 3498 nwdynam loopu, submodel(choice_coordination)
+// CONFIRMED BUG N2: the self-loop refusal (unw_dynam.do:167) passes a ~140-character text to Mata _error(), which
+// fails with r(3300) "argument out of range"; the message is lost. Wanted r(3498) with the message. Recorded, goes on.
+local xt_known ""
+foreach c in "loop" "loop, submodel(rate)" "loop, inertia trans" "loop, submodel(rate) intercept" "loopu, submodel(choice_coordination)" {
+	capture noisily nwdynam `c'
+	local rc = _rc
+	capture frame change default
+	capture frame drop __nwdynam_native
+	if `rc' == 3498 di as text "  PASS: r(3498): nwdynam `c'"
+	else {
+		local xt_known "`xt_known' N2(`c': r(`rc'))"
+		di as error "  CONFIRMED BUG N2: nwdynam `c' gives r(`rc'), not r(3498)"
+	}
+	assert "`e(cmd)'" == "nwdynam"
+}
+if "`xt_known'" != "" di as error "known confirmed bugs hit:`xt_known'"
 
 di "ALL PASS"

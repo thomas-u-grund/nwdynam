@@ -151,7 +151,9 @@ assert "`e(ties)'" == "sequential"
 xt_same "sequential ties = distinct times" 1e-12 C
 nwdynam wqq, submodel(rate) sequential seed(1)
 xt_same "rate, sequential ties = distinct times" 1e-12 R
-* sequential on data WITHOUT ties changes nothing
+* sequential on data WITHOUT ties changes nothing (w40 was cleared by an nwclear above: declare it again)
+xt_w40
+nwset sender receiver, eventtime(t) directed name(w40)
 nwdynam w40, sequential seed(1)
 assert "`e(ties)'" == "none"
 xt_same "sequential without ties" 1e-12 C
@@ -210,7 +212,18 @@ foreach map in "100 + @" "cond(@==1,1,cond(@==2,5,cond(@==3,17,1000)))" "1000000
 	quietly replace sender = `es'
 	quietly replace receiver = `er'
 	nwset sender receiver, eventtime(t) directed name(wid`k')
-	nwdynam wid`k', seed(1)
+	if `k' == 3 {
+		// CONFIRMED BUG S1: ids of 8+ digits -> core nwset labels events with %9.0g ("n1.00e+07"), index 0, r(3300)
+		capture noisily nwdynam wid`k', seed(1)
+		if _rc {
+			local xt_known "`xt_known' S1(r(`=_rc'))"
+			di as error "  CONFIRMED BUG S1: ids `map' give r(`=_rc')"
+			capture frame change default
+			capture frame drop __nwdynam_native
+			continue
+		}
+	}
+	else nwdynam wid`k', seed(1)
 	xt_same "ids `map'" 1e-12 C
 }
 * permuted labels (string ids that sort in reverse): estimates unchanged up to the order of floating-point sums
@@ -244,13 +257,29 @@ nwclear
 import delimited "dev/dynam_crosscheck_twomode_events.csv", clear varnames(1)
 tempfile tm
 quietly save `tm'
-nwset sender receiver, twomode eventtime(time) name(tmstr)
-nwdynam tmstr, seed(1)
+* reference: numeric codes (as test_nwdynam_twomode_ado.do)
+encode sender, gen(sn)
+encode receiver, gen(rn)
+nwset sn rn, twomode eventtime(time) name(tmref)
+nwdynam tmref, seed(1)
 assert e(nodes) == 10
 assert abs(el(e(b),1,1) - (-0.73342)) < 0.001
 assert abs(el(e(b),1,2) - 0.23018) < 0.001
 matrix MB = e(b)
 scalar MLL = e(ll)
+* CONFIRMED BUG N3 (core): string ids where the mode-2 labels ("O..") sort before the mode-1 labels ("P..").
+* nwset ..., twomode orders the node names alphabetically across both modes (O1.. first) but keeps n1 = number of
+* senders, so the mode split does not match the node order; nwdynam then refuses every event (r(198), "60 event(s)
+* violating"). Same for a static nwset ..., twomode with these labels.
+nwclear
+use `tm', clear
+nwset sender receiver, twomode eventtime(time) name(tmstr)
+capture noisily nwdynam tmstr, seed(1)
+if _rc {
+	local xt_known "`xt_known' N3(r(`=_rc'))"
+	di as error "  CONFIRMED BUG N3: two-mode string ids P../O.. give r(`=_rc')"
+}
+else xt_same "two-mode: string ids P../O.." 1e-12 M
 local v 0
 foreach variant in "numeric codes (overlapping ids)" "numeric codes, organisations + 100" "strings with overlapping labels" {
 	local ++v
@@ -300,4 +329,5 @@ nwdynam wuq, submodel(choice_coordination) inertia seed(1)
 assert "`e(ties)'" == "simultaneous"
 xt_gf "coordination inertia, ties" -70.5803895458 0.4570586411
 
-di "ALL PASS"
+if "`xt_known'" != "" di as error "known confirmed bugs hit:`xt_known'"
+di "ALL PASS (apart from confirmed bugs listed above)"

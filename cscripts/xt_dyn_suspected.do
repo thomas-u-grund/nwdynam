@@ -41,6 +41,7 @@ scalar XLL = e(ll)
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S1 (ids of 8+ digits already fail: %9.0g prints 1.00e+07)
 di as text "S1: numeric actor ids above 16,777,216 (not exact in float)"
 di as text "{hline 60}"
 * core nwset.ado:285-286 labels events "n" + strofreal(id) (%9.0g); nwfromedge.ado:218, 246 builds the node names
@@ -61,9 +62,12 @@ if _rc {
 	di as error "  FAIL S1 (r(`=_rc')): large numeric ids"
 }
 else di as text "  PASS: S1"
+capture frame change default
+capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S2 (same cause as S1)
 di as text "S2: numeric actor ids 1e9 .. 4e9"
 di as text "{hline 60}"
 capture noisily {
@@ -83,9 +87,12 @@ if _rc {
 	di as error "  FAIL S2 (r(`=_rc')): ids of 1e9 and more"
 }
 else di as text "  PASS: S2"
+capture frame change default
+capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S3 (native choice/rate engines fit the event with sender index 0 silently, e(N)=41; multi engine r(3301); missing receiver: silent on W40, r(111) on small data)
 di as text "S3: an event row with a missing sender"
 di as text "{hline 60}"
 * the event gets actor index 0 (label "n." not found); DynamState indexes column 0: expected a raw Mata error
@@ -107,9 +114,12 @@ if _rc {
 	di as error "  FAIL S3: missing sender gives a raw Mata error or is counted as an event"
 }
 else di as text "  PASS: S3"
+capture frame change default
+capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S4 (choice: timeless event used as last event; rate+intercept: r(111) after "initial values not feasible")
 di as text "S4: an event row with a missing time"
 di as text "{hline 60}"
 * nwset stores the missing time; sorting puts it last: the event silently becomes the LAST event (and with
@@ -134,9 +144,12 @@ if _rc {
 	di as error "  FAIL S4: an event without a time is used (placed last)"
 }
 else di as text "  PASS: S4"
+capture frame change default
+capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S5 (accepted, ll = -1e300; goldfish refuses)
 di as text "S5: opportunities() that do not contain the realised receiver"
 di as text "{hline 60}"
 * goldfish 1.6.12 refuses ("Active node 3 not available in event 1"); nwdynam.ado:686-735 checks only the ranges
@@ -160,9 +173,12 @@ if _rc {
 	di as error "  FAIL S5: realised receiver outside the opportunity set accepted (goldfish refuses)"
 }
 else di as text "  PASS: S5"
+capture frame change default
+capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S6 (raw Mata r(3200) conformability error)
 di as text "S6: opportunities() data with missing values"
 di as text "{hline 60}"
 * the range checks skip missing values (nwdynam.ado:694, 699 'if !missing()'); the Mata matrix then holds a missing
@@ -186,9 +202,12 @@ if _rc {
 	di as error "  FAIL S6: missing values in the opportunities() data give a raw Mata error"
 }
 else di as text "  PASS: S6"
+capture frame change default
+capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S7 (cosmetic: scalar leaks)
 di as text "S7: scalar __nwdynam_sequential left behind after an error"
 di as text "{hline 60}"
 * nwdynam.ado:656-657 creates the scalar before the event-count check (659-662) and the opportunities()/tie()/two-mode
@@ -212,10 +231,13 @@ if _rc {
 	di as error "  FAIL S7: scalar __nwdynam_sequential remains after an error"
 }
 else di as text "  PASS: S7"
+capture frame change default
+capture frame drop __nwdynam_native
 capture scalar drop __nwdynam_sequential
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S8 (cosmetic: V = 0 not flagged; e(unidentified) empty)
 di as text "S8: an effect that is constant zero is not reported as unidentified"
 di as text "{hline 60}"
 * inertiawindow(0.5) on integer times: no earlier event is ever within 0.5, the statistic is 0 for every candidate,
@@ -235,9 +257,12 @@ if _rc {
 	di as error "  FAIL S8: flat effect not flagged in e(unidentified)"
 }
 else di as text "  PASS: S8"
+capture frame change default
+capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S9 (minor: every window option (-1) silently means no window)
 di as text "S9: inertiawindow(-1) is the internal 'not given' value"
 di as text "{hline 60}"
 * nwdynam.ado:16 INERTIAWINDOW(real -1); 362: -1 = not given. inertiawindow(-2) is refused (r(198)), inertiawindow(-1)
@@ -252,9 +277,12 @@ if _rc {
 	di as error "  FAIL S9: inertiawindow(-1) accepted as 'no window'"
 }
 else di as text "  PASS: S9"
+capture frame change default
+capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S10 (minor: seed(-1) silently unseeded)
 di as text "S10: seed(-1) is the internal 'not given' value"
 di as text "{hline 60}"
 * nwdynam.ado:16 SEED(integer -1), 642-644: -1 means 'no seed'. The 8-effect set runs on the multi engine with random
@@ -276,9 +304,12 @@ if _rc {
 	di as error "  FAIL S10: seed(-1) is ignored"
 }
 else di as text "  PASS: S10"
+capture frame change default
+capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S11 (alter()/ego(): r(111) after "initial values not feasible"; same(): missing silently treated as its own category)
 di as text "S11: covariate with a missing value"
 di as text "{hline 60}"
 * same()/diff()/sim()/alter()/ego()/tertius()/egoalterint() are read with st_data (nwdynam.ado:603-640) and never
@@ -287,12 +318,13 @@ capture noisily {
 	nwload w40, xvars
 	gen double x = _n
 	replace x = . in 2
+	// wanted: a clean refusal (198 or 416), not r(111) after optimizer messages; same() must not run silently
 	capture noisily nwdynam w40, alter(x) seed(1)
-	assert _rc != 0
-	assert _rc < 3000 | _rc > 3999
+	assert inlist(_rc, 198, 416)
 	capture noisily nwdynam w40, submodel(rate) ego(x) seed(1)
-	assert _rc != 0
-	assert _rc < 3000 | _rc > 3999
+	assert inlist(_rc, 198, 416)
+	capture noisily nwdynam w40, same(x) seed(1)
+	assert inlist(_rc, 198, 416)
 }
 if _rc {
 	local ++fails
@@ -300,9 +332,12 @@ if _rc {
 	di as error "  FAIL S11: missing covariate value accepted"
 }
 else di as text "  PASS: S11"
+capture frame change default
+capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S12 (goldfish deviation, not documented; R rechecked 2026-11-12: 0.1389639466 / -39.2302174436)
 di as text "S12 (DESIGN): weighted effects ignore the event values (goldfish uses them as increments)"
 di as text "{hline 60}"
 * goldfish 1.6.12 with increment = mod(i, 3) + 1: inertia(weighted=TRUE) 0.1389639466, ll -39.2302174436; rate
@@ -328,9 +363,12 @@ if _rc {
 	di as error "  FAIL S12: weighted effects on a valued event network differ from goldfish's increments"
 }
 else di as text "  PASS: S12"
+capture frame change default
+capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
+* CONFIRMED BUG S13 (owner 2026-11-12: covariates must be matched via _nwnode when present, not by row)
 di as text "S13 (DESIGN): covariate dataset re-sorted although _nwnode is there"
 di as text "{hline 60}"
 * read by row position (help: 'one row per actor, in actor order'). Closed form for alter(x4), x4 = (0,0,0,1):
@@ -351,8 +389,67 @@ if _rc {
 	di as error "  FAIL S13: covariate read by row position from a re-sorted dataset"
 }
 else di as text "  PASS: S13"
+capture frame change default
+capture frame drop __nwdynam_native
 
 * ---------------------------------------------------------------------------------------------------------------------
+* CONFIRMED BUG N2 (triage): self-loop refusal (unw_dynam.do:167) passes a ~140-character text to Mata _error(), which
+* fails with r(3300) "argument out of range"; the message is lost. Wanted r(3498) with the message.
+di as text "{hline 60}"
+di as text "N2: self-loop event gives r(3498) with its message"
+di as text "{hline 60}"
+capture noisily {
+	nwclear
+	xt_w40
+	replace receiver = sender in 3
+	nwset sender receiver, eventtime(t) directed name(wloop)
+	capture noisily nwdynam wloop, seed(1)
+	assert _rc == 3498
+}
+if _rc {
+	local ++fails
+	local failed "`failed' N2"
+	di as error "  FAIL N2: self-loop refusal loses its message (r(3300))"
+}
+else di as text "  PASS: N2"
+capture frame change default
+capture frame drop __nwdynam_native
+
+* CONFIRMED BUG I11 (notes item 11, triage): when optimize() fails inside the native unit1 fit, the user is left in
+* frame __nwdynam_native (own data apparently gone) and every later nwdynam call fails with r(3598) "frame
+* __nwdynam_native already defined" until the frame is dropped by hand (unw_dynam.do:457-460, 519-520, 683-684).
+* Fault injection: 9 events, the last one with a missing receiver: the default choice fit stops with r(111).
+di as text "{hline 60}"
+di as text "I11: frame __nwdynam_native after a failed native fit"
+di as text "{hline 60}"
+capture noisily {
+	nwclear
+	clear
+	quietly set obs 9
+	quietly gen long sender = .
+	quietly gen long receiver = .
+	mata: st_store((1::8), ("sender","receiver"), (1,2\2,3\3,1\1,3\2,1\4,2\1,4\3,4))
+	quietly replace sender = 2 in 9
+	quietly gen double t = _n
+	nwset sender receiver, eventtime(t) directed name(wfail)
+	capture noisily nwdynam wfail, seed(1)
+	local rc1 = _rc
+	assert "`c(frame)'" == "default"
+	nwclear
+	xt_w40
+	nwset sender receiver, eventtime(t) directed name(w40)
+	capture noisily nwdynam w40, seed(1)
+	assert _rc == 0
+}
+if _rc {
+	local ++fails
+	local failed "`failed' I11"
+	di as error "  FAIL I11: failed native fit leaves frame __nwdynam_native (now in frame `c(frame)')"
+}
+else di as text "  PASS: I11"
+capture frame change default
+capture frame drop __nwdynam_native
+
 if `fails' > 0 {
 	di as error "suspected problems confirmed: `failed'"
 	exit 9
