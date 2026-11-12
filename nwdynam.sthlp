@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.2.3  11nov2026 author: Thomas Grund}{...}
+{* *! version 1.2.4  12nov2026 author: Thomas Grund}{...}
 {marker topic}
 {helpb nwtopical##analysis_dynamicmodels:[NW-2.6.8] Dynamic & Event-Based Models}
 
@@ -49,32 +49,32 @@
 {opt intercept}]
 
 
-{synoptset 20 tabbed}{...}
+{synoptset 24 tabbed}{...}
 {synopthdr}
 {synoptline}
 {syntab:General}
 {synopt:{opt submodel(string)}}which DyNAM sub-model to fit - {bf:choice} (the default), {bf:rate}, or {bf:choice_coordination}; see {bf:Description} below{p_end}
-{synopt:{opt seed(#)}}random-number seed before estimation{p_end}
+{synopt:{opt seed(#)}}random-number seed set before estimation; most effect sets start the optimizer from random values near zero, so the seed makes the fit reproducible{p_end}
 {synopt:{opt sequential}}process events with identical times one after another instead of jointly; see {bf:Events with identical times}{p_end}
 
 {syntab:Effects (no decay - the entire prior event history counts equally)}
-{synopt:{opt inertia}}choice sub-model only{p_end}
+{synopt:{opt inertia}}choice and choice_coordination sub-models{p_end}
 {synopt:{opt recip}}choice sub-model only{p_end}
-{synopt:{opt indeg}}both sub-models (different meaning in each - see {bf:Description}){p_end}
-{synopt:{opt outdeg}}both sub-models (different meaning in each - see {bf:Description}){p_end}
-{synopt:{opt trans}}choice sub-model only - two-path closure (transitivity){p_end}
+{synopt:{opt indeg}}all sub-models (different meaning in choice and rate - see {bf:Description}){p_end}
+{synopt:{opt outdeg}}choice and rate sub-models (different meaning in each - see {bf:Description}){p_end}
+{synopt:{opt trans}}choice and choice_coordination sub-models - two-path closure (transitivity){p_end}
 {synopt:{opt cycle}}choice sub-model only - two-path closure (cyclical){p_end}
 {synopt:{opt commonsender}}choice sub-model only - two-path closure (common sender){p_end}
 {synopt:{opt commonreceiver}}choice sub-model only - two-path closure (common receiver){p_end}
-{synopt:{opt four}}choice sub-model only - three-path closure{p_end}
-{synopt:{opt nodetrans}}both sub-models - embeddedness in transitive structures{p_end}
-{synopt:{opth same(varname)}}choice sub-model only - homophily on a per-actor covariate{p_end}
-{synopt:{opth diff(varname)}}choice sub-model only - heterophily (absolute difference) on a per-actor covariate{p_end}
-{synopt:{opth sim(varname)}}choice sub-model only - homophily by similarity (negative absolute difference) on a per-actor covariate{p_end}
+{synopt:{opt four}}choice and choice_coordination sub-models - three-path closure{p_end}
+{synopt:{opt nodetrans}}all sub-models - embeddedness in transitive structures{p_end}
+{synopt:{opth same(varname)}}choice and choice_coordination sub-models - homophily on a per-actor covariate{p_end}
+{synopt:{opth diff(varname)}}choice and choice_coordination sub-models - heterophily (absolute difference) on a per-actor covariate{p_end}
+{synopt:{opth sim(varname)}}choice and choice_coordination sub-models - homophily by similarity (negative absolute difference) on a per-actor covariate{p_end}
 {synopt:{opth ego(varname)}}rate sub-model only - the candidate's own covariate value, no comparison{p_end}
-{synopt:{opth alter(varname)}}choice sub-model only - the candidate receiver's own covariate value, no comparison{p_end}
-{synopt:{opth tertius(varname)}}both sub-models - mean covariate value of the candidate's own in-neighbors{p_end}
-{synopt:{opt egoalterint(varlist)}}choice sub-model only - interaction of the sender's and candidate's own covariate values (exactly two variables){p_end}
+{synopt:{opth alter(varname)}}choice and choice_coordination sub-models - the candidate receiver's own covariate value, no comparison{p_end}
+{synopt:{opth tertius(varname)}}all sub-models - mean covariate value of the candidate's own in-neighbors{p_end}
+{synopt:{opt egoalterint(varlist)}}choice and choice_coordination sub-models - interaction of the sender's and candidate's own covariate values (exactly two variables){p_end}
 
 {syntab:Windowed effects (real-time recency cutoff - self-activating, see Description)}
 {synopt:{opt inertiawindow(#)}}choice sub-model only - recency cutoff on {opt inertia}; self-activates {opt inertia}{p_end}
@@ -85,32 +85,23 @@
 {syntab:Weighted effects (count instead of presence - self-activating, see Description)}
 {synopt:{opt weightedinertia}}choice sub-model only - self-activates {opt inertia}{p_end}
 {synopt:{opt weightedrecip}}choice sub-model only - self-activates {opt recip}{p_end}
-{synopt:{opt weightedindeg}}both sub-models - self-activates {opt indeg}{p_end}
-{synopt:{opt weightedoutdeg}}both sub-models - self-activates {opt outdeg}{p_end}
+{synopt:{opt weightedindeg}}choice and rate sub-models - self-activates {opt indeg}{p_end}
+{synopt:{opt weightedoutdeg}}choice and rate sub-models - self-activates {opt outdeg}{p_end}
 
 {syntab:Opportunity restriction (choice sub-model only)}
 {synopt:{opt opportunities(varlist)}}per-event candidate risk-set restriction; see {bf:Description} below{p_end}
 
 {syntab:Cross-network effects}
-{synopt:{opt tie(netname)}}presence in a SEPARATE, static exogenous network; see {bf:Description} below{p_end}
+{synopt:{opt tie(netname)}}choice and choice_coordination sub-models - presence in a SEPARATE, static exogenous network; see {bf:Description} below{p_end}
 
 {syntab:Intercept (rate sub-model only)}
 {synopt:{opt intercept}}genuinely continuous-time competing-risks hazard; see {bf:Description} below{p_end}
 {synoptline}
 {p2colreset}{...}
-{pstd}Giving no effect option at all fits every structural effect for the chosen sub-model. Giving
+{pstd}Giving no effect option at all fits the default effects of the chosen sub-model ({opt inertia}, {opt recip}, {opt indeg} for choice;
+{opt indeg}, {opt outdeg} for rate; {opt inertia}, {opt indeg} for choice_coordination). Giving
 one or more restricts the fit to exactly those. See {bf:Effect selection} below.{p_end}
 
-
-{title:Version}
-
-{p 8 17 2}
-{cmd:nwdynam version}
-{p_end}
-
-{pstd}
-{cmd:nwdynam version} displays the installed release of {cmd:nwdynam}, the version of the {cmd:nwcommands} core, the license and the version of the R package that the results were compared with, and the native plugin in use. It stores the release in {cmd:r(version)} and {cmd:r(date)}, the core version in {cmd:r(core)}, and the license in {cmd:r(license)}. After estimation, the release that produced the results is in {cmd:e(version)}; quote it when reporting an analysis. {cmd:nwversion} lists the core and all installed model packages.
-{p_end}
 
 {title:Description}
 
@@ -146,8 +137,9 @@ sub-model (verified against the reference R implementation on both a toy example
 risks hazard variant instead - see its own paragraph below.
 
 {pstd}
-{cmd:nwdynam} requires {it:netname} to already be declared as an event-type, directed temporal
-network via {help nwset}'s {opt eventtime(varname)} option:
+{cmd:nwdynam} requires {it:netname} to already be declared as an event-type temporal
+network via {help nwset}'s {opt eventtime(varname)} option; it must be directed (or two-mode) for the choice and rate
+sub-models and undirected for {opt submodel(choice_coordination)}:
 
 	{cmd:. nwset sender receiver, eventtime(t) name(mynet)}
 	{cmd:. nwdynam mynet}
@@ -301,8 +293,9 @@ follow-on. {opt weighted}, {opt window()}, and {opt ignoreRep} are likewise not 
 
 {pstd}
 {bf:Effect selection}: each sub-model has a fixed roster of effects, documented below. By default
-{cmd:nwdynam} fits the structural effects of the chosen sub-model together - {opt inertia},
-{opt recip}, {opt indeg} for {bf:choice}; {opt indeg}, {opt outdeg} for {bf:rate}. Passing one or
+{cmd:nwdynam} fits a default set of effects of the chosen sub-model together - {opt inertia},
+{opt recip}, {opt indeg} for {bf:choice}; {opt indeg}, {opt outdeg} for {bf:rate}; {opt inertia}, {opt indeg} for
+{bf:choice_coordination}. For a two-mode network the defaults are {opt inertia}, {opt indeg} (choice) and {opt outdeg} (rate). Passing one or
 more effect options restricts the fit to exactly that subset instead, matching {help nwrem}'s own
 per-effect-flag convention. An effect option that does not apply to the chosen {opt submodel()}
 is rejected with a clear error rather than silently ignored.
@@ -477,9 +470,10 @@ tested, with matching coefficients to within 1e-2. The two-mode support, {opt op
 each compared with {cmd:goldfish} on small hand-traceable event sequences; the package's tests repeat these comparisons.
 
 {pstd}
-Selecting exactly the default structural effects of the choice or rate sub-model, with no window active, reuses a
-native-eligible (C) engine - any other active set dispatches to a Mata-only engine instead
-(no native backend for a genuine subset or a windowed fit yet, a disclosed follow-on). Both
+Selecting exactly the default effects of the choice or rate sub-model on a one-mode network, with no window, no weighted effect,
+no {opt opportunities()}, no {opt tie()} and (rate) no {opt intercept}, reuses a
+native-eligible (C) engine - any other specification, and every {opt submodel(choice_coordination)} fit, dispatches to a Mata-only engine instead
+(no native backend for these yet). Both
 engines were confirmed to agree with each other on the full structural-effect set.
 
 {marker native}{...}
@@ -499,27 +493,6 @@ warning.
 If the Mata library of nwdynam (lnwdynam.mlib) does not load in your Stata (for example r(3499) because it was built by a newer Stata than yours), build it with your own Stata:
 {cmd:nwinstall, buildmata(nwdynam)} fetches the Mata source, compiles it and installs the library; restart Stata afterwards.
 The build clears the data and the Mata objects in memory. See {help nwinstall##buildmata:nwinstall}.
-
-{title:Stored results}
-
-	Scalars
-	  {bf:e(N)}		number of events
-	  {bf:e(nodes)}		number of actors
-	  {bf:e(ntimes)}		number of distinct time points
-	  {bf:e(ll)}		log likelihood at the MLE
-
-	Macros
-	  {bf:e(cmd)}		{bf:nwdynam}
-	  {bf:e(title)}		sub-model-specific title string
-	  {bf:e(depvar)}	name of the event network fit
-	  {bf:e(submodel)}	{bf:choice} or {bf:rate}
-	  {bf:e(effects)}	space-separated list of the effects actually fit, in their fixed order
-	  {bf:e(ties)}		{bf:none} (all times distinct), {bf:simultaneous} or {bf:sequential} (option)
-	  {bf:e(unidentified)}	effects without a usable standard error (missing or above 100); empty when all are identified
-
-	Matrices
-	  {bf:e(b)}		coefficient vector (columns named per {bf:e(effects)})
-	  {bf:e(V)}		variance-covariance matrix (observed information)
 
 
 {title:Examples}
@@ -644,6 +617,44 @@ elapsed time between events, not just their order (combining {opt intercept} wit
 	{cmd:. nwdynam chat, submodel(rate) intercept weightedoutdeg}
 
 
+{title:Stored results}
+
+{synoptset 20 tabbed}{...}
+{p2col 5 20 24 2: Scalars}{p_end}
+{synopt:{bf:e(N)}}number of events{p_end}
+{synopt:{bf:e(nodes)}}number of actors{p_end}
+{synopt:{bf:e(ntimes)}}number of distinct time points{p_end}
+{synopt:{bf:e(ll)}}log likelihood at the MLE{p_end}
+
+{p2col 5 20 24 2: Macros}{p_end}
+{synopt:{bf:e(cmd)}}{bf:nwdynam}{p_end}
+{synopt:{bf:e(version)}}release of {cmd:nwdynam} that produced the results{p_end}
+{synopt:{bf:e(title)}}sub-model-specific title string{p_end}
+{synopt:{bf:e(depvar)}}name of the event network fit{p_end}
+{synopt:{bf:e(submodel)}}{bf:choice}, {bf:rate} or {bf:choice_coordination}{p_end}
+{synopt:{bf:e(effects)}}space-separated list of the effects actually fit, in their fixed order{p_end}
+{synopt:{bf:e(ties)}}{bf:none} (all times distinct), {bf:simultaneous} or {bf:sequential} (option){p_end}
+{synopt:{bf:e(unidentified)}}effects without a usable standard error (missing or above 100); empty when all are identified{p_end}
+
+{p2col 5 20 24 2: Matrices}{p_end}
+{synopt:{bf:e(b)}}coefficient vector (columns named per {bf:e(effects)}; with {opt intercept} the first is {bf:Intercept}){p_end}
+{synopt:{bf:e(V)}}variance-covariance matrix (observed information){p_end}
+
+
+{title:Version}
+
+{p 8 17 2}
+{cmd:nwdynam version}
+{p_end}
+
+{pstd}
+{cmd:nwdynam version} displays the installed release of {cmd:nwdynam}, the version of the {cmd:nwcommands} core, the license and the version of the R package that the results were compared with, and
+the native plugin in use. It stores the release in {cmd:r(version)} and {cmd:r(date)}, the core version in {cmd:r(core)}, the plugin in {cmd:r(plugin)}, the R package
+it was compared with in {cmd:r(reference)}, and the license in {cmd:r(license)}. After estimation, the release that
+produced the results is in {cmd:e(version)}; quote it when reporting an analysis. {cmd:nwversion} lists the core and all installed model packages.
+{p_end}
+
+
 {title:Also see}
 
 {p 4 14 2}Help: {help nwset}, {help nwattime}, {help nwrem}, {help nwergm}, {help nwsaom}{p_end}
@@ -659,4 +670,4 @@ If the plugin of your platform is missing, older than the {cmd:.ado} files or do
 {cmd:make} are needed) and installs the plugin; restart Stata afterwards. See {help nwinstall##buildplugin:nwinstall}.
 
 {hline}
-{pstd}{it:nwdynam version 1.2.3, 11 November 2026}{p_end}{* nwversion}
+{pstd}{it:nwdynam version 1.2.4, 12 November 2026}{p_end}{* nwversion}

@@ -3,6 +3,15 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [1.2.4] - 2026-11-12
+
+### Fixed
+- **Help file checked against the code.** Without effect options the fit uses a fixed default set of effects (it does not fit every effect); the option table says which sub-models each effect applies to and which network types each sub-model takes; `seed()`, the native engine and the stored results are described as they are.
+- **Help file layout.** Stored results wrap at the window width; very long source lines are broken up.
+- **The help file describes the current behaviour only**: references to earlier versions and development notes are removed; the option `sequential` is described by what it does.
+
+Results do not change.
+
 ## [1.2.3] - 2026-11-11
 
 ### Fixed
