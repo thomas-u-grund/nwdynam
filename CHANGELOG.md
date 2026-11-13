@@ -3,6 +3,13 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] - 2026-11-13
+
+### Changed
+- Rebuilt for nwcommands 3.23.0; requires core 3.23.0 or later.
+
+Tested on: TO BE FILLED
+
 ## [1.3.0] - 2026-11-13
 
 ### Results that change (read before you re-run old analyses)
