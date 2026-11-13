@@ -3,7 +3,13 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.3.0] - 2026-11-13
+
+### Results that change (read before you re-run old analyses)
+- Covariate effects on a dataset whose rows are not in actor order but carry `_nwnode`: the covariate is now matched to the right actors.
+- Fits that silently used events with a missing time or a missing actor now stop with r(416).
+- Valued event networks (a third variable in `nwset ..., eventtime()`): `weightedinertia`, `weightedrecip`, `weightedindeg` and `weightedoutdeg` sum the event values instead of counting events, as goldfish does. Values of 0 or below also change the unweighted effects: an event with the value 0 creates no tie, a negative value can remove one (every effect then sees the tie as absent), and the unweighted `indeg`/`outdeg` add the sign of each tie value (a tie below 0 counts -1), all as in goldfish. With only positive values the unweighted effects do not change; networks without a value variable do not change at all.
+- Windows on a network with values of 0 or below use the summed value of the events within the window (a tie is present while it is above 0); with positive values nothing changes.
 
 ### Fixed
 - Covariates (`same()`, `diff()`, `sim()`, `ego()`, `alter()`, `tertius()`, `egoalterint()`) are matched to the actors by their node labels (variable `_nwnode`, as after `nwload, xvars`) instead of by row position; a re-sorted dataset no longer misaligns them. Without `_nwnode` the data must still have one row per actor in actor order. An actor without a row, or with more than one, is refused (r(198)).
@@ -19,13 +25,12 @@ project uses [Semantic Versioning](https://semver.org/).
 - Event values are used as in goldfish (needs the core with event values, `nwset sender receiver value, eventtime(time)`): the value of an event is added to the tie (goldfish's `increment`); a tie exists while its value is above 0. Before, every event counted 1 and the values were ignored. Events with a missing value are refused (r(416)).
 - A weighted effect can be combined with its own window (`weightedinertia inertiawindow()`, `weightedrecip recipwindow()`, `weightedindeg indegwindow()`, `weightedoutdeg outdegwindow()`): the summed value of the events within the window, as goldfish's `weighted = TRUE, window =`. Before, the combination was refused (r(198)).
 
-### Results that change
-- Covariate effects on a dataset whose rows are not in actor order but carry `_nwnode`: the covariate is now matched to the right actors.
-- Fits that silently used events with a missing time or a missing actor now stop with r(416).
-- Valued event networks (a third variable in `nwset ..., eventtime()`): `weightedinertia`, `weightedrecip`, `weightedindeg` and `weightedoutdeg` sum the event values instead of counting events, as goldfish does. Values of 0 or below also change the unweighted effects: an event with the value 0 creates no tie, a negative value can remove one (every effect then sees the tie as absent), and the unweighted `indeg`/`outdeg` add the sign of each tie value (a tie below 0 counts -1), all as in goldfish. With only positive values the unweighted effects do not change; networks without a value variable do not change at all.
-- Windows on a network with values of 0 or below use the summed value of the events within the window (a tie is present while it is above 0); with positive values nothing changes.
+### Changed
+- Rebuilt for nwcommands 3.22.0; requires core 3.22.0 or later.
 
-Mata library `lnwdynam.mlib` rebuilt with Stata 17 against the new core library (new functions `dynam_node_rows()` and `dynam_window_expire()`, self-loop message, event values). The native plugin `dynam_sim` takes the event values (codes 101/102/111/112, used only when some value is 0 or below); macOS rebuilt, Linux and Windows are rebuilt by CI.
+Mata library `lnwdynam.mlib` rebuilt with Stata 17 against the new core library (new functions `dynam_node_rows()` and `dynam_window_expire()`, self-loop message, event values). The native plugin `dynam_sim` takes the event values (used only when some value is 0 or below); rebuilt for macOS, Linux and Windows.
+
+Tested on macOS with Stata 17 BE, Stata 18 BE and StataNow 19.5 MP (the full test suite) and on Windows 11 with StataNow 19.5 MP. Linux: plugins built by CI, not tested in Stata.
 
 ## [1.2.5] - 2026-11-12
 
