@@ -1,6 +1,6 @@
 # nwdynam
 
-<!--version-->**Version 1.3.1** (released 13 November 2026)<!--/version-->
+<!--version-->**Version 1.3.2** (released 13 November 2026)<!--/version-->
 
 `nwdynam` fits dynamic network actor models (DyNAM) to relational event data declared as an event-type temporal network with `nwset ..., eventtime()`: a rate model (when does an actor act) and a choice model (whom does the actor choose), with network, covariate, window and coordination effects. The hot likelihood/gradient evaluation runs in a native plugin.
 
@@ -10,7 +10,7 @@ own repository; it needs the core package nwcommands but no other model package.
 ## Install
 
 1. Install the core package first (Stata): `net install nwcommands, from(https://nwcommands.org/net/) replace`
-   (alternative: `from(https://raw.githubusercontent.com/thomas-u-grund/nwcommands/main/)`). Required: nwcommands (core), version 3.23.0 or later.
+   (alternative: `from(https://raw.githubusercontent.com/thomas-u-grund/nwcommands/main/)`). Required: nwcommands (core), version 3.24.0 or later.
 2. Install this package from the core: `nwinstall, modelpkg(nwdynam)`.
    `nwinstall, everything` installs the core and all four model packages in one step; `nwinstall, all` installs the core only and `nwinstall, models` adds the model packages to it.
 
@@ -20,7 +20,7 @@ own repository; it needs the core package nwcommands but no other model package.
 
 To install a specific version, point `from()` at the release tag (GitHub serves every tag under its own raw URL), for example version 1.1.3:
 
-       net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/v1.3.1/) replace
+       net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/v1.3.2/) replace
 
 `net describe nwdynam` shows the version and distribution date, `nwdynam version` the package, core and plugin versions, and `e(version)`
 holds the package version in the stored results. Release history: `CHANGELOG.md`; how releases are made: `RELEASING.md`.
