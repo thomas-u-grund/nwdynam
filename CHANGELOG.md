@@ -30,7 +30,7 @@ project uses [Semantic Versioning](https://semver.org/).
 
 Mata library `lnwdynam.mlib` rebuilt with Stata 17 against the new core library (new functions `dynam_node_rows()` and `dynam_window_expire()`, self-loop message, event values). The native plugin `dynam_sim` takes the event values (used only when some value is 0 or below); rebuilt for macOS, Linux and Windows.
 
-Tested on macOS with Stata 17 BE, Stata 18 BE and StataNow 19.5 MP (the full test suite) and on Windows 11 with StataNow 19.5 MP. Linux: plugins built by CI, not tested in Stata.
+Tested on macOS with Stata 17 BE, Stata 18 BE and StataNow 19.5 MP (the full test suite). Windows and Linux: plugins built by CI; the Windows plugin was not yet tested in Stata for this release.
 
 ## [1.2.5] - 2026-11-12
 
