@@ -165,3 +165,16 @@ answer those codes with r(198) until CI rebuilds them.
 Mata `exp()` of a number above about 709.78 is missing and `sum()` ignores missing values: an evaluator that sums `exp(lp)` silently loses the hazard term and a line search then sees a spurious improvement. Return a missing log likelihood instead (the cached and the native evaluator do, above lp = 700).
 
 The plugin code 3 (rate with intercept, indeg/outdeg) is absent from plugin binaries of earlier releases: the fit probes the loaded plugin once with `_stata(..., 1)` and falls back to the cached Mata evaluator when the call fails (tested with the 1.3.2 macOS plugin). The Linux and Windows plugins are rebuilt by the CI workflow on a push that touches `native/`.
+
+
+## Plugin protocol: an old plugin crashes Stata on a short argument string, and a loaded plugin cannot be replaced
+
+nwdynam 1.4.0 and earlier plugins (protocol 1) read three numbers from the argument string BEFORE they look at the algorithm code; a probe such as
+`"99"` makes `atof(NULL)` crash Stata (no error message, the log just stops). `DynamNat::open()` therefore probes with `"99 0 0 0 0 0 0"`; the old plugin answers r(198) and the glue
+reports r(3495). Within one Stata session the first plugin loaded for the program name `dynamnative` stays, even when another file of the same name is put first on the adopath
+(that is why `test_nwdynam_oldplugin.do` and `test_nwdynam_noplugin.do` are separate files). Stata's `shell` passes compound quotes (`` `"..."' ``) through to the shell: use plain `"..."` in shell lines. `git -C <dir>` works in `shell`, `cd dir && ...` did not.
+
+## The Mata evaluators are reference code only
+
+`cscripts/ref_dynam_mata.do` holds the former evaluators (`dynam_*_loglik_grad_*`, the cached rate-with-intercept evaluator); `unw_dynam.do` has none. A test that needs them runs `do unw_dynam.do` and then `do cscripts/ref_dynam_mata.do`.
+The plugin tests compare log likelihood, gradient and Hessian on random cases (`test_nwdynam_plugin_*.do`); when a statistic changes, change it in BOTH places. The fit tests use `lib/lnwdynam.mlib`: rebuild it with Stata 17 (`lib/build.do`) after every change of `unw_dynam.do`, or the test silently runs the old Mata.

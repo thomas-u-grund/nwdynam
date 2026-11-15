@@ -579,29 +579,6 @@ program nwdynam, eclass
 		local __nwdynam_sep ","
 	}
 
-	// The full ORIGINAL-structural-effects-only case (whether reached
-	// via the default or by naming exactly those effects explicitly),
-	// with NEITHER effect windowed, reuses the ORIGINAL, native-eligible
-	// Unit1/RateUnit1 engine - any other active set (a genuine subset,
-	// any attribute effect, OR any window) dispatches to the Mata-only
-	// Multi engine instead (unw_dynam.do's own header comment: no
-	// native backend for anything but the exact original fixed set yet,
-	// a real, disclosed follow-on). Checked against the EXACT
-	// active-vector string rather than a effect count, since
-	// `__nwdynam_effnames' is now longer than the native engine's own
-	// fixed 3/2-effect scope.
-	if "`submodel'" == "choice" {
-		local __nwdynam_usemulti = ("`__nwdynam_active'" != "1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0") | (`__nwdynam_windowinertia' < 1e300) | (`__nwdynam_windowrecip' < 1e300) | `__nwdynam_weightedinertia' | `__nwdynam_weightedrecip' | `__nwdynam_weightedindeg' | `__nwdynam_weightedoutdeg' | (`__nwdynam_n1' > 0) | ("`opportunities'" != "") | ("`tie'" != "")
-	}
-	else if "`submodel'" == "rate" {
-		local __nwdynam_usemulti = ("`__nwdynam_active'" != "1,1,0,0,0") | (`__nwdynam_windowindeg' < 1e300) | (`__nwdynam_windowoutdeg' < 1e300) | `__nwdynam_weightedindeg' | `__nwdynam_weightedoutdeg' | (`__nwdynam_n1' > 0)
-	}
-	// choice_coordination has no native-eligible fixed-effect-set engine
-	// at all (unlike choice/rate's own DynamFitUnit1/DynamFitRateUnit1)
-	// - always dispatches to DynamCoordFitMulti, so `__nwdynam_usemulti'
-	// is left unset/unused for this submodel (the final dispatch below
-	// branches on `submodel' directly instead).
-
 	// same()/diff()/sim()/ego()/alter()/tertius()/egoalterint() covariates are read from the current dataset. When it
 	// carries the node labels (variable _nwnode, as after nwload, xvars), every actor is matched to its row by label,
 	// whatever the sort order; otherwise the data must have one row per actor, in actor order. Missing values are
@@ -829,28 +806,14 @@ program nwdynam, eclass
 		}
 	}
 
-	// Mata fallback warning: the original-structural-effects engines (choice and rate, no intercept) use the compiled
-	// plugin; if its file is missing the fit runs on the slower Mata engine. Say so, once per call (as nwergm does).
-	if "`submodel'" == "choice" | ("`submodel'" == "rate" & "`intercept'" == "") {
-		if !`__nwdynam_usemulti' {
-			mata: st_local("__nwdynam_natav", strofreal(DynamNativeAvailable()))
-			if !`__nwdynam_natav' _nwdynam_slowwarn
-		}
-	}
-
-	// scalar read by the Mata engines (option sequential); the fit runs inside capture so that a failure inside Mata
-	// still restores the user's frame (the native engine works in a frame of its own) and drops the helpers
+	// scalar read when the event stream is prepared (option sequential); the fit runs inside capture so that a failure inside Mata
+	// or the plugin still restores the user's frame (the native engine works in a frame of its own) and drops the helpers
 	capture scalar drop __nwdynam_sequential
 	scalar __nwdynam_sequential = ("`sequential'" != "")
 	local __nwdynam_frame = c(frame)
 	capture noisily {
 		if "`submodel'" == "choice" {
-			if `__nwdynam_usemulti' {
-				mata: DynamChoiceFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_same', `__nwdynam_diff', `__nwdynam_sim', `__nwdynam_alter', `__nwdynam_tertius', `__nwdynam_egoalterint1', `__nwdynam_egoalterint2', `__nwdynam_windowinertia', `__nwdynam_windowrecip', `__nwdynam_weightedinertia', `__nwdynam_weightedrecip', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_oppmat', `__nwdynam_tiemat', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
-			}
-			else {
-				mata: DynamFitUnit1(`__nwdynam_events', `nodes', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
-			}
+			mata: DynamChoiceFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_same', `__nwdynam_diff', `__nwdynam_sim', `__nwdynam_alter', `__nwdynam_tertius', `__nwdynam_egoalterint1', `__nwdynam_egoalterint2', `__nwdynam_windowinertia', `__nwdynam_windowrecip', `__nwdynam_weightedinertia', `__nwdynam_weightedrecip', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_oppmat', `__nwdynam_tiemat', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
 			local __nwdynam_title "Dynamic Network Actor Model, choice sub-model (conditional logit, MLE)"
 			local __nwdynam_hdr "Dynamic Network Actor Model - choice sub-model (MLE)"
 		}
@@ -861,13 +824,8 @@ program nwdynam, eclass
 				local __nwdynam_title "Dynamic Network Actor Model, rate sub-model, WITH intercept (continuous-time competing-risks hazard, MLE)"
 				local __nwdynam_hdr "Dynamic Network Actor Model - rate sub-model, with intercept (MLE)"
 			}
-			else if `__nwdynam_usemulti' {
-				mata: DynamRateFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_ego', `__nwdynam_tertius', `__nwdynam_windowindeg', `__nwdynam_windowoutdeg', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
-				local __nwdynam_title "Dynamic Network Actor Model, rate sub-model, no intercept (ordinal partial likelihood, MLE)"
-				local __nwdynam_hdr "Dynamic Network Actor Model - rate sub-model, no intercept (MLE)"
-			}
 			else {
-				mata: DynamFitRateUnit1(`__nwdynam_events', `nodes', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
+				mata: DynamRateFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_ego', `__nwdynam_tertius', `__nwdynam_windowindeg', `__nwdynam_windowoutdeg', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
 				local __nwdynam_title "Dynamic Network Actor Model, rate sub-model, no intercept (ordinal partial likelihood, MLE)"
 				local __nwdynam_hdr "Dynamic Network Actor Model - rate sub-model, no intercept (MLE)"
 			}

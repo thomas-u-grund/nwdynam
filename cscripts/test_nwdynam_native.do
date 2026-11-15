@@ -1,127 +1,86 @@
 cscript
 
-* The core package nwcommands is found through the environment variable NWCORE (path of the core checkout).
+* nwdynam plugin on a small hand-built event stream and on a random stream, against the Mata reference evaluators of the unit-1
+* models (cscripts/ref_dynam_mata.do):
+*  (1) the plugin is found and answers with the protocol of this package;
+*  (2) log likelihood and gradient of the three-effect choice model and the two-effect rate model, several theta vectors;
+*  (3) full fits of nwdynam: the estimates equal the maximum found by Mata's optimize() on the reference evaluator.
 local nwcore : env NWCORE
 if `"`nwcore'"' == "" {
 	di as error "set the environment variable NWCORE to the directory of the nwcommands (core) package"
 	exit 198
 }
-adopath ++ `"`nwcore'"'
-adopath ++ `"`c(pwd)'"'
 quietly do `"`nwcore'/unw_core.do"'
-* (not needed here: unw_ergm.do belongs to another package)
 do unw_dynam.do
-
-/*
-	Certifies the native (C) DyNAM log-likelihood/gradient plugin
-	(native/dynam_sim.c) against its own Mata reference implementation.
-	Like nwgraph.c's own betweenness kernel (cscripts/test_nwgraph_native.do)
-	and UNLIKE nwergm's own stochastic MCMC backend, this is a
-	DETERMINISTIC, exact numerical computation - native and Mata must
-	agree up to ordinary floating-point summation-order noise, not a
-	statistical tolerance (see dynam_sim.c's own header CERTIFICATION
-	CONTRACT).
-
-	(1) DynamNativeAvailable()/DynamNativePluginPath() resolve to a
-	    real, existing file on this platform (macOS, built via
-	    native/Makefile's own `make macos-dynam_sim` target).
-	(2) The native evaluator (dynam_choice_eval_unit1_native()/
-	    dynam_rate_eval_unit1_native()) reproduces the Mata evaluator
-	    (dynam_choice_loglik_grad_unit1()/dynam_rate_loglik_grad_unit1())
-	    EXACTLY (ll to 1e-9, gradient to 1e-9) at several different theta
-	    vectors - not just at the eventual MLE - on a small hand-built
-	    event stream with repeat contacts (so inertia/recip/indeg are
-	    all genuinely exercised, not left at their all-zero first-event
-	    values throughout).
-	(3) DynamFitUnit1()/DynamFitRateUnit1() (the full fit, not just one
-	    evaluation) converge to the same coefficients whether native is
-	    available or not - confirmed by forcing the Mata fallback path
-	    directly (temporarily renaming the plugin file) and comparing
-	    against the native-backed default run on identical data, same
-	    pattern test_nwgraph_native.do's own part (3) uses.
-*/
+do cscripts/ref_dynam_mata.do
 
 mata: mata set matastrict off
 mata: printf("DynamNativeAvailable() = %g (path: %s)\n", DynamNativeAvailable(), DynamNativePluginPath())
 mata: assert(DynamNativeAvailable() == 1)
 
-// Small hand-built event stream, 5 actors, repeat contacts included
-// (1->2 happens twice, 3->1 happens twice) so inertia/recip/indeg are
-// all genuinely nonzero and exercised by event 5 onward, not just the
-// trivial all-zero first-event case every effect starts at.
 mata:
-S = DynamState()
-S.init((1,2,1 \ 2,1,2 \ 3,1,3 \ 1,2,4 \ 3,1,5 \ 4,3,6 \ 2,4,7 \ 5,1,8), 5)
-end
+void cmpunit1() {
+	class DynamState scalar S
+	class DynamNat scalar NT
+	real matrix thetas_c, thetas_r, H
+	real rowvector theta, gm, gn
+	real scalar row, llm, lln
+	S = DynamState()
+	S.init((1,2,1 \ 2,1,2 \ 3,1,3 \ 1,2,4 \ 3,1,5 \ 4,3,6 \ 2,4,7 \ 5,1,8), 5)
+	thetas_c = (0,0,0 \ 0.5,-0.3,0.2 \ -1.1,2.4,-0.6 \ 3,3,3)
+	NT = DynamNat()
+	NT.open()
+	NT.setup(1, &S, (1,1,1,J(1,14,0)), J(7,5,0), (1e300,1e300,1e300,1e300), (0,0,0,0), 0, J(0,0,0), J(0,0,0))
+	for (row=1; row<=rows(thetas_c); row++) {
+		theta = thetas_c[row,.]
+		dynam_choice_loglik_grad_unit1(theta, &S, llm, gm)
+		dynam_nat_eval(1, theta, &NT, lln, gn, H)
+		printf("choice row %g: |ll diff|=%g  |grad diff|=%g\n", row, abs(llm - lln), max(abs(gm - gn)))
+		assert(abs(llm - lln) < 1e-9)
+		assert(max(abs(gm - gn)) < 1e-9)
+	}
+	NT.close()
+	thetas_r = (0,0 \ 0.5,-0.3 \ -1.1,2.4 \ 3,3)
+	NT = DynamNat()
+	NT.open()
+	NT.setup(2, &S, (1,1,0,0,0), J(7,5,0), (1e300,1e300,1e300,1e300), (0,0,0,0), 0, J(0,0,0), J(0,0,0))
+	for (row=1; row<=rows(thetas_r); row++) {
+		theta = thetas_r[row,.]
+		dynam_rate_loglik_grad_unit1(theta, &S, llm, gm)
+		dynam_nat_eval(1, theta, &NT, lln, gn, H)
+		printf("rate row %g: |ll diff|=%g  |grad diff|=%g\n", row, abs(llm - lln), max(abs(gm - gn)))
+		assert(abs(llm - lln) < 1e-9)
+		assert(max(abs(gm - gn)) < 1e-9)
+	}
+	NT.close()
+}
+cmpunit1()
 
-// --- (2) choice sub-model: several theta vectors, not just the MLE ---
-mata:
-ll_mata = .
-ll_native = .
-grad_mata = J(1,3,.)
-grad_native = J(1,3,.)
-dummyH = J(1,1,.)
-
-thetas_choice = (0,0,0 \ 0.5,-0.3,0.2 \ -1.1,2.4,-0.6 \ 3,3,3)
-for (row=1; row<=rows(thetas_choice); row++) {
-	theta = thetas_choice[row,.]
-	dynam_choice_loglik_grad_unit1(theta, &S, ll_mata, grad_mata)
-
-	origframe = st_framecurrent()
-	stata("capture frame drop __nwdynam_native")
-	stata("frame create __nwdynam_native")
-	st_framecurrent("__nwdynam_native")
-	st_addobs(max((S.nevents, 4)))
-	__j1 = st_addvar("double", "v1")
-	__j2 = st_addvar("double", "v2")
-	__j3 = st_addvar("double", "v3")
-	st_store((1::S.nevents), ("v1","v2"), S.events[.,(1,2)])
-	stata("capture program dynamnative, plugin using(" + char(34) + DynamNativePluginPath() + char(34) + ")")
-	dynam_choice_eval_unit1_native(1, theta, &S, ll_native, grad_native, dummyH)
-	st_framecurrent(origframe)
-	stata("capture frame drop __nwdynam_native")
-
-	printf("choice row %g: |ll diff|=%g  |grad diff|=%g\n", row, abs(ll_mata - ll_native), max(abs(grad_mata - grad_native)))
-	assert(abs(ll_mata - ll_native) < 1e-9)
-	assert(max(abs(grad_mata - grad_native)) < 1e-9)
+// maximum of the reference likelihood with Mata's optimize() (BFGS, numerical Hessian)
+void refmax(real matrix ev, real scalar n, real scalar choice, string scalar bname, string scalar llname) {
+	class DynamState scalar S
+	transmorphic S_opt
+	S = DynamState()
+	S.init(ev, n)
+	S_opt = optimize_init()
+	optimize_init_evaluator(S_opt, choice ? &dynam_choice_eval_unit1() : &dynam_rate_eval_unit1())
+	optimize_init_evaluatortype(S_opt, "d1")
+	optimize_init_params(S_opt, J(1, choice ? 3 : 2, 0.01))
+	optimize_init_argument(S_opt, 1, &S)
+	optimize_init_technique(S_opt, "bfgs")
+	optimize_init_which(S_opt, "max")
+	optimize_init_tracelevel(S_opt, "none")
+	optimize_init_conv_warning(S_opt, "off")
+	optimize_init_conv_ptol(S_opt, 1e-12)
+	optimize_init_conv_vtol(S_opt, 1e-14)
+	optimize_init_conv_nrtol(S_opt, 1e-12)
+	optimize_init_conv_maxiter(S_opt, 200)
+	(void) optimize(S_opt)
+	st_matrix(bname, optimize_result_params(S_opt))
+	st_numscalar(llname, optimize_result_value(S_opt))
 }
 end
 
-// --- (2) rate sub-model: several theta vectors ---
-mata:
-ll_mata = .
-ll_native = .
-grad_mata = J(1,2,.)
-grad_native = J(1,2,.)
-dummyH = J(1,1,.)
-
-thetas_rate = (0,0 \ 0.5,-0.3 \ -1.1,2.4 \ 3,3)
-for (row=1; row<=rows(thetas_rate); row++) {
-	theta = thetas_rate[row,.]
-	dynam_rate_loglik_grad_unit1(theta, &S, ll_mata, grad_mata)
-
-	origframe = st_framecurrent()
-	stata("capture frame drop __nwdynam_native")
-	stata("frame create __nwdynam_native")
-	st_framecurrent("__nwdynam_native")
-	st_addobs(max((S.nevents, 3)))
-	__j1 = st_addvar("double", "v1")
-	__j2 = st_addvar("double", "v2")
-	__j3 = st_addvar("double", "v3")
-	st_store((1::S.nevents), ("v1","v2"), S.events[.,(1,2)])
-	stata("capture program dynamnative, plugin using(" + char(34) + DynamNativePluginPath() + char(34) + ")")
-	dynam_rate_eval_unit1_native(1, theta, &S, ll_native, grad_native, dummyH)
-	st_framecurrent(origframe)
-	stata("capture frame drop __nwdynam_native")
-
-	printf("rate row %g: |ll diff|=%g  |grad diff|=%g\n", row, abs(ll_mata - ll_native), max(abs(grad_mata - grad_native)))
-	assert(abs(ll_mata - ll_native) < 1e-9)
-	assert(max(abs(grad_mata - grad_native)) < 1e-9)
-}
-end
-
-// --- (3) full nwdynam.ado fits, native vs. forced-Mata-fallback,
-//     identical data ---
 nwclear
 clear
 set obs 200
@@ -139,51 +98,24 @@ for (i=1; i<=200; i++) {
 }
 end
 nwset sender receiver, eventtime(eventtime) name(cmpnet)
+_nwsyntax cmpnet
+mata: __ev = *(`netobj'->get_eventlist())
 
 nwdynam cmpnet
-matrix b_native_choice = e(b)
+matrix b_nat = e(b)
+scalar ll_nat = e(ll)
+mata: refmax(__ev, 8, 1, "b_ref", "ll_ref")
+mata: assert(max(abs(st_matrix("b_nat") - st_matrix("b_ref"))) < 1e-5)
+mata: assert(abs(st_numscalar("ll_nat") - st_numscalar("ll_ref")) < 1e-8)
+di as text "choice: plugin fit " b_nat[1,1] " " b_nat[1,2] " " b_nat[1,3] "   reference " b_ref[1,1] " " b_ref[1,2] " " b_ref[1,3]
+
 nwdynam cmpnet, submodel(rate)
-matrix b_native_rate = e(b)
-
-mata: st_local("pluginpath", DynamNativePluginPath())
-local movedplugin "`pluginpath'.disabled_for_test"
-capture erase "`movedplugin'"
-// Windows cannot erase a plugin that is loaded, but it can rename it
-local winmove = ("`c(os)'" == "Windows")
-if `winmove' {
-	local _pw = subinstr("`pluginpath'", "/", char(92), .)
-	shell move /y "`_pw'" "`_pw'.disabled_for_test" > nul
-	confirm file "`movedplugin'"
-}
-else {
-	qui copy "`pluginpath'" "`movedplugin'", replace
-	qui erase "`pluginpath'"
-}
-
-nwdynam cmpnet
-matrix b_mata_choice = e(b)
-nwdynam cmpnet, submodel(rate)
-matrix b_mata_rate = e(b)
-
-if `winmove' {
-	shell move /y "`_pw'.disabled_for_test" "`_pw'" > nul
-	confirm file "`pluginpath'"
-}
-else {
-	qui copy "`movedplugin'" "`pluginpath'", replace
-	qui erase "`movedplugin'"
-}
-// Stata's own `copy' does not preserve the source file's executable bit -
-// restore it directly (macOS/Linux only; harmless no-op elsewhere, and
-// not load-bearing for Stata's own plugin loading either way - confirmed
-// directly, the native path above already worked with the bit missing -
-// but leaving it off needlessly re-dirties this tracked binary's git
-// mode on every test run).
-capture shell chmod +x "`pluginpath'"
-
-mata: assert(max(abs(st_matrix("b_native_choice") - st_matrix("b_mata_choice"))) < 0.01)
-mata: assert(max(abs(st_matrix("b_native_rate") - st_matrix("b_mata_rate"))) < 0.01)
-di as text "choice: native=" b_native_choice[1,1] " " b_native_choice[1,2] " " b_native_choice[1,3] "   mata=" b_mata_choice[1,1] " " b_mata_choice[1,2] " " b_mata_choice[1,3]
-di as text "rate:   native=" b_native_rate[1,1] " " b_native_rate[1,2] "   mata=" b_mata_rate[1,1] " " b_mata_rate[1,2]
+matrix b_nat = e(b)
+scalar ll_nat = e(ll)
+mata: refmax(__ev, 8, 0, "b_ref", "ll_ref")
+mata: assert(max(abs(st_matrix("b_nat") - st_matrix("b_ref"))) < 1e-5)
+mata: assert(abs(st_numscalar("ll_nat") - st_numscalar("ll_ref")) < 1e-8)
+di as text "rate:   plugin fit " b_nat[1,1] " " b_nat[1,2] "   reference " b_ref[1,1] " " b_ref[1,2]
+mata: mata drop __ev
 
 di "test_nwdynam_native: ALL OK"

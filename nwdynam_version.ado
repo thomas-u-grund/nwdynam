@@ -37,7 +37,7 @@ program nwdynam_version, rclass
 	if "`__pla'" == "1" {
 		local __plug "`__plp' (ships with the package, no separate version number)"
 	}
-	else local __plug "missing (see the help file for what runs without it)"
+	else local __plug "missing (nwdynam needs it and stops with r(601); see the help file)"
 	local __ref "goldfish 1.6.12"
 	display as text "nwdynam version `__pkgver', `__pkgdate'"
 	display as text "  core package nwcommands : `__core'"

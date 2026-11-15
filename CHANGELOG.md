@@ -3,6 +3,17 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Every fit runs in the compiled plugin; the Mata evaluators are no longer part of the shipped fit path. Choice (all 17 effects with windows, weighted effects, two-mode networks, `opportunities()` and `tie()`), rate, rate with intercept (all effects, windows, weights, two-mode) now evaluate log likelihood, gradient and the exact Hessian natively (one generic kernel, one data block per fit, only theta travels per evaluation). The Hessian gives the standard errors; Newton-Raphson polishes the maximum of the concave models to round-off.
+- A fit without `seed()` starts from a fixed point and is reproducible.
+- When the plugin file is missing the command stops with return code 601; when the installed plugin is older than the package (or cannot be loaded) with return code 3495. Both name the file and say to reinstall. The warning line about the slower Mata engine is gone, with the engine.
+- The plugin protocol is versioned (query code 99); plugin binaries of version 1.4.0 and earlier are recognised as too old. The Linux and Windows plugins are rebuilt by the build workflow; until then those platforms stop with r(3495).
+
+### Removed
+- The Mata fit paths and evaluators. They live on as reference code of the test suite (`cscripts/ref_dynam_mata.do`) against which the plugin is compared on random cases.
+
 ## [1.4.0] - 2026-11-15
 
 ### Changed

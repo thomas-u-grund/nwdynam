@@ -7,7 +7,7 @@
 capture program drop _nwdynam_libcheck
 program define _nwdynam_libcheck
 	version 14
-	capture mata: mata which DynamFitUnit1()
+	capture mata: mata which DynamChoiceFitMulti()
 	if _rc {
 		capture mata: mata mlib index
 	}

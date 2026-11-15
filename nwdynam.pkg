@@ -8,7 +8,6 @@ d Version: 1.4.0
 d Distribution-Date: 15nov2026
 f nwdynam.ado
 f _nwdynam_libcheck.ado
-f _nwdynam_slowwarn.ado
 f nwdynam_version.ado
 f nwdynam.sthlp
 f lib/lnwdynam.mlib

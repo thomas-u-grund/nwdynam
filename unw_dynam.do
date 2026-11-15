@@ -7,121 +7,49 @@
  * or FITNESS FOR A PARTICULAR PURPOSE. See the file LICENSE for the full text.
  */
 /*
-	unw_dynam.do -- native Dynamic Network Actor Model (DyNAM) estimation
-	core for nwcommands (nwdynam).
+	unw_dynam.do -- Mata part of nwdynam (Dynamic Network Actor Models, derived from the R package goldfish).
 
-	See the development notes (scope/status) - a deliberately SEPARATE
-	engine from unw_rem.do, matching that document's own "why
-	architecturally distinct" reasoning: DyNAM factors the relational-
-	event likelihood into a rate sub-model (who acts, and when) and a
-	choice sub-model (given the sender, whom they choose - a
-	conditional/multinomial logit, implemented as Unit 1).
+	their effects, windows, weighted effects, two-mode networks, opportunities() and tie(). This file prepares the event stream
+	(DynamState: events sorted by time, simultaneous events grouped as in goldfish), writes the model into the plugin's data
+	frame (class DynamNat), runs Mata's optimize() on the plugin evaluator and returns the estimates to the ado file. There is no
+	Mata fallback: when the plugin is missing or too old the command stops (r(601), r(3495)).
 
-	CORRECTION (found empirically while deriving Unit 2, the rate
-	sub-model - see dev/dynam_unit2_rate_toy_crosscheck.R): this file's
-	own Unit 1 header originally characterized the rate sub-model as
-	necessarily "a genuine continuous-time competing-risks hazard...
-	architecturally different from this package's own ordinal-partial-
-	likelihood convention." That is only true of goldfish's own
-	WITH-INTERCEPT rate model (its own teaching1.Rmd vignette's real
-	waiting-time discussion, e.g. "an intercept of -14 means a waiting
-	time of 334 hours," is specifically about that variant). The
-	NO-intercept rate model - verified directly against goldfish's own
-	numeric output on both a hand-traceable 3-actor/4-event toy example
-	and the real Social_Evolution dataset, matching to full double
-	precision - turns out to be EXACTLY the same ordinal partial
-	likelihood (Cox-style, no real time values used at all) as
-	unw_rem.do's own rem_loglik_grad_unit1() and this file's own choice
-	sub-model, just with a different risk set (all n actors, competing
-	to be the next SENDER) and different predictors (indeg/outdeg, ego
-	type - an actor's own degree, not a candidate's). The genuinely
-	harder, real-continuous-time-hazard variant remains an explicitly
-	deferred future extension (WITH an intercept term) - not the entire
-	rate sub-model, as originally scoped.
-
-	Clean-room implementation against the published DyNAM statistical
-	framework (Stadtfeld, C., Block, P. (2017). "Interactions, Actors,
-	and Time: Dynamic Network Actor Models for Relational Events."
-	Sociological Science 4, 318-352) and this project's own
-	dev/dynam_unit1_crosscheck.R, which records the exact effect
-	definitions and reference coefficients read DIRECTLY from the
-	`goldfish` R package's own installed documentation
-	(doc/goldfishEffects.Rmd) and fit on its own bundled Social_Evolution
-	dataset - never copied from goldfish's source code (goldfish is
-	GPL (>= 3), not a licensing concern, but this project's own
-	established practice, matching the development notes' precedent
-	for nwrem/relevent, is independent derivation verified against
-	documented behavior, not transcription).
-
-	Sourced live during development (`do unw_dynam.do`), matching
-	unw_rem.do's/unw_saom.do's own convention - not yet compiled into
-	lib/lnwcommands.mlib (see the development notes' "one rebuild at the end,
-	not mid-flight" rule, followed here too).
-
-	SCOPE (v1 - see the development notes for the full disclosure):
-	- Unit 1 (choice sub-model): three effects (inertia, recip,
-	  indeg-alter), all UNWEIGHTED/binary (goldfish's own
-	  weighted=FALSE default).
-	- Unit 2 (rate sub-model, NO intercept): two effects (indeg-ego,
-	  outdeg-ego), same ordinal-partial-likelihood convention as Unit 1
-	  and unw_rem.do, just over the full n-actor sender risk set.
-	Both units: directed networks only, full risk set (every actor
-	always eligible - no composition change/eligibility restriction
-	modeling yet). The WITH-INTERCEPT rate model (a genuine
-	continuous-time hazard on real inter-event waiting times - see this
-	file's own CORRECTION comment above) remains explicitly deferred,
-	not silently unsupported - nwdynam.ado rejects an intercept request
-	with a clear error rather than pretending to fit it.
-
-	EFFECT SELECTION (added 2026-09-02, the development notes' own
-	"effect selection" scope item - the FIRST of the two items grouped
-	under "effect selection/expansion" there; NEW effect families
-	beyond these five - same/diff/sim/tertius/closure effects from
-	goldfish's own wider catalog - remain the separate, not-yet-started
-	"expansion" half, deliberately out of scope here) - matching
-	unw_rem.do's own units-2-5 precedent EXACTLY: rem_loglik_grad_unit1()/
-	RemFitUnit1() were kept untouched and rem_loglik_grad_multi()/
-	RemFitMulti() added ALONGSIDE them as a generalized, selectable
-	engine, rather than rewriting the already-verified unit-1 functions
-	in place. The same pattern here: dynam_choice_loglik_grad_unit1()/
-	DynamFitUnit1() (and their native-backed counterparts) are UNCHANGED
-	- still always fit all three choice effects, still eligible for
-	native acceleration - and dynam_choice_loglik_grad_multi()/
-	DynamChoiceFitMulti() (Mata-only, no native backend yet - a real,
-	disclosed follow-on, matching REM's own units-2-5 arc which also
-	shipped Mata-first with no native backend at all to this day) are
-	added for genuine SUBSET selection. nwdynam.ado dispatches to
-	whichever is actually needed: the full-effect-set case (the
-	original, still-default behavior) keeps its native speed path;
-	requesting a proper subset uses the new Mata-only multi engine.
+	The Mata evaluators that carried the likelihoods before (verified against goldfish; the effect definitions and their history are
+	documented there) are reference code of the test suite only: cscripts/ref_dynam_mata.do. The plugin is tested against them.
 */
 
 capture mata: mata drop DynamState()
 capture mata: mata drop dynam_node_rows()
-capture mata: mata drop DynamFitUnit1()
-capture mata: mata drop dynam_choice_loglik_unit1()
-capture mata: mata drop dynam_choice_eval_unit1()
-capture mata: mata drop DynamFitRateUnit1()
-capture mata: mata drop dynam_rate_loglik_unit1()
-capture mata: mata drop dynam_rate_eval_unit1()
 capture mata: mata drop DynamNativePluginFilename()
 capture mata: mata drop DynamNativePluginSubdir()
 capture mata: mata drop DynamNativePluginPath()
 capture mata: mata drop DynamNativeAvailable()
-capture mata: mata drop dynam_choice_eval_unit1_native()
-capture mata: mata drop dynam_rate_eval_unit1_native()
-capture mata: mata drop dynam_choice_loglik_grad_multi()
-capture mata: mata drop dynam_choice_loglik_multi()
-capture mata: mata drop dynam_choice_eval_multi()
+capture mata: mata drop DynamNat()
+capture mata: mata drop DYNAM_PROTOCOL_NEEDED()
+capture mata: mata drop dynam_nat_eval()
+capture mata: mata drop dynam_nat_eval_nr()
+capture mata: mata drop dynam_nat_eval_d1()
+capture mata: mata drop dynam_nat_optimize()
+capture mata: mata drop dynam_rateint_accept()
+capture mata: mata drop dynam_rateint_newton()
+capture mata: mata drop DynamFitUnit1()
+capture mata: mata drop DynamFitRateUnit1()
 capture mata: mata drop DynamChoiceFitMulti()
-capture mata: mata drop dynam_rate_loglik_grad_multi()
-capture mata: mata drop dynam_rate_loglik_multi()
-capture mata: mata drop dynam_rate_eval_multi()
 capture mata: mata drop DynamRateFitMulti()
-capture mata: mata drop dynam_window_expire()
+capture mata: mata drop DynamRateInterceptFitMulti()
+
+
+
+
+capture mata: mata drop dynam_group_end()
+capture mata: mata drop dynam_coord_loglik_grad_multi()
+capture mata: mata drop dynam_coord_loglik_multi()
+capture mata: mata drop dynam_coord_eval_multi()
+capture mata: mata drop DynamCoordFitMulti()
 
 mata:
 mata set matastrict off
+
 
 /*
 	DynamState -- the sorted event stream. Deliberately simpler than
@@ -155,25 +83,6 @@ real scalar dynam_group_end(pointer(class DynamState scalar) scalar pS, real sca
 	if (i == (*pS).nevents) return((*pS).gfirst[i])
 	if ((*pS).gfirst[i+1] == i+1) return((*pS).gfirst[i])
 	return(0)
-}
-
-/*
-	Windowed tie values (goldfish's window argument): W holds, for every pair, the summed value of the events already
-	applied (rows 1..upto, chronological) whose time lies within `window' of tcur; ptr is the first such row. goldfish
-	removes the increment of an event again at its time + window, after the dependent events of that time point, so an
-	event exactly `window' before tcur still counts. sym = 1 updates both cells (undirected network).
-*/
-void dynam_window_expire(pointer(class DynamState scalar) scalar pS, real matrix W, real scalar ptr,
-		real scalar upto, real scalar tcur, real scalar window, real scalar sym) {
-	real scalar a, b
-	while (ptr <= upto) {
-		if (tcur - (*pS).events[ptr,3] <= window) break
-		a = (*pS).events[ptr,1]
-		b = (*pS).events[ptr,2]
-		W[a,b] = W[a,b] - (*pS).events[ptr,4]
-		if (sym) W[b,a] = W[b,a] - (*pS).events[ptr,4]
-		ptr = ptr + 1
-	}
 }
 
 /*
@@ -325,1923 +234,6 @@ real scalar DynamNativeAvailable(){
 }
 
 /*
-	Native-backed evaluator callbacks - same (todo, theta, pS, y, g, H)
-	signature `optimize()` expects as the Mata evaluators
-	(dynam_choice_eval_unit1()/dynam_rate_eval_unit1() below), so either
-	can be passed to `optimize_init_evaluator()` interchangeably. Assume
-	the caller (DynamFitUnit1()/DynamFitRateUnit1()) has ALREADY: (1)
-	switched to a temporary frame holding v1=sender/v2=receiver for all
-	`(*pS).nevents` events, set up ONCE before the optimizer loop begins
-	(not re-marshaled on every call - a plugin invocation carries no
-	state between calls, but the SAME already-populated input frame
-	stays current across every one of these calls throughout the fit,
-	matching dynam_sim.c's own header comment); (2) already issued
-	`capture program dynamnative, plugin using(...)` once. Each call
-	here passes only the few theta values that actually change call to
-	call, at full double precision (`%25.17g`, matching
-	unw_saom.do's own established convention for passing real-valued
-	optimizer parameters into a native plugin - NOT `strofreal()`'s own
-	lower-precision default format, which would silently degrade BFGS's
-	own convergence precision).
-*/
-void dynam_choice_eval_unit1_native(real scalar todo, real rowvector theta, pointer(class DynamState scalar) scalar pS,
-		real scalar y, real rowvector g, real matrix H) {
-	string scalar argstr
-	real matrix res
-
-	argstr = strofreal(1 + 10*((*pS).ngroups < (*pS).nevents) + 100*(*pS).nativevalued) + " " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " " + strofreal(theta[1], "%25.17g") + " " + strofreal(theta[2], "%25.17g") + " " + strofreal(theta[3], "%25.17g")
-	stata("plugin call dynamnative v1 v2 v3" + ((((*pS).ngroups < (*pS).nevents) | (*pS).nativevalued) ? " v4" : "") + ((*pS).nativevalued ? " v5" : "") + ", " + char(34) + argstr + char(34))
-	res = st_data((1::4), "v3")
-	y = res[1,1]
-	if (todo >= 1) g = res[2::4,1]'
-}
-
-void dynam_rate_eval_unit1_native(real scalar todo, real rowvector theta, pointer(class DynamState scalar) scalar pS,
-		real scalar y, real rowvector g, real matrix H) {
-	string scalar argstr
-	real matrix res
-
-	argstr = strofreal(2 + 10*((*pS).ngroups < (*pS).nevents) + 100*(*pS).nativevalued) + " " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " " + strofreal(theta[1], "%25.17g") + " " + strofreal(theta[2], "%25.17g")
-	stata("plugin call dynamnative v1 v2 v3" + ((((*pS).ngroups < (*pS).nevents) | (*pS).nativevalued) ? " v4" : "") + ((*pS).nativevalued ? " v5" : "") + ", " + char(34) + argstr + char(34))
-	res = st_data((1::3), "v3")
-	y = res[1,1]
-	if (todo >= 1) g = res[2::3,1]'
-}
-
-/*
-	DyNAM choice sub-model, v1 Unit 1: inertia + recip + indeg(alter),
-	all unweighted/binary - three effect definitions read DIRECTLY from
-	goldfish's own doc/goldfishEffects.Rmd (not guessed, not copied -
-	see dev/dynam_unit1_crosscheck.R for the exact passages and the
-	live R fit this was checked against):
-
-	  inertia(s,j) = I(tie[s,j] > 0)   -- has s EVER sent to j before now?
-	  recip(s,j)   = I(tie[j,s] > 0)   -- has j EVER sent to s before now?
-	  indeg(j)     = colsum(tie[.,j])  -- j's own in-degree (count of
-	                                       DISTINCT actors who have sent
-	                                       to j before now) - "alter
-	                                       type", per goldfishEffects.Rmd's
-	                                       own type=c("alter","ego")
-	                                       argument: the choice
-	                                       sub-model always uses alter
-	                                       type (candidate receiver's
-	                                       own in-degree), never ego
-	                                       type (that is the rate
-	                                       sub-model's own use of
-	                                       indeg(), not yet implemented
-	                                       here)
-
-	where tie[.,.] is a binary n x n matrix - NOT a raw event-count
-	accumulator like unw_rem.do's own cij (a real, deliberate
-	difference: goldfish's own default weighted=FALSE means REPEAT
-	contacts do not inflate inertia/recip/indeg further, only the FIRST
-	occurrence of a tie flips the corresponding cell from 0 to 1) -
-	updated incrementally, STRICTLY prior to the current event (no
-	lookahead), same "update AFTER using this event's own pre-event
-	state" discipline as unw_rem.do's own cij/lastcontact.
-
-	No first-event special-casing is needed (unlike unw_rem.do's own
-	1/(n-1) fallback for its own degree-FRACTION effects, which divide
-	by the number of prior events): tie starts all-zero, so
-	inertia/recip/indeg are all simply 0 for every candidate at the
-	first event - a well-defined value requiring no fallback branch,
-	since these are counts/indicators, not fractions with an undefined
-	0/0 at i=1.
-
-	Risk set for event i: sender s_i is taken directly from the DATA
-	(not modeled - that is the separate, not-yet-built rate sub-model,
-	see this file's own header comment and the development notes).
-	Every other actor j != s_i is a candidate receiver - a standard
-	conditional (multinomial) logit over n-1 candidates, structurally
-	the same softmax-over-risk-set machinery as unw_rem.do's own
-	rem_loglik_grad_unit1(), but the risk set here is exactly ONE row
-	(s_i's own row of a full n x n log-rate matrix), not the full n x n
-	dyad space at once, since the sender is conditioned on rather than
-	competing for the event itself.
-*/
-void dynam_choice_loglik_grad_unit1(real rowvector theta, pointer(class DynamState scalar) scalar pS,
-		real scalar ll, real rowvector grad) {
-	real scalar i, s, r, n, mx, lrsum, g0, k
-	real matrix tie, tieval
-	real rowvector inertia_i, recip_i, indeg_i, lp, P
-
-	n = (*pS).n
-	ll = 0
-	grad = J(1, 3, 0)
-	tie = J(n, n, 0)
-	tieval = J(n, n, 0)   // summed event values; a tie exists while the sum is above 0 (goldfish)
-
-	for (i=1; i<=(*pS).nevents; i++) {
-		s = (*pS).events[i,1]
-		r = (*pS).events[i,2]
-
-		inertia_i = tie[s,.]
-		recip_i = tie[.,s]'
-		indeg_i = colsum(sign(tieval))   // goldfish: sign of each tie value (-1 for a value below 0)
-
-		lp = theta[1] :* inertia_i :+ theta[2] :* recip_i :+ theta[3] :* indeg_i
-		lp[s] = -1e300   // sender cannot choose itself - exclude from the risk set
-
-		mx = max(lp)
-		P = exp(lp :- mx)
-		lrsum = mx + ln(sum(P))
-		ll = ll + (lp[r] - lrsum)
-
-		P = P :/ sum(P)   // proper softmax probability row over the risk set
-		grad[1] = grad[1] + (inertia_i[r] - sum(inertia_i :* P))
-		grad[2] = grad[2] + (recip_i[r] - sum(recip_i :* P))
-		grad[3] = grad[3] + (indeg_i[r] - sum(indeg_i :* P))
-
-		// update AFTER using this event's own pre-event state (after the whole group of equal times)
-		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
-			tieval[(*pS).events[k,1], (*pS).events[k,2]] = tieval[(*pS).events[k,1], (*pS).events[k,2]] + (*pS).events[k,4]
-			tie[(*pS).events[k,1], (*pS).events[k,2]] = (tieval[(*pS).events[k,1], (*pS).events[k,2]] > 0)
-		}
-	}
-}
-
-/*
-	Pure log-likelihood wrapper (no gradient) - same role as
-	unw_rem.do's own rem_loglik_unit1(), used by certification
-	tests/diagnostics that only need the ll value at a given theta.
-*/
-real scalar dynam_choice_loglik_unit1(real rowvector theta, pointer(class DynamState scalar) scalar pS) {
-	real scalar ll
-	real rowvector grad
-	dynam_choice_loglik_grad_unit1(theta, pS, ll, grad)
-	return(ll)
-}
-
-void dynam_choice_eval_unit1(real scalar todo, real rowvector theta, pointer(class DynamState scalar) scalar pS,
-		real scalar y, real rowvector g, real matrix H) {
-	real rowvector grad
-	dynam_choice_loglik_grad_unit1(theta, pS, y, grad)
-	if (todo >= 1) g = grad
-}
-
-/*
-	DynamFitUnit1() -- fits the v1 Unit 1 choice sub-model (inertia +
-	recip + indeg, no selection - all three always active, matching
-	unw_rem.do's own rem_loglik_grad_unit1()/RemFitUnit1() precedent of
-	a hardcoded small effect set before a later unit generalizes to a
-	selectable multi-effect design, see the development notes' own
-	scope note). Same retry-with-escalating-perturbation-then-
-	Nelder-Mead robustness strategy as RemFitUnit1() - see that
-	function's own comment for why (avoiding optimize()'s "flat region
-	encountered" failure at a too-symmetric starting point).
-*/
-void DynamFitUnit1(real matrix eventmat, real scalar n, string scalar bname, string scalar vname, string scalar llname) {
-	class DynamState scalar S
-	transmorphic S_opt
-	real rowvector theta0, theta_hat
-	real matrix V
-	real scalar attempt, ok, errcode, usenative, nobs_needed, __junk
-	real colvector gend
-	real matrix starts
-	string scalar origframe
-	pointer(void) scalar evalfunc
-
-	S = DynamState()
-	S.init(eventmat, n)
-
-	// See this file's own DynamNativeAvailable() comment: falls back to
-	// the pure-Mata evaluator transparently (never errors) on any
-	// platform lacking a built dynam_sim plugin.
-	usenative = DynamNativeAvailable()
-	if (usenative) {
-		origframe = st_framecurrent()
-		stata("capture frame drop __nwdynam_native")
-		stata("frame create __nwdynam_native")
-		st_framecurrent("__nwdynam_native")
-		nobs_needed = max((S.nevents, 4))
-		st_addobs(nobs_needed)
-		__junk = st_addvar("double", "v1")
-		__junk = st_addvar("double", "v2")
-		__junk = st_addvar("double", "v3")
-		__junk = st_addvar("double", "v4")   // 1 at the last event of each group of equal times (plugin codes 11/12)
-		st_store((1::S.nevents), ("v1","v2"), S.events[.,(1,2)])
-		gend = J(S.nevents, 1, 1)
-		if (S.nevents > 1) gend[1::(S.nevents-1)] = (S.gfirst[2::S.nevents] :== (2::S.nevents))
-		st_store((1::S.nevents), "v4", gend)
-		// event values: with only positive values a tie exists from the first event of a pair on, exactly as without
-		// values, so the kernel gets them (v5, plugin codes 101/102/111/112) only when some value is 0 or below
-		S.nativevalued = (min(S.events[., 4]) <= 0)
-		if (S.nativevalued) {
-			__junk = st_addvar("double", "v5")
-			st_store((1::S.nevents), "v5", S.events[., 4])
-		}
-		// See unw_ergm.do's ErgmNativeSampleCore()'s own identical
-		// comment on why redefining an already-loaded plugin-type
-		// program is left in place rather than dropped first.
-		stata("capture program dynamnative, plugin using(" + char(34) + DynamNativePluginPath() + char(34) + ")")
-		evalfunc = &dynam_choice_eval_unit1_native()
-	}
-	else {
-		evalfunc = &dynam_choice_eval_unit1()
-	}
-
-	starts = (0.01,0.01,0.01 \ 0.3,-0.3,0.1 \ -0.3,0.3,-0.1 \ 1,-1,0.5)
-	ok = 0
-	for (attempt=1; attempt<=rows(starts) & ok==0; attempt++) {
-		theta0 = starts[attempt,.]
-		S_opt = optimize_init()
-		optimize_init_evaluator(S_opt, evalfunc)
-		optimize_init_evaluatortype(S_opt, "d1")
-		optimize_init_params(S_opt, theta0)
-		optimize_init_argument(S_opt, 1, &S)
-		optimize_init_technique(S_opt, "bfgs")
-		optimize_init_which(S_opt, "max")
-		optimize_init_tracelevel(S_opt, "none")
-		optimize_init_conv_warning(S_opt, "off")
-		optimize_init_conv_maxiter(S_opt, 60)
-		errcode = _optimize(S_opt)
-		if (errcode == 0) {
-			theta_hat = optimize_result_params(S_opt)
-			ok = 1
-		}
-	}
-	if (ok == 0) {
-		// Last resort: derivative-free Nelder-Mead, same rationale as
-		// RemFitUnit1()'s own fallback.
-		S_opt = optimize_init()
-		optimize_init_evaluator(S_opt, evalfunc)
-		optimize_init_evaluatortype(S_opt, "d1")
-		optimize_init_params(S_opt, (0.01,0.01,0.01))
-		optimize_init_argument(S_opt, 1, &S)
-		optimize_init_technique(S_opt, "nm")
-		optimize_init_which(S_opt, "max")
-		optimize_init_tracelevel(S_opt, "none")
-		optimize_init_conv_warning(S_opt, "off")
-		optimize_init_conv_maxiter(S_opt, 300)
-		theta_hat = optimize(S_opt)
-	}
-	V = optimize_result_V_oim(S_opt)
-
-	if (usenative) {
-		st_framecurrent(origframe)
-		stata("capture frame drop __nwdynam_native")
-	}
-
-	st_matrix(bname, theta_hat)
-	st_matrix(vname, V)
-	st_numscalar(llname, optimize_result_value(S_opt))
-}
-
-/*
-	DyNAM rate sub-model, Unit 2, NO-intercept case: indeg + outdeg,
-	both "ego" type (an actor's OWN in/out degree - count of DISTINCT
-	partners, unweighted - see this file's own header CORRECTION
-	comment for how this formula was found, and dynam_choice_loglik_grad_unit1()'s
-	own comment for why binary tie-presence rather than a raw event
-	count is the right structure, same reasoning applies here).
-
-	Risk set for event k: ALL n actors compete to be the next sender -
-	unlike the choice sub-model (whose risk set is one already-known
-	sender's own row, n-1 candidates), here every actor including the
-	eventual non-senders is a candidate, so no "exclude self" step is
-	needed (there is no "self" to exclude - the realized sender IS one
-	of the n candidates, not compared against itself).
-
-	  indeg_ego(i)  = colsum(tie[.,i])   -- count of distinct actors who have sent TO i before now
-	  outdeg_ego(i) = rowsum(tie[i,.])   -- count of distinct actors i has sent TO before now
-
-	ll_k = lp[s_k] - log(sum_i exp(lp[i]))   where lp[i] = theta[1]*indeg_ego(i) + theta[2]*outdeg_ego(i)
-
-	Same incremental binary tie-matrix update as the choice sub-model
-	("update AFTER using this event's own pre-event state") - in fact
-	the exact same tie matrix, if both sub-models were ever fit
-	together in one pass; kept as two independent functions here
-	(matching goldfish's own separately-callable subModel="rate"/
-	subModel="choice", and this file's own "two conditionally
-	independent sub-models" framing) rather than sharing state across
-	calls, since a caller may want either one alone.
-*/
-void dynam_rate_loglik_grad_unit1(real rowvector theta, pointer(class DynamState scalar) scalar pS,
-		real scalar ll, real rowvector grad) {
-	real scalar i, s, r, n, mx, lrsum, g0, k
-	real matrix tie, tieval
-	real rowvector indeg_i, outdeg_i, lp, P
-
-	n = (*pS).n
-	ll = 0
-	grad = J(1, 2, 0)
-	tie = J(n, n, 0)
-	tieval = J(n, n, 0)   // summed event values; a tie exists while the sum is above 0 (goldfish)
-
-	for (i=1; i<=(*pS).nevents; i++) {
-		s = (*pS).events[i,1]
-		r = (*pS).events[i,2]
-
-		indeg_i = colsum(sign(tieval))   // goldfish: sign of each tie value (-1 for a value below 0)
-		outdeg_i = rowsum(sign(tieval))'
-
-		lp = theta[1] :* indeg_i :+ theta[2] :* outdeg_i
-
-		mx = max(lp)
-		P = exp(lp :- mx)
-		lrsum = mx + ln(sum(P))
-		ll = ll + (lp[s] - lrsum)
-
-		P = P :/ sum(P)   // proper softmax probability row over the risk set (all n actors)
-		grad[1] = grad[1] + (indeg_i[s] - sum(indeg_i :* P))
-		grad[2] = grad[2] + (outdeg_i[s] - sum(outdeg_i :* P))
-
-		// update AFTER using this event's own pre-event state (after the whole group of equal times)
-		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
-			tieval[(*pS).events[k,1], (*pS).events[k,2]] = tieval[(*pS).events[k,1], (*pS).events[k,2]] + (*pS).events[k,4]
-			tie[(*pS).events[k,1], (*pS).events[k,2]] = (tieval[(*pS).events[k,1], (*pS).events[k,2]] > 0)
-		}
-	}
-}
-
-real scalar dynam_rate_loglik_unit1(real rowvector theta, pointer(class DynamState scalar) scalar pS) {
-	real scalar ll
-	real rowvector grad
-	dynam_rate_loglik_grad_unit1(theta, pS, ll, grad)
-	return(ll)
-}
-
-void dynam_rate_eval_unit1(real scalar todo, real rowvector theta, pointer(class DynamState scalar) scalar pS,
-		real scalar y, real rowvector g, real matrix H) {
-	real rowvector grad
-	dynam_rate_loglik_grad_unit1(theta, pS, y, grad)
-	if (todo >= 1) g = grad
-}
-
-/*
-	DynamFitRateUnit1() -- fits the Unit 2 (rate, no-intercept) model.
-	Same retry-with-escalating-perturbation-then-Nelder-Mead robustness
-	strategy as DynamFitUnit1()/RemFitUnit1().
-*/
-void DynamFitRateUnit1(real matrix eventmat, real scalar n, string scalar bname, string scalar vname, string scalar llname) {
-	class DynamState scalar S
-	transmorphic S_opt
-	real rowvector theta0, theta_hat
-	real matrix V
-	real scalar attempt, ok, errcode, usenative, nobs_needed, __junk
-	real colvector gend
-	real matrix starts
-	string scalar origframe
-	pointer(void) scalar evalfunc
-
-	S = DynamState()
-	S.init(eventmat, n)
-
-	usenative = DynamNativeAvailable()
-	if (usenative) {
-		origframe = st_framecurrent()
-		stata("capture frame drop __nwdynam_native")
-		stata("frame create __nwdynam_native")
-		st_framecurrent("__nwdynam_native")
-		nobs_needed = max((S.nevents, 4))
-		st_addobs(nobs_needed)
-		__junk = st_addvar("double", "v1")
-		__junk = st_addvar("double", "v2")
-		__junk = st_addvar("double", "v3")
-		__junk = st_addvar("double", "v4")   // 1 at the last event of each group of equal times (plugin codes 11/12)
-		st_store((1::S.nevents), ("v1","v2"), S.events[.,(1,2)])
-		gend = J(S.nevents, 1, 1)
-		if (S.nevents > 1) gend[1::(S.nevents-1)] = (S.gfirst[2::S.nevents] :== (2::S.nevents))
-		st_store((1::S.nevents), "v4", gend)
-		// event values: with only positive values a tie exists from the first event of a pair on, exactly as without
-		// values, so the kernel gets them (v5, plugin codes 101/102/111/112) only when some value is 0 or below
-		S.nativevalued = (min(S.events[., 4]) <= 0)
-		if (S.nativevalued) {
-			__junk = st_addvar("double", "v5")
-			st_store((1::S.nevents), "v5", S.events[., 4])
-		}
-		stata("capture program dynamnative, plugin using(" + char(34) + DynamNativePluginPath() + char(34) + ")")
-		evalfunc = &dynam_rate_eval_unit1_native()
-	}
-	else {
-		evalfunc = &dynam_rate_eval_unit1()
-	}
-
-	starts = (0.01,0.01 \ 0.3,-0.3 \ -0.3,0.3 \ 1,-1)
-	ok = 0
-	for (attempt=1; attempt<=rows(starts) & ok==0; attempt++) {
-		theta0 = starts[attempt,.]
-		S_opt = optimize_init()
-		optimize_init_evaluator(S_opt, evalfunc)
-		optimize_init_evaluatortype(S_opt, "d1")
-		optimize_init_params(S_opt, theta0)
-		optimize_init_argument(S_opt, 1, &S)
-		optimize_init_technique(S_opt, "bfgs")
-		optimize_init_which(S_opt, "max")
-		optimize_init_tracelevel(S_opt, "none")
-		optimize_init_conv_warning(S_opt, "off")
-		optimize_init_conv_maxiter(S_opt, 60)
-		errcode = _optimize(S_opt)
-		if (errcode == 0) {
-			theta_hat = optimize_result_params(S_opt)
-			ok = 1
-		}
-	}
-	if (ok == 0) {
-		S_opt = optimize_init()
-		optimize_init_evaluator(S_opt, evalfunc)
-		optimize_init_evaluatortype(S_opt, "d1")
-		optimize_init_params(S_opt, (0.01,0.01))
-		optimize_init_argument(S_opt, 1, &S)
-		optimize_init_technique(S_opt, "nm")
-		optimize_init_which(S_opt, "max")
-		optimize_init_tracelevel(S_opt, "none")
-		optimize_init_conv_warning(S_opt, "off")
-		optimize_init_conv_maxiter(S_opt, 300)
-		theta_hat = optimize(S_opt)
-	}
-	V = optimize_result_V_oim(S_opt)
-
-	if (usenative) {
-		st_framecurrent(origframe)
-		stata("capture frame drop __nwdynam_native")
-	}
-
-	st_matrix(bname, theta_hat)
-	st_matrix(vname, V)
-	st_numscalar(llname, optimize_result_value(S_opt))
-}
-
-/*
-	Choice sub-model, generalized/selectable engine (the development notes'
-	"effect selection" scope item - see this file's own header comment
-	for how this relates to dynam_choice_loglik_grad_unit1() above).
-	`active` is a 6-element 0/1 rowvector, fixed order (1=inertia,
-	2=recip, 3=indeg, 4=same, 5=diff, 6=sim - the first three matching
-	dynam_choice_loglik_grad_unit1()'s own effect order exactly; effects
-	4-6 added 2026-09-02, "effect EXPANSION" - see this function's own
-	header note below) - theta has sum(active) elements, in that same
-	relative order. Effects 1-3: otherwise identical math to the unit-1
-	function (same tie-matrix bookkeeping, same colsum(tie) computation
-	of indeg_i - NOT the native port's own incremental-count
-	optimization, since this is the MATA REFERENCE and should stay in
-	the same form already verified against goldfish, not silently
-	re-derive a different-but-equivalent formulation here too).
-
-	Effects 4-6 (same/diff/sim - the development notes' "effect
-	expansion" scope item, formulas read directly from goldfish's own
-	doc/goldfishEffects.Rmd, not guessed): static per-actor ATTRIBUTE
-	effects, not structural ones - a candidate's own value never changes
-	across the fit, so (unlike inertia/recip/indeg) these need no
-	incremental per-event state at all, just the sender's OWN attribute
-	value broadcast against every candidate's:
-	  same(s,j) = I(z_s = z_j)     -- homophily (same value)
-	  diff(s,j) = |z_s - z_j|      -- heterophily (absolute difference)
-	  sim(s,j)  = -|z_s - z_j|     -- homophily (similar value) - EXACTLY
-	              -diff, by construction (goldfish's own documented
-	              relationship, confirmed empirically: sim's coefficient
-	              is diff's own coefficient with the sign flipped, same
-	              |value|, same SE, same logLik - see
-	              dev/dynam_unit4_attreffects_crosscheck.do). REAL
-	              CONSEQUENCE, found while writing cscripts/test_nwdynam_ado.do:
-	              diff() and sim() on the SAME variable are perfectly
-	              collinear (one is an exact linear function of the
-	              other), so a joint model including both is genuinely
-	              UNIDENTIFIED - only the difference of their two
-	              coefficients is estimable, not each separately. This
-	              surfaced as a real optimizer failure ("flat region
-	              encountered" / "simplex delta required"), not a
-	              convergence-tuning problem to engineer around - using
-	              two DIFFERENT variables for diff() and sim() together
-	              is fine (they are then genuinely different dyadic
-	              quantities); nwdynam.ado does not detect or reject the
-	              same-variable case automatically (matching this
-	              package's own general stance of not second-guessing
-	              genuinely valid model specifications - a user might
-	              deliberately want this contrast tested and hit the
-	              expected non-identification directly).
-	`same`/`diff`/`sim` each read from their OWN independent covariate
-	vector (samevec/diffvec/simvec - NOT forced to share one variable,
-	matching unw_rem.do's own covsndvec/covrecvec/covintvec convention
-	of independent per-effect covariates - a real model may want a
-	different variable for each). Static only, matching unw_rem.do's own
-	v1 covariate scope (unit 4a). goldfish's own effect table confirms
-	these apply to the CHOICE (and choice_coordination) sub-model only,
-	never rate - no rate-side counterpart exists, matching
-	dynam_rate_loglik_grad_multi()'s own unchanged 2-effect scope.
-
-	Effect 7 (alter - "expansion batch 2", added 2026-09-02): the
-	simplest possible attribute effect, per goldfish's own
-	doc/goldfishEffects.Rmd - `s(i,j,t,z) = z_j`, the candidate
-	receiver's OWN static covariate value, broadcast directly with no
-	comparison to the sender at all (unlike same/diff/sim, which are
-	genuinely dyadic). goldfish's own table confirms `alter` is
-	choice-sub-model-only (never rate) - its rate-side counterpart is
-	`ego` (effect 3 of dynam_rate_loglik_grad_multi() below, `r(i,t,z) =
-	z_i`), a DIFFERENT effect name for what is really the same
-	"static per-actor level" idea applied to the opposite sub-model's
-	own risk-set role (candidate receiver vs. candidate sender) -
-	matching goldfish's own naming exactly, not invented here.
-
-	`windowinertia`/`windowrecip` ("effect expansion batch 3, added
-	2026-09-02, user request "implement window effects," REDESIGNED
-	same day as a per-effect suboption after user follow-up "check our
-	goldfish syntax... make window a suboption of the effects... control
-	this per effect" - `nwdynam.ado`'s own comment has the full account
-	of why a single shared window scalar was replaced with two
-	independent ones): a real-time recency cutoff on `inertia`/`recip`
-	INDEPENDENTLY (goldfish's own `window=` argument is per-effect, not
-	shared across a whole model - `inertia(net, window="7 days")` and
-	`recip(net, window="1 day")` can genuinely differ in the same
-	goldfish formula, and this engine now matches that exactly, not an
-	earlier single-shared-window approximation of it). `indeg`/`outdeg`/
-	`ego`/`alter` remain UNWINDOWED in this batch, a real, disclosed
-	scope limit, not silently extended to match. >=1e300 means "no
-	window" for that specific effect (the original always-sticky
-	behavior, bit-identical to before this batch - see below); any
-	finite value activates real-time filtering for THAT effect only.
-	Formula, derived empirically and verified against real goldfish (not
-	guessed - see dev/dynam_unit6_window_crosscheck.do and its own
-	header comment for the toy-example-first derivation this project's
-	own established discipline requires): a tie i->j counts as PRESENT
-	at the current event's own evaluation time if and only if the MOST
-	RECENT prior i->j event happened within that effect's own window of
-	the current event's own timestamp (inclusive: `t_current -
-	t_lastcontact <= window`) - NOT a decaying weight, a hard cutoff; a
-	tie can EXPIRE (revert to absent) once its own most recent contact
-	falls outside the window, even though it was present a moment
-	before. This is a REAL DEPARTURE from every other effect in this
-	file: the ordinal partial likelihood itself still uses only event
-	ORDER (this file's own CORRECTION comment on the rate sub-model's
-	own no-intercept case still holds - no waiting-time HAZARD term
-	enters the likelihood), but window-eligible STATISTICS now read real
-	elapsed time as a FILTER on which historical events still count,
-	which the engine previously never touched at all -
-	`(*pS).events[.,3]` (the time column DynamState already carries but
-	effects 1-7 above never read) is used here for the first time.
-
-	Implementation: the previous binary `tie` matrix is replaced by
-	`lastcontact` (real time of the most recent i->j event, sentinel
-	-1e300 for "never" - matching this file's own -1e300
-	risk-set-exclusion sentinel convention). When both windows are
-	inactive, `lastcontact[s,.] :> -1e300` reproduces the OLD `tie[s,.]`
-	binary presence check exactly (bit-identical - verified directly,
-	not merely argued, via dev/dynam_unit6_window_crosscheck.do's own
-	regression check against the pre-window numbers); `indeg` (still
-	unwindowed) is likewise derived from `lastcontact :> -1e300` rather
-	than a separately-maintained matrix, so only ONE tracking structure
-	is kept, not three redundant ones.
-
-	UPDATE (event values): `lastcontact'/`tiecount' are replaced by `tieval', the value of each tie = the sum of the
-	values of its events (column 4 of the event list, 1 without values), exactly as goldfish adds the increment of each
-	event to the network. A tie exists while its value is above 0 (unweighted effects); weighted effects read the value.
-	The unweighted indeg and outdeg add the SIGN of each tie value, as goldfish does: a tie whose value is below 0
-	counts -1. Inside a window this happens when an event with a negative value outlives the event it cancelled.
-	A window keeps its own matrix of the values of the events inside the window (dynam_window_expire(), goldfish's
-	dissolve events at time + window), so `weighted' and a window combine as in goldfish. With every value positive all
-	unweighted statistics are the same as before.
-
-	Effect 8 (outdeg, "expansion batch 5", added 2026-09-02, user
-	report that the help file's own "outdeg: rate sub-model only" label
-	was checked against goldfish's own doc/goldfishEffects.Rmd and found
-	WRONG - goldfish's own "Structural Effects" table lists outdeg as
-	valid for BOTH rate and choice, not rate-only; this was a genuine
-	missing effect, not a correct scope restriction): the choice
-	sub-model's own "alter type" outdegree, `s(i,j,t,x) = sum_l
-	I(x(t)_jl>0)` per goldfish's own doc - candidate j's own out-degree
-	(how many distinct receivers j has themselves contacted), broadcast
-	with no comparison to the sender, mirroring `indeg`'s own "alter
-	type" shape exactly but transposed (`indeg` sums lastcontact's own
-	COLUMN j - who has contacted j; `outdeg` sums its own ROW j - who j
-	has contacted). Reuses the SAME `lastcontact` matrix already
-	maintained for `inertia`/`recip`/`indeg` - no new tracking structure
-	needed. Verified against real goldfish - see
-	dev/dynam_unit8_choiceoutdeg_crosscheck.do. UNWINDOWED in this batch
-	(matching `indeg`'s own still-unwindowed choice-side status,
-	disclosed above) - a real, disclosed scope limit for a future batch,
-	not silently extended to match `outdegwindow()`'s own existing
-	RATE-side-only scope.
-
-	The user separately asked, in the same exchange, whether
-	`inertia`/`recip`/`same`/`diff`/`sim` (the OTHER effects the help
-	file marks choice-only) could likewise be added to the rate
-	sub-model. They cannot, and this is a structural fact about
-	goldfish's own two sub-models, not an arbitrary scope choice:
-	`inertia`/`recip`/`same`/`diff`/`sim` are all genuinely DYADIC
-	statistics `s(i,j,t,x)` comparing a specific SENDER i against a
-	specific CANDIDATE RECEIVER j (e.g. `recip`: does j have a recent
-	tie back to i; `same`: do i and j share a covariate level) - the
-	rate sub-model's own `r(i,t,x)` has no receiver role at all (it is a
-	single-actor hazard over who acts next), so a dyadic comparison has
-	no argument to compare i against. `indeg`/`outdeg` are the exception
-	precisely because they are NOT dyadic - each is a property of a
-	SINGLE actor (in-degree or out-degree), expressible identically
-	whether that actor is playing the rate sub-model's own "candidate
-	sender" role or the choice sub-model's own "candidate receiver"
-	role. `alter`'s own single-actor analogue already exists under
-	goldfish's own different name for the rate sub-model - `ego` (effect
-	3 of dynam_rate_loglik_grad_multi() below) - so there is no missing
-	"alter for rate" to add either; it was already implemented under its
-	goldfish-given name in expansion batch 2.
-
-	Effects 9-14 ("expansion batch 6", added 2026-09-02, user: "work
-	your way through the list" - a systematic audit against goldfish's
-	FULL effect catalog, not just the ones already covered): the
-	two-path closure effects (`trans`, `cycle`, `commonSender`,
-	`commonReceiver`, `four`) and `nodeTrans`, per goldfish's own
-	doc/goldfishEffects.Rmd formulas, computed on the DEPENDENT network
-	itself (goldfish's own stated default when no explicit network
-	argument is given - "For network effects, this would be either an
-	explanatory network or the dependent network (the default)"). Using
-	an EXOGENOUS network instead (goldfish's own `trans(othernet)`, or
-	the two-network `mixedTrans`/`mixedCycle`/`mixedCommonSender`/
-	`mixedCommonReceiver` variants) is a real, disclosed scope limit for
-	a future batch - nwdynam has no mechanism yet for an effect to read
-	a network other than the one being predicted.
-
-	All five closure effects are two-path counts over the SAME binary
-	presence matrix `A` (`lastcontact :> -1e300`, reusing the existing
-	tracking structure exactly like `indeg`/`outdeg` already do) -
-	computed via matrix products rather than a per-candidate loop, since
-	each is a full ROW (or column) of a single n x n product:
-	  trans_i(j)          = sum_k A[i,k]A[k,j]        = (A*A)[i,.]
-	  cycle_i(j)           = sum_k A[j,k]A[k,i]        = (A*A)[.,i]'
-	  commonSender_i(j)    = sum_k A[k,i]A[k,j]        = (A'*A)[i,.]
-	  commonReceiver_i(j)  = sum_k A[i,k]A[j,k]        = (A*A')[i,.]
-	  four_i(j)            = sum_kl A[i,k]A[l,k]A[l,j], k,l NOT IN {i,j}
-	                           and k != l (see correction below)
-	with `i` bound to the realized sender `s` at each event (each is
-	genuinely dyadic - varies by candidate `j`, matching `inertia`'s own
-	sender-dependent shape, not `indeg`'s own candidate-only shape).
-
-	`four` needed a REAL correction beyond the naive matrix product,
-	found by direct comparison against goldfish's own reconstructed
-	statistic matrix (via `estimate(..., preprocessingOnly=TRUE)`'s own
-	`dependentStatsChange` deltas), not assumed from the documented
-	formula alone: the naive `(A*(A'*A))[i,.]` (matching trans/cycle/
-	commonSender/commonReceiver's own pattern exactly) reproduced
-	trans/cycle/commonSender/commonReceiver bit-for-bit but was
-	systematically almost DOUBLE goldfish's own real `four` values and
-	produced a wildly wrong fitted coefficient (1.644 vs goldfish's own
-	0.897, logLik off by 660) - `four`'s own doc/goldfishEffects.Rmd
-	prose ("closes more three-paths i->k<-l->j") requires i, j, k, l to
-	be four GENUINELY DISTINCT actors, unlike the other four closure
-	effects' own two-path formulas (which only involve 3 roles, i/j/k,
-	where the existing zero-diagonal convention already excludes every
-	degenerate case automatically). The closed-form correction, derived
-	and verified via a small hand-traceable random toy network (n=6)
-	against a full four-nested-loop brute-force distinct-actors
-	computation BEFORE touching this file, then confirmed on real data
-	(matching goldfish's own reconstructed statistic matrix off-diagonal
-	to within rounding):
-	  four_i(j) = (A*(A'*A))[i,j] - A[i,j] * (rowsum(A[i,.]) +
-	              diagonal(A'*A)[j] - A[i,j])
-	subtracting exactly the k=i, k=j, and l=i contributions from the
-	naive sum (l=j and k=k self-loop contributions are already zero via
-	the existing zero-diagonal convention, so only these three terms
-	needed an explicit correction). Re-verified against real goldfish
-	after the fix - see dev/dynam_unit9_closure_crosscheck.do - matching
-	to within 8e-6 on the coefficient, 0.02 on logLik.
-	`nodeTrans` (the one BOTH-submodel effect in this batch, per
-	goldfish's own table) is different in kind: `r(i) = sum_j A[i,j] *
-	(A*A)[i,j]`, a property of a SINGLE actor with no dependence on the
-	realized sender at all (matching `indeg`/`outdeg`'s own
-	candidate-only shape, computed once per event as `rowsum(A :* (A*A))`
-	and reused directly for every candidate/actor).
-	`A*A`/`A'*A`/`A*A'` are each computed CONDITIONALLY, only when an
-	effect that needs them is active (`needAA`/`needAtA`/`needAAt`), to
-	avoid the O(n^3) matrix-multiply cost when none of these 6 effects
-	are requested - every other existing effect remains exactly as cheap
-	as before this batch. UNWINDOWED in this batch, a real disclosed
-	scope limit (goldfish's own table shows `window` IS valid on these
-	effects; matching the already-disclosed unwindowed status of
-	choice's own `indeg`, not silently extended to match). Verified
-	against real goldfish on Social_Evolution - see
-	dev/dynam_unit9_closure_crosscheck.R/.do, including a genuine
-	multi-effect model (`inertia + recip + trans + cycle + commonSender
-	+ commonReceiver` together) matching to within 0.01 on every
-	coefficient. `commonReceiver` triggers a real goldfish-side
-	`isTwoMode = TRUE` auto-detection WARNING (not an error) on this
-	directed dataset - a goldfish-internal heuristic quirk, not caused
-	by anything in nwdynam - checked directly and found NOT to change
-	goldfish's own reported coefficient from what the directed,
-	isTwoMode=FALSE formula above predicts (matched to within 0.001).
-
-	Effects 15-16 ("expansion batch 7", added 2026-09-02, continuing
-	"work your way through the list"): `egoAlterInt` and `tertius`, per
-	goldfish's own doc/goldfishEffects.Rmd formulas.
-
-	Effect 15 (egoAlterInt): `s(i,j,t,z1,z2) = z1_i * z2_j` - the
-	SENDER's own covariate 1 value multiplied by the CANDIDATE's own
-	covariate 2 value (an interaction, not a comparison - the two
-	covariates can be the same variable or different ones, matching
-	goldfish's own two-argument `egoAlterInt(attribute1, attribute2)`).
-	Choice-only per goldfish's own table (needs both a sender role and a
-	candidate-receiver role - the same structural reason `inertia`/
-	`recip`/`same`/`diff`/`sim` are choice-only, see the earlier comment
-	in this same header).
-
-	Effect 16 (tertius, "alter" type for choice / "ego" type for rate -
-	the SAME underlying computation reused across both engines exactly
-	like `nodeTrans`, since it is a property of a single actor with no
-	dependence on the realized sender): goldfish's own formula -
-	`s(i,j,t,x,z) = mean_{k: x_kj>0}(z_k)` - the MEAN covariate value of
-	the candidate's own in-neighbors (senders who have contacted them),
-	on the DEPENDENT network itself (goldfish's own default network
-	argument, matching the closure-effect batch's own scope decision).
-	v1 scope, disclosed: only goldfish's own DEFAULT `aggregateFun`
-	(mean) is supported - `sum`/`max`/other custom aggregation functions
-	are not requestable. Computed via `tertiusnumer = tertiusvec * A`
-	(matrix product: for each candidate j, sums the covariate values of
-	everyone who has contacted them) and `tertiusdenom = indeg_i`
-	(already computed each event, reused directly rather than a
-	redundant `colsum(A)`), with an explicit `hasin' mask to avoid 0/0
-	propagating as a Mata missing value.
-
-	ISOLATE IMPUTATION - a real, documented-vs-actual discrepancy found
-	by direct comparison, not trusted from the doc alone (same
-	discipline as the `four()` fix above): goldfish's own doc/
-	goldfishEffects.Rmd states "When a node does not have in-neighbors,
-	the tertius effect is imputed as the average of the aggregate
-	values of nodes with in-neighbors." Implementing that literally
-	first (a `hasin'-weighted global mean of every non-isolated actor's
-	own tertius value) produced a coefficient wildly different from
-	real goldfish (1.153 off, logLik off by 151 on `choice ~ tertius`
-	alone). `estimate(..., preprocessingOnly=TRUE)`'s own
-	`dependentStatsChange` deltas were reconstructed into goldfish's own
-	actual statistic matrix for BOTH sub-models (same technique as the
-	`four()` investigation) and compared directly against the
-	global-mean-imputed values: every non-isolated actor matched
-	EXACTLY, but every isolated actor's own real value was 0, not the
-	documented global mean - confirmed on both the choice (candidate
-	role) and rate (single-actor role) sub-models independently, ruling
-	out a submodel-specific explanation. The documented "Note" does not
-	match goldfish 1.6.12's own actual runtime behavior for this
-	dataset - isolates are imputed as 0, full stop, matching this
-	engine's own pre-existing sentinel convention for "nothing here yet"
-	elsewhere in the file. Implemented as verified, not as documented.
-	Re-verified against real goldfish on Social_Evolution after the fix
-	- see dev/dynam_unit10_tertius_egoalterint_crosscheck.R/.do -
-	matching to within 0.01 on every coefficient, including `tertius`
-	under BOTH sub-models and a genuine 3-effect combined choice model
-	(`inertia + alter + egoAlterInt`).
-
-	`n1' ("expansion batch 9", two-mode/bipartite support, added
-	2026-09-02, user: "continue" - the user's own explicit go-ahead
-	after being shown the remaining large architectural items).
-	Previously rejected outright by nwdynam.ado - see that file's own
-	updated comment for why the guard's stated reason no longer holds
-	and what was verified before lifting it.
-
-	MECHANISM: `n1' is the mode-1 actor count (0 = not two-mode). This
-	package's own combined actor-index convention (established by
-	nwset's own bipartite ingestion, already reused by nwergm's own
-	bipartite() support) puts mode-1 actors at indices 1..n1 and mode-2
-	at n1+1..n, contiguous. goldfish's own two-mode DyNAM architecture
-	assumes a STRICTLY ONE-DIRECTIONAL bipartite dependent network -
-	confirmed directly via a hand-built toy affiliation network (people
-	sending to orgs, never the reverse) - every event's sender is drawn
-	from node set 1 ("nodes"), every candidate/receiver from node set 2
-	("nodes2"), never mixed. Implemented as a simple risk-set MASK on
-	top of the existing engine: choice sub-model excludes mode-1 actors
-	from the candidate set (`lp[1..n1] = -1e300`); rate sub-model
-	excludes mode-2 actors from the "who acts next" risk set
-	(`lp[(n1+1)..n] = -1e300`). Hand-traced against goldfish's own
-	`dependentStatsChange` deltas (same `preprocessingOnly=TRUE'
-	technique used for `four()'/`tertius()' above) for `inertia' on a
-	tiny 2-person/2-org/4-event example FIRST, confirming the naive
-	"just restrict the risk set, formula unchanged" hypothesis holds for
-	genuinely dyadic tie-presence effects - only THEN extended to a
-	larger (6-person/4-org/60-event) toy dataset for full verification.
-
-	PER-EFFECT ELIGIBILITY - goldfish's own documented `isTwoMode`
-	column (doc/goldfishEffects.Rmd) turned out UNRELIABLE as a
-	predictor of which effects actually work for two-mode - checked
-	directly, not trusted: several effects the table marks eligible
-	(`recip`, `outdeg` choice-side/alter-type, `commonReceiver`, `indeg`
-	rate-side/ego-type) are hard-REJECTED by goldfish's own engine at
-	runtime, each for the SAME real structural reason - goldfish's own
-	one-directional architecture means mode 1 has no in-ties and mode 2
-	has no out-ties, so any effect needing that missing role is
-	undefined, not just usually-zero. These rejections are MIRRORED
-	here (not silently allowed to produce a degenerate fit).
-
-	A DEEPER finding, going beyond simple risk-set restriction: a few
-	effects goldfish DOES accept for two-mode (`commonSender`, `four`)
-	produced NON-degenerate fits that pure risk-set-restriction
-	reasoning could not explain, matching goldfish's own doc warning
-	("we omit the difference in the computation of the statistics when
-	isTwoMode is used") - meaning some effects genuinely redefine their
-	own formula for two-mode, not just their risk set. This was
-	confirmed to run deeper than expected: direct comparison against
-	goldfish's own reconstructed statistics found `same()` and `ego()` -
-	the SIMPLEST possible attribute effects, a plain value comparison
-	and a plain value broadcast respectively - ALSO silently wrong under
-	the naive "read one combined covariate vector spanning both modes"
-	approach originally attempted here (`same()` off by a large margin;
-	`ego()` off by a smaller but still real margin). Investigating why
-	revealed goldfish's own internal two-mode statistic array applies
-	its ordinary "zero the self-tie" convention by matching raw ROW
-	INDEX to raw COLUMN INDEX, even though rows and columns span two
-	GENUINELY DIFFERENT node sets in a two-mode network (so
-	person-index-3 and org-index-3 get treated as "the same actor" for
-	self-exclusion purposes, despite being unrelated actors in different
-	modes) - a real goldfish-internal representation quirk that could
-	not be confidently reverse-engineered into a correct general formula
-	in the time available. Given this, EVERY attribute effect (`same`/
-	`diff`/`sim`/`alter`/`ego`/`egoAlterInt`/`tertius`) is rejected for
-	two-mode in nwdynam.ado, not just the ones goldfish itself hard-
-	rejects - a disclosed, unresolved gap, not a silently-shipped guess.
-
-	VERIFIED WORKING, with an EXACT numerical match to real goldfish on
-	the 6-person/4-org/60-event toy dataset (dev/dynam_unit12_twomode_
-	crosscheck.R/.do): `inertia` (choice: -0.42729, alone; -0.73342
-	alongside `indeg`), `indeg` alter-type (choice: 0.12673 alone;
-	0.23018 alongside `inertia`), `outdeg` ego-type (rate: 0.23797) -
-	matching to within 1e-5 on every coefficient. `nodeTrans`/`trans`/
-	`cycle` are excluded per goldfish's own `isTwoMode=×` table entries
-	(not independently re-verified, since every OTHER table entry that
-	WAS re-verified turned out unreliable in at least one direction -
-	disclosed, not assumed safe either way). `commonSender`/`four`
-	(goldfish accepts them, but with the unexplained formula difference
-	above) and windowed/weighted effects (not yet verified together with
-	two-mode at all) remain real, disclosed gaps for a future batch.
-*/
-void dynam_choice_loglik_grad_multi(real rowvector theta, real rowvector active,
-		real matrix covmat, real rowvector windowvec, real rowvector weightvec, real scalar n1,
-		real matrix oppmat, real matrix tiemat,
-		pointer(class DynamState scalar) scalar pS, real scalar ll, real rowvector grad) {
-	real scalar i, s, r, n, mx, lrsum, j, e, tcur, nowindowinertia, nowindowrecip
-	real scalar needAA, needAtA, needAAt, windowinertia, windowrecip
-	real scalar weightedinertia, weightedrecip, weightedindeg, weightedoutdeg, g0, k, a, b, v, pwi, pwr
-	real matrix tieval, winertia, wrecip, A, AA, AtA, AAt, AAtA
-	real rowvector inertia_i, recip_i, indeg_i, outdeg_i, same_i, diff_i, sim_i
-	real rowvector trans_i, cycle_i, commonsender_i, commonreceiver_i, four_i, nodetrans_i
-	real rowvector egoalterint_i, tertius_i, tertiusnumer, tertiusdenom, hasin, tie_i
-	real rowvector lp, P, gradfull, idx
-	real rowvector samevec, diffvec, simvec, altervec, tertiusvec, egoalterint1vec, egoalterint2vec
-
-	// `covmat' bundles every per-actor covariate vector into ONE 7 x n
-	// matrix (row 1=same, 2=diff, 3=sim, 4=alter, 5=tertius,
-	// 6=egoalterint1, 7=egoalterint2), `windowvec' bundles both window
-	// scalars into ONE 1 x 2 vector (1=windowinertia, 2=windowrecip),
-	// and `weightvec' bundles the four `weighted=TRUE' modifier flags
-	// into ONE 1 x 4 vector (1=inertia, 2=recip, 3=indeg, 4=outdeg) -
-	// rather than passing each as its own optimize_init_argument()
-	// slot. Stata's own optimize() framework caps optimize_init_argument()
-	// at index 9 (confirmed directly by a minimal repro, not assumed -
-	// the previous 11-separate-argument design for this function hit
-	// that cap exactly, silently (`invalid argument index'), once
-	// egoAlterInt/tertius pushed the count past it in "expansion batch
-	// 7"). Bundling into matrices instead of separate arguments keeps
-	// this function's own outer signature FIXED regardless of how many
-	// more per-actor covariates or modifier flags a future batch adds -
-	// only `covmat'/`weightvec' grow, no new optimize_init_argument()
-	// slot ever needed again.
-	samevec = covmat[1,.]
-	diffvec = covmat[2,.]
-	simvec = covmat[3,.]
-	altervec = covmat[4,.]
-	tertiusvec = covmat[5,.]
-	egoalterint1vec = covmat[6,.]
-	egoalterint2vec = covmat[7,.]
-	windowinertia = windowvec[1]
-	windowrecip = windowvec[2]
-	weightedinertia = weightvec[1]
-	weightedrecip = weightvec[2]
-	weightedindeg = weightvec[3]
-	weightedoutdeg = weightvec[4]
-
-	n = (*pS).n
-	ll = 0
-	gradfull = J(1, 17, 0)
-	// tieval: the value of every tie, the sum of the values of its events so far (goldfish: each event adds its value,
-	// the increment); a tie exists while its value is above 0 (A). winertia/wrecip: the same within the windows.
-	tieval = J(n, n, 0)
-	winertia = J(n, n, 0)
-	wrecip = J(n, n, 0)
-	pwi = 1
-	pwr = 1
-	same_i = J(1, n, 0)
-	diff_i = J(1, n, 0)
-	sim_i = J(1, n, 0)
-	nowindowinertia = (windowinertia >= 1e300)
-	nowindowrecip = (windowrecip >= 1e300)
-	needAA = active[9] | active[10] | active[14]
-	needAtA = active[11] | active[13]
-	needAAt = active[12]
-	if (active[15]) egoalterint_i = J(1, n, 0)
-
-	idx = J(1, 17, 0)
-	j = 0
-	for (e=1; e<=17; e++) {
-		if (active[e]) {
-			j = j + 1
-			idx[e] = j
-		}
-	}
-
-	for (i=1; i<=(*pS).nevents; i++) {
-		s = (*pS).events[i,1]
-		r = (*pS).events[i,2]
-		tcur = (*pS).events[i,3]
-
-		A = (tieval :> 0)
-		if (!nowindowinertia) dynam_window_expire(pS, winertia, pwi, (*pS).gfirst[i] - 1, tcur, windowinertia, 0)
-		if (!nowindowrecip) dynam_window_expire(pS, wrecip, pwr, (*pS).gfirst[i] - 1, tcur, windowrecip, 0)
-		if (nowindowinertia) {
-			if (weightedinertia) inertia_i = tieval[s,.]
-			else inertia_i = A[s,.]
-		}
-		else {
-			if (weightedinertia) inertia_i = winertia[s,.]
-			else inertia_i = (winertia[s,.] :> 0)
-		}
-		if (nowindowrecip) {
-			if (weightedrecip) recip_i = tieval[.,s]'
-			else recip_i = A[.,s]'
-		}
-		else {
-			if (weightedrecip) recip_i = wrecip[.,s]'
-			else recip_i = (wrecip[.,s]' :> 0)
-		}
-		if (weightedindeg) indeg_i = colsum(tieval)
-		else indeg_i = colsum(sign(tieval))
-		if (active[8]) {
-			if (weightedoutdeg) outdeg_i = rowsum(tieval)'
-			else outdeg_i = rowsum(sign(tieval))'
-		}
-		if (active[4]) same_i = (samevec :== samevec[s])
-		if (active[5]) diff_i = abs(diffvec :- diffvec[s])
-		if (active[6]) sim_i = -abs(simvec :- simvec[s])
-		if (active[15]) egoalterint_i = egoalterint1vec[s] :* egoalterint2vec
-
-		if (needAA) AA = A * A
-		if (needAtA) AtA = A' * A
-		if (needAAt) AAt = A * A'
-		if (active[9]) trans_i = AA[s,.]
-		if (active[10]) cycle_i = AA[.,s]'
-		if (active[11]) commonsender_i = AtA[s,.]
-		if (active[12]) commonreceiver_i = AAt[s,.]
-		if (active[13]) {
-			AAtA = A * AtA
-			four_i = AAtA[s,.] :- A[s,.] :* (rowsum(A[s,.]) :+ diagonal(AtA)' :- A[s,.])
-		}
-		if (active[14]) nodetrans_i = rowsum(A :* AA)'
-		if (active[16]) {
-			tertiusnumer = tertiusvec * A
-			// Always the count of DISTINCT in-neighbors, never the
-			// weighted indegree - `indeg_i' above may itself be
-			// weighted (`weightedindeg') if `indeg' is ALSO active in
-			// the SAME model, which must not silently change tertius's
-			// own denominator.
-			tertiusdenom = colsum(A)
-			hasin = (tertiusdenom :> 0)
-			tertius_i = hasin :* (tertiusnumer :/ (tertiusdenom :+ (1 :- hasin)))
-		}
-
-		// tie() ("cross-network effects, v1 scope", added 2026-09-02):
-		// unweighted presence in a SEPARATE, STATIC exogenous network
-		// (`tiemat', an n x n 0/1 matrix, unchanging across events - not
-		// itself an event-declared/evolving network, a real, disclosed
-		// v1 scope limit) - `s(i,j,t,x) = I(x_ij>0)' per goldfish's own
-		// doc/goldfishEffects.Rmd, identical in shape to `inertia' but
-		// reading a FIXED matrix instead of the incrementally-tracked
-		// `lastcontact'. Verified directly against real goldfish (see
-		// dev/dynam_unit18_tie_crosscheck.R/.do) - `tiemat' has 0 rows
-		// when tie() was not given (matching `oppmat''s own "not given"
-		// sentinel convention), skipping the row-extraction entirely.
-		if (active[17]) tie_i = tiemat[s,.]
-
-		lp = J(1, n, 0)
-		if (active[1]) lp = lp :+ theta[idx[1]] :* inertia_i
-		if (active[2]) lp = lp :+ theta[idx[2]] :* recip_i
-		if (active[3]) lp = lp :+ theta[idx[3]] :* indeg_i
-		if (active[4]) lp = lp :+ theta[idx[4]] :* same_i
-		if (active[5]) lp = lp :+ theta[idx[5]] :* diff_i
-		if (active[6]) lp = lp :+ theta[idx[6]] :* sim_i
-		if (active[7]) lp = lp :+ theta[idx[7]] :* altervec
-		if (active[8]) lp = lp :+ theta[idx[8]] :* outdeg_i
-		if (active[9]) lp = lp :+ theta[idx[9]] :* trans_i
-		if (active[10]) lp = lp :+ theta[idx[10]] :* cycle_i
-		if (active[11]) lp = lp :+ theta[idx[11]] :* commonsender_i
-		if (active[12]) lp = lp :+ theta[idx[12]] :* commonreceiver_i
-		if (active[13]) lp = lp :+ theta[idx[13]] :* four_i
-		if (active[14]) lp = lp :+ theta[idx[14]] :* nodetrans_i
-		if (active[15]) lp = lp :+ theta[idx[15]] :* egoalterint_i
-		if (active[16]) lp = lp :+ theta[idx[16]] :* tertius_i
-		if (active[17]) lp = lp :+ theta[idx[17]] :* tie_i
-		lp[s] = -1e300
-		// Two-mode: mode-1 actors (indices 1..n1, which already
-		// includes the sender itself, so this subsumes the line above)
-		// can never be a CANDIDATE - goldfish's own architecture
-		// assumes mode 2 only ever receives (see nwdynam.ado's own
-		// two-mode comment for the real-goldfish verification this
-		// mirrors).
-		if (n1 > 0) lp[1..n1] = J(1, n1, -1e300)
-		// opportunitiesList (goldfish's own estimationInit argument,
-		// choice sub-model only): per-event candidate restriction -
-		// actors NOT marked available for event i are excluded from the
-		// risk set for THAT event only, matching goldfish's own
-		// behavior exactly (verified directly: the sender's own
-		// self-exclusion above still applies unconditionally regardless
-		// of whether the sender itself is listed as "available").
-		// `oppmat' has 0 rows when opportunitiesList was not given (the
-		// sentinel for "no restriction," skipping this entirely).
-		if (rows(oppmat) > 0) lp = lp :+ (oppmat[i,.] :== 0) :* (-1e300)
-
-		mx = max(lp)
-		P = exp(lp :- mx)
-		lrsum = mx + ln(sum(P))
-		ll = ll + (lp[r] - lrsum)
-
-		P = P :/ sum(P)
-		if (active[1]) gradfull[1] = gradfull[1] + (inertia_i[r] - sum(inertia_i :* P))
-		if (active[2]) gradfull[2] = gradfull[2] + (recip_i[r] - sum(recip_i :* P))
-		if (active[3]) gradfull[3] = gradfull[3] + (indeg_i[r] - sum(indeg_i :* P))
-		if (active[4]) gradfull[4] = gradfull[4] + (same_i[r] - sum(same_i :* P))
-		if (active[5]) gradfull[5] = gradfull[5] + (diff_i[r] - sum(diff_i :* P))
-		if (active[6]) gradfull[6] = gradfull[6] + (sim_i[r] - sum(sim_i :* P))
-		if (active[7]) gradfull[7] = gradfull[7] + (altervec[r] - sum(altervec :* P))
-		if (active[8]) gradfull[8] = gradfull[8] + (outdeg_i[r] - sum(outdeg_i :* P))
-		if (active[9]) gradfull[9] = gradfull[9] + (trans_i[r] - sum(trans_i :* P))
-		if (active[10]) gradfull[10] = gradfull[10] + (cycle_i[r] - sum(cycle_i :* P))
-		if (active[11]) gradfull[11] = gradfull[11] + (commonsender_i[r] - sum(commonsender_i :* P))
-		if (active[12]) gradfull[12] = gradfull[12] + (commonreceiver_i[r] - sum(commonreceiver_i :* P))
-		if (active[13]) gradfull[13] = gradfull[13] + (four_i[r] - sum(four_i :* P))
-		if (active[14]) gradfull[14] = gradfull[14] + (nodetrans_i[r] - sum(nodetrans_i :* P))
-		if (active[15]) gradfull[15] = gradfull[15] + (egoalterint_i[r] - sum(egoalterint_i :* P))
-		if (active[16]) gradfull[16] = gradfull[16] + (tertius_i[r] - sum(tertius_i :* P))
-		if (active[17]) gradfull[17] = gradfull[17] + (tie_i[r] - sum(tie_i :* P))
-
-		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
-			a = (*pS).events[k,1]
-			b = (*pS).events[k,2]
-			v = (*pS).events[k,4]
-			tieval[a,b] = tieval[a,b] + v
-			if (!nowindowinertia) winertia[a,b] = winertia[a,b] + v
-			if (!nowindowrecip) wrecip[a,b] = wrecip[a,b] + v
-		}
-	}
-
-	grad = J(1, 0, 0)
-	for (e=1; e<=17; e++) if (active[e]) grad = (grad, gradfull[e])
-}
-
-real scalar dynam_choice_loglik_multi(real rowvector theta, real rowvector active,
-		real matrix covmat, real rowvector windowvec, real rowvector weightvec, real scalar n1,
-		real matrix oppmat, real matrix tiemat,
-		pointer(class DynamState scalar) scalar pS) {
-	real scalar ll
-	real rowvector grad
-	dynam_choice_loglik_grad_multi(theta, active, covmat, windowvec, weightvec, n1, oppmat, tiemat, pS, ll, grad)
-	return(ll)
-}
-
-void dynam_choice_eval_multi(real scalar todo, real rowvector theta, pointer(real rowvector) scalar pActive,
-		pointer(real matrix) scalar pCovmat, pointer(real rowvector) scalar pWindowVec, pointer(real rowvector) scalar pWeightVec,
-		pointer(real scalar) scalar pN1, pointer(real matrix) scalar pOppmat, pointer(real matrix) scalar pTiemat,
-		pointer(class DynamState scalar) scalar pS, real scalar y, real rowvector g, real matrix H) {
-	real rowvector grad
-	dynam_choice_loglik_grad_multi(theta, *pActive, *pCovmat, *pWindowVec, *pWeightVec, *pN1, *pOppmat, *pTiemat, pS, y, grad)
-	if (todo >= 1) g = grad
-}
-
-/*
-	DynamChoiceFitMulti() -- fits any nonempty subset of the choice
-	sub-model's 16 effects. Mata-only (no native backend for a genuine
-	subset yet - see this file's own header comment for why: a real,
-	disclosed follow-on, not silently missing). Random-perturbation
-	multi-start strategy (not a fixed small start-point table like
-	DynamFitUnit1()'s own 3-parameter-only table) since nparams now
-	varies with how many effects are selected - matching unw_rem.do's
-	own RemFitMulti() precedent for the identical reason. `samevec'/
-	`diffvec'/`simvec'/`altervec'/`tertiusvec'/`egoalterint1vec'/
-	`egoalterint2vec' are each a 1 x n per-actor covariate vector - pass
-	J(1,n,0) for any not needed (never read when the corresponding
-	active[] entry is 0), matching unw_rem.do's own covsndvec/covrecvec/
-	covintvec convention exactly. `windowinertia'/`windowrecip' each
-	>=1e300 means no window for that specific effect (matching
-	goldfish's own per-effect window= argument, not a single shared
-	window across the whole model) - see dynam_choice_loglik_grad_multi()'s
-	own header comment for the exact windowing formula and how it was
-	verified. `weightedinertia'/`weightedrecip'/`weightedindeg'/
-	`weightedoutdeg' (added "expansion batch 8") are boolean-valued (1/0)
-	- when set, that effect reads the cumulative COUNT of prior events
-	for that dyad/actor instead of binary presence, matching goldfish's
-	own `weighted=TRUE' argument; mutually exclusive with that same
-	effect's own window in this implementation (not validated inside
-	Mata - `nwdynam.ado' rejects the combination before it ever reaches
-	here). This function's OWN external signature (7 separate covariate
-	vectors + 2 window scalars + 4 weighted flags) is unchanged in
-	SHAPE from before the covmat/windowvec/weightvec bundling refactor -
-	it builds the bundled arguments internally (via Mata's `\'
-	vertical-stack operator for `covmat', plain literal vectors for
-	`windowvec'/`weightvec') before handing them to
-	optimize_init_argument(), so every existing caller (nwdynam.ado,
-	every dev/ crosscheck) needed only the 4 new trailing weighted-flag
-	arguments added, not a restructuring; only the INTERNAL
-	argument-passing to the optimizer needed to change to stay under
-	Stata's own 9-argument optimize_init_argument() cap (see
-	dynam_choice_loglik_grad_multi()'s own header comment for the
-	discovery). `n1' (added "expansion batch 9", two-mode support) is
-	the mode-1 actor count (0 = not two-mode, matching this file's own
-	sentinel conventions) - when positive, mode-1 actors (indices
-	1..n1) are excluded from the choice sub-model's own candidate risk
-	set entirely, matching goldfish's own one-directional two-mode
-	architecture (see dynam_choice_loglik_grad_multi()'s own header
-	comment for the real-goldfish verification and the per-effect
-	two-mode eligibility this required). `oppmat' ("expansion batch
-	10", opportunitiesList support) is an nevents x n 0/1 matrix - row i
-	marks which actors are an available candidate for event i (0 rows
-	= not given, meaning no restriction, matching goldfish's own
-	default). Choice sub-model only, matching goldfish's own
-	`opportunitiesList' scope exactly (its own documentation states
-	"ONLY for choice models").
-*/
-void DynamChoiceFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
-		real rowvector samevec, real rowvector diffvec, real rowvector simvec, real rowvector altervec,
-		real rowvector tertiusvec, real rowvector egoalterint1vec, real rowvector egoalterint2vec,
-		real scalar windowinertia, real scalar windowrecip,
-		real scalar weightedinertia, real scalar weightedrecip, real scalar weightedindeg, real scalar weightedoutdeg,
-		real scalar n1, real matrix oppmat, real matrix tiemat,
-		string scalar bname, string scalar vname, string scalar llname) {
-	class DynamState scalar S
-	transmorphic S_opt
-	real rowvector theta0, theta_hat, windowvec, weightvec
-	real matrix V, covmat
-	real scalar nparams, attempt, ok, errcode, nstarts
-	real matrix starts
-
-	S = DynamState()
-	S.init(eventmat, n)
-
-	covmat = (samevec \ diffvec \ simvec \ altervec \ tertiusvec \ egoalterint1vec \ egoalterint2vec)
-	windowvec = (windowinertia, windowrecip)
-	weightvec = (weightedinertia, weightedrecip, weightedindeg, weightedoutdeg)
-
-	nparams = sum(activevec)
-	if (nparams == 0) _error("nwdynam: at least one effect must be selected.")
-
-	nstarts = 8
-	starts = J(nstarts, nparams, 0)
-	for (attempt=1; attempt<=nstarts; attempt++) {
-		starts[attempt,.] = (runiform(1,nparams) :- 0.5) :* (0.15 * (mod(attempt-1, nstarts) + 1))
-	}
-
-	ok = 0
-	for (attempt=1; attempt<=rows(starts) & ok==0; attempt++) {
-		theta0 = starts[attempt,.]
-		S_opt = optimize_init()
-		optimize_init_evaluator(S_opt, &dynam_choice_eval_multi())
-		optimize_init_evaluatortype(S_opt, "d1")
-		optimize_init_params(S_opt, theta0)
-		optimize_init_argument(S_opt, 1, &activevec)
-		optimize_init_argument(S_opt, 2, &covmat)
-		optimize_init_argument(S_opt, 3, &windowvec)
-		optimize_init_argument(S_opt, 4, &weightvec)
-		optimize_init_argument(S_opt, 5, &n1)
-		optimize_init_argument(S_opt, 6, &oppmat)
-		optimize_init_argument(S_opt, 7, &tiemat)
-		optimize_init_argument(S_opt, 8, &S)
-		optimize_init_technique(S_opt, "bfgs")
-		optimize_init_which(S_opt, "max")
-		optimize_init_tracelevel(S_opt, "none")
-		optimize_init_conv_warning(S_opt, "off")
-		optimize_init_conv_maxiter(S_opt, 60)
-		errcode = _optimize(S_opt)
-		if (errcode == 0) {
-			theta_hat = optimize_result_params(S_opt)
-			ok = 1
-		}
-	}
-	if (ok == 0) {
-		S_opt = optimize_init()
-		optimize_init_evaluator(S_opt, &dynam_choice_eval_multi())
-		optimize_init_evaluatortype(S_opt, "d1")
-		optimize_init_params(S_opt, J(1, nparams, 0.01))
-		optimize_init_argument(S_opt, 1, &activevec)
-		optimize_init_argument(S_opt, 2, &covmat)
-		optimize_init_argument(S_opt, 3, &windowvec)
-		optimize_init_argument(S_opt, 4, &weightvec)
-		optimize_init_argument(S_opt, 5, &n1)
-		optimize_init_argument(S_opt, 6, &oppmat)
-		optimize_init_argument(S_opt, 7, &tiemat)
-		optimize_init_argument(S_opt, 8, &S)
-		optimize_init_technique(S_opt, "nm")
-		optimize_init_which(S_opt, "max")
-		optimize_init_tracelevel(S_opt, "none")
-		optimize_init_conv_warning(S_opt, "off")
-		optimize_init_conv_maxiter(S_opt, 300)
-		theta_hat = optimize(S_opt)
-	}
-	V = optimize_result_V_oim(S_opt)
-
-	st_matrix(bname, theta_hat)
-	st_matrix(vname, V)
-	st_numscalar(llname, optimize_result_value(S_opt))
-}
-
-/*
-	Rate sub-model, generalized/selectable engine - same role as
-	dynam_choice_loglik_grad_multi() above, for the rate sub-model's own
-	effects (1=indeg, 2=outdeg, matching dynam_rate_loglik_grad_unit1()'s
-	own order; 3=ego, added 2026-09-02 - "expansion batch 2").
-
-	Effect 3 (ego): the simplest possible attribute effect, per
-	goldfish's own doc/goldfishEffects.Rmd - `r(i,t,z) = z_i`, the
-	candidate (potential next sender)'s OWN static covariate value,
-	broadcast directly with no comparison at all - the rate-side
-	counterpart of the choice sub-model's own `alter` effect
-	(dynam_choice_loglik_grad_multi()'s effect 7), matching goldfish's
-	own naming exactly (`ego` for rate, `alter` for choice - the SAME
-	underlying "static per-actor level" idea, just named for whichever
-	risk-set role that sub-model's own candidates play). goldfish's own
-	effect table confirms `ego` is rate-sub-model-only (never choice).
-
-	`windowindeg`/`windowoutdeg` (added 2026-09-02, user follow-up "can
-	we make [window] also available for the rate part of the model?",
-	immediately after the choice-side inertiawindow()/recipwindow()
-	self-activation redesign): a real-time recency cutoff on indeg/outdeg
-	INDEPENDENTLY, exactly mirroring windowinertia/windowrecip's own
-	semantics and >=1e300 "no window" sentinel. goldfish's own
-	doc/goldfishEffects.Rmd effect table lists `window` as a real
-	argument on indeg/outdeg and confirms both apply to the RATE
-	sub-model (not just choice). Formula (same shape as the choice
-	engine's own inertia/recip window, re-derived and verified against
-	real goldfish here rather than assumed identical - see
-	dev/dynam_unit7_ratewindow_crosscheck.R/.do): windowed indeg for
-	candidate i counts only senders j whose MOST RECENT prior j->i event
-	happened within the window of the current event's own timestamp;
-	windowed outdeg for candidate i counts only receivers j whose most
-	recent prior i->j event is within the window - the same
-	`t_current - t_lastcontact <= window` hard cutoff, not a decaying
-	weight. Implementation mirrors the choice engine exactly: the
-	previous binary `tie` matrix is replaced by `lastcontact` (real time
-	of the most recent i->j event, sentinel -1e300 for "never"). When
-	both windows are inactive, `lastcontact :> -1e300` reproduces the
-	OLD `tie :> 0` binary presence check exactly (bit-identical -
-	verified directly via dev/dynam_unit7_ratewindow_crosscheck.do's own
-	no-window regression sub-check against unit1's pre-window numbers).
-*/
-void dynam_rate_loglik_grad_multi(real rowvector theta, real rowvector active,
-		real rowvector egovec, real rowvector tertiusvec, real scalar windowindeg, real scalar windowoutdeg,
-		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1,
-		pointer(class DynamState scalar) scalar pS, real scalar ll, real rowvector grad) {
-	real scalar i, s, r, n, mx, lrsum, j, e, tcur, nowindowindeg, nowindowoutdeg, g0, k, a, b, v, pwd, pwo
-	real matrix tieval, windeg, woutdeg, A, AA
-	real rowvector indeg_i, outdeg_i, nodetrans_i, tertius_i, tertiusnumer, tertiusdenom, hasin, lp, P, gradfull, idx
-
-	n = (*pS).n
-	ll = 0
-	gradfull = J(1, 5, 0)
-	// tieval, windeg, woutdeg: tie values (summed event values) overall and within the windows - see
-	// dynam_choice_loglik_grad_multi()
-	tieval = J(n, n, 0)
-	windeg = J(n, n, 0)
-	woutdeg = J(n, n, 0)
-	pwd = 1
-	pwo = 1
-	nowindowindeg = (windowindeg >= 1e300)
-	nowindowoutdeg = (windowoutdeg >= 1e300)
-
-	idx = J(1, 5, 0)
-	j = 0
-	for (e=1; e<=5; e++) {
-		if (active[e]) {
-			j = j + 1
-			idx[e] = j
-		}
-	}
-
-	for (i=1; i<=(*pS).nevents; i++) {
-		s = (*pS).events[i,1]
-		r = (*pS).events[i,2]
-		tcur = (*pS).events[i,3]
-
-		A = (tieval :> 0)
-		if (!nowindowindeg) dynam_window_expire(pS, windeg, pwd, (*pS).gfirst[i] - 1, tcur, windowindeg, 0)
-		if (!nowindowoutdeg) dynam_window_expire(pS, woutdeg, pwo, (*pS).gfirst[i] - 1, tcur, windowoutdeg, 0)
-		if (nowindowindeg) {
-			if (weightedindeg) indeg_i = colsum(tieval)
-			else indeg_i = colsum(sign(tieval))
-		}
-		else {
-			if (weightedindeg) indeg_i = colsum(windeg)
-			else indeg_i = colsum(sign(windeg))
-		}
-		if (nowindowoutdeg) {
-			if (weightedoutdeg) outdeg_i = rowsum(tieval)'
-			else outdeg_i = rowsum(sign(tieval))'
-		}
-		else {
-			if (weightedoutdeg) outdeg_i = rowsum(woutdeg)'
-			else outdeg_i = rowsum(sign(woutdeg))'
-		}
-		if (active[4]) {
-			AA = A * A
-			nodetrans_i = rowsum(A :* AA)'
-		}
-		if (active[5]) {
-			tertiusnumer = tertiusvec * A
-			// Always the count of DISTINCT in-neighbors, never the
-			// weighted indegree - see the choice engine's own identical
-			// comment above dynam_choice_loglik_grad_multi().
-			tertiusdenom = colsum(A)
-			hasin = (tertiusdenom :> 0)
-			tertius_i = hasin :* (tertiusnumer :/ (tertiusdenom :+ (1 :- hasin)))
-		}
-
-		lp = J(1, n, 0)
-		if (active[1]) lp = lp :+ theta[idx[1]] :* indeg_i
-		if (active[2]) lp = lp :+ theta[idx[2]] :* outdeg_i
-		if (active[3]) lp = lp :+ theta[idx[3]] :* egovec
-		if (active[4]) lp = lp :+ theta[idx[4]] :* nodetrans_i
-		if (active[5]) lp = lp :+ theta[idx[5]] :* tertius_i
-		// Two-mode: mode-2 actors (indices n1+1..n) can never be the
-		// next sender - goldfish's own architecture assumes mode 1
-		// only ever sends (see nwdynam.ado's own two-mode comment for
-		// the real-goldfish verification this mirrors).
-		if (n1 > 0) lp[(n1+1)..n] = J(1, n-n1, -1e300)
-
-		mx = max(lp)
-		P = exp(lp :- mx)
-		lrsum = mx + ln(sum(P))
-		ll = ll + (lp[s] - lrsum)
-
-		P = P :/ sum(P)
-		if (active[1]) gradfull[1] = gradfull[1] + (indeg_i[s] - sum(indeg_i :* P))
-		if (active[2]) gradfull[2] = gradfull[2] + (outdeg_i[s] - sum(outdeg_i :* P))
-		if (active[3]) gradfull[3] = gradfull[3] + (egovec[s] - sum(egovec :* P))
-		if (active[4]) gradfull[4] = gradfull[4] + (nodetrans_i[s] - sum(nodetrans_i :* P))
-		if (active[5]) gradfull[5] = gradfull[5] + (tertius_i[s] - sum(tertius_i :* P))
-
-		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
-			a = (*pS).events[k,1]
-			b = (*pS).events[k,2]
-			v = (*pS).events[k,4]
-			tieval[a,b] = tieval[a,b] + v
-			if (!nowindowindeg) windeg[a,b] = windeg[a,b] + v
-			if (!nowindowoutdeg) woutdeg[a,b] = woutdeg[a,b] + v
-		}
-	}
-
-	grad = J(1, 0, 0)
-	for (e=1; e<=5; e++) if (active[e]) grad = (grad, gradfull[e])
-}
-
-real scalar dynam_rate_loglik_multi(real rowvector theta, real rowvector active,
-		real rowvector egovec, real rowvector tertiusvec, real scalar windowindeg, real scalar windowoutdeg,
-		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1,
-		pointer(class DynamState scalar) scalar pS) {
-	real scalar ll
-	real rowvector grad
-	dynam_rate_loglik_grad_multi(theta, active, egovec, tertiusvec, windowindeg, windowoutdeg, weightedindeg, weightedoutdeg, n1, pS, ll, grad)
-	return(ll)
-}
-
-void dynam_rate_eval_multi(real scalar todo, real rowvector theta, pointer(real rowvector) scalar pActive,
-		pointer(real rowvector) scalar pEgo, pointer(real rowvector) scalar pTertius,
-		pointer(real rowvector) scalar pModVec,
-		pointer(class DynamState scalar) scalar pS, real scalar y, real rowvector g, real matrix H) {
-	real rowvector grad, modvec
-	modvec = *pModVec
-	dynam_rate_loglik_grad_multi(theta, *pActive, *pEgo, *pTertius, modvec[1], modvec[2], modvec[3], modvec[4], modvec[5], pS, y, grad)
-	if (todo >= 1) g = grad
-}
-
-/*
-	DynamRateFitMulti() -- fits any nonempty subset of the rate
-	sub-model's 5 effects (1=indeg, 2=outdeg, 3=ego, 4=nodeTrans, 5=
-	tertius - added 2026-09-02, "expansion batch 6"/"batch 7", both
-	SAME both-submodel effects as dynam_choice_loglik_grad_multi()'s own
-	effects 14/16; see that function's own header comment for the exact
-	formulas). Same Mata-only, random-start strategy as
-	DynamChoiceFitMulti(). `egovec'/`tertiusvec' are each a 1 x n
-	per-actor covariate vector - pass J(1,n,0) if the corresponding
-	active[] entry is 0 (never read in that case).
-	`windowindeg'/`windowoutdeg' each >=1e300 means no window for that
-	specific effect (matching windowinertia/windowrecip's own
-	convention in DynamChoiceFitMulti()). `nodeTrans`/`tertius` are both
-	UNWINDOWED in this batch, matching their choice-side counterparts'
-	own disclosed scope limit. `weightedindeg'/`weightedoutdeg' (added
-	"expansion batch 8") mirror the choice engine's own weighted flags -
-	when set, that effect reads the cumulative COUNT of prior events for
-	that actor instead of the count of distinct partners, matching
-	goldfish's own `weighted=TRUE'. `n1' (added "expansion batch 9",
-	two-mode support) is the mode-1 actor count (0 = not two-mode) -
-	when positive, mode-2 actors (indices n1+1..n) are excluded from
-	the rate sub-model's own risk set entirely, matching goldfish's own
-	one-directional two-mode architecture (see
-	dynam_rate_loglik_grad_multi()'s own header comment). This
-	function's OWN external signature (separate named scalar
-	arguments) is unchanged in SHAPE - internally these five are
-	bundled into ONE `modvec' before being handed to
-	optimize_init_argument(), since adding `n1' as a further separate
-	slot would have reached Stata's own 9-argument
-	optimize_init_argument() cap (see dynam_choice_loglik_grad_multi()'s
-	own header comment for the discovery) - matching the choice engine's
-	own covmat/windowvec/weightvec bundling precedent.
-*/
-void DynamRateFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
-		real rowvector egovec, real rowvector tertiusvec, real scalar windowindeg, real scalar windowoutdeg,
-		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1,
-		string scalar bname, string scalar vname, string scalar llname) {
-	class DynamState scalar S
-	transmorphic S_opt
-	real rowvector theta0, theta_hat, modvec
-	real matrix V
-	real scalar nparams, attempt, ok, errcode, nstarts
-	real matrix starts
-
-	S = DynamState()
-	S.init(eventmat, n)
-
-	modvec = (windowindeg, windowoutdeg, weightedindeg, weightedoutdeg, n1)
-
-	nparams = sum(activevec)
-	if (nparams == 0) _error("nwdynam: at least one effect must be selected.")
-
-	nstarts = 8
-	starts = J(nstarts, nparams, 0)
-	for (attempt=1; attempt<=nstarts; attempt++) {
-		starts[attempt,.] = (runiform(1,nparams) :- 0.5) :* (0.15 * (mod(attempt-1, nstarts) + 1))
-	}
-
-	ok = 0
-	for (attempt=1; attempt<=rows(starts) & ok==0; attempt++) {
-		theta0 = starts[attempt,.]
-		S_opt = optimize_init()
-		optimize_init_evaluator(S_opt, &dynam_rate_eval_multi())
-		optimize_init_evaluatortype(S_opt, "d1")
-		optimize_init_params(S_opt, theta0)
-		optimize_init_argument(S_opt, 1, &activevec)
-		optimize_init_argument(S_opt, 2, &egovec)
-		optimize_init_argument(S_opt, 3, &tertiusvec)
-		optimize_init_argument(S_opt, 4, &modvec)
-		optimize_init_argument(S_opt, 5, &S)
-		optimize_init_technique(S_opt, "bfgs")
-		optimize_init_which(S_opt, "max")
-		optimize_init_tracelevel(S_opt, "none")
-		optimize_init_conv_warning(S_opt, "off")
-		optimize_init_conv_maxiter(S_opt, 60)
-		errcode = _optimize(S_opt)
-		if (errcode == 0) {
-			theta_hat = optimize_result_params(S_opt)
-			ok = 1
-		}
-	}
-	if (ok == 0) {
-		S_opt = optimize_init()
-		optimize_init_evaluator(S_opt, &dynam_rate_eval_multi())
-		optimize_init_evaluatortype(S_opt, "d1")
-		optimize_init_params(S_opt, J(1, nparams, 0.01))
-		optimize_init_argument(S_opt, 1, &activevec)
-		optimize_init_argument(S_opt, 2, &egovec)
-		optimize_init_argument(S_opt, 3, &tertiusvec)
-		optimize_init_argument(S_opt, 4, &modvec)
-		optimize_init_argument(S_opt, 5, &S)
-		optimize_init_technique(S_opt, "nm")
-		optimize_init_which(S_opt, "max")
-		optimize_init_tracelevel(S_opt, "none")
-		optimize_init_conv_warning(S_opt, "off")
-		optimize_init_conv_maxiter(S_opt, 300)
-		theta_hat = optimize(S_opt)
-	}
-	V = optimize_result_V_oim(S_opt)
-
-	st_matrix(bname, theta_hat)
-	st_matrix(vname, V)
-	st_numscalar(llname, optimize_result_value(S_opt))
-}
-
-/*
-	WITH-INTERCEPT rate sub-model ("expansion batch 17", 2026-09-02,
-	continuing the goldfish-comparison list) - the genuinely
-	continuous-time competing-risks hazard variant this file's own
-	header CORRECTION comment always said remained deferred: unlike the
-	NO-intercept rate model (which reduces to the SAME ordinal partial
-	likelihood as everything else in this package, using only the ORDER
-	events happen in, never real elapsed time), giving an intercept makes
-	the model genuinely sensitive to the ACTUAL SCALE of elapsed time
-	between events (goldfish's own teaching1.Rmd vignette: "an intercept
-	of -14 means a waiting time of 334 hours").
-
-	FORMULA, derived from a real toy example against goldfish FIRST (an
-	intercept is requested via a literal `1' as the first formula term,
-	e.g. `dep ~ 1 + indeg(net)' - confirmed directly via goldfish's own
-	`parseIntercept()'; `dep ~ 1' ALONE, with no other term, hits a real
-	goldfish-internal bug unrelated to this package, `strsplit(): non-
-	character argument' - not investigated further, out of scope, worked
-	around by always fitting at least one real effect alongside the
-	intercept in every crosscheck). Each actor i is an independent
-	Poisson clock with hazard `exp(beta'X_i(t))'; the FIRST observed
-	event contributes only `beta'X_{s_1}' (goldfish does not assume any
-	risk period exists before the first observed event - confirmed
-	directly: including a hazard-integral term for the very first event
-	produced a real, wrong number until this was found and removed).
-	Every SUBSEQUENT event k contributes
-	  beta'X_{s_k} - (t_k - t_{k-1}) * sum_i exp(beta'X_i)
-	summed over the full observed sequence - the standard competing-
-	exponential-clocks log-likelihood (Cox-style), verified to match
-	real goldfish EXACTLY (not within tolerance) on two independent toy
-	fits (`rate ~ 1 + indeg`, `rate ~ 1 + outdeg`, real - not sequential -
-	timestamps) - see dev/dynam_unit20_rateintercept_crosscheck.R/.do.
-	The gradient (verified against numerical differentiation to ~1e-9,
-	and confirmed ~0 at goldfish's own reported MLE) is the same
-	"observed minus expected" score for every event but the first:
-	  d logL_k/dbeta_j = X_{s_k,j} - dt_k * sum_i exp(beta'X_i) * X_{i,j}
-	(k=1: just `X_{s_1,j}', no dt term), with the intercept itself
-	simply X_{i,intercept}=1 for every actor.
-
-	SCOPE: the intercept is ALWAYS included (theta[1], not an `active[]'
-	toggle - matching goldfish's own "give `1' as a formula term"
-	convention, not a boolean flag) alongside any subset of the SAME
-	five rate-submodel effects (`indeg'/`outdeg'/`ego'/`nodetrans'/
-	`tertius') the NO-intercept engine already has - reusing their own
-	already-verified statistic-building code unchanged, only the
-	AGGREGATION differs. `nodeTrans'/`tertius' remain UNWINDOWED and
-	unweighted here too, matching their own scope limit in the
-	NO-intercept engine.
-
-	Window/`weighted=TRUE'/two-mode combined with the intercept
-	("expansion batch 18", 2026-09-02) - each verified independently
-	against real goldfish on a toy network with real, unevenly-spaced
-	timestamps BEFORE this code was written (see dev/dynam_unit21_
-	rateintercept_twomode_crosscheck.R, dynam_unit21b_..._window_...R,
-	dynam_unit21c_..._weighted_...R): the SAME statistic swaps the
-	no-intercept engine already uses (`indeg_i'/`outdeg_i' read from a
-	real-time window or a cumulative weighted count instead of the
-	full-history distinct-neighbor count; mode-2 actors masked to
-	-1e300 in `lp' so their hazard underflows to ~0) turned out to
-	compose correctly with the hazard-integral aggregation exactly as
-	written, with no further correction needed - confirmed by exact
-	agreement with real goldfish on all three, not merely assumed from
-	the no-intercept case. Two-mode is verified here with `outdeg' only
-	(goldfish itself rejects `indeg' - an "ego"-type effect - on a
-	two-mode RATE sub-model; already established for the no-intercept
-	engine, see dynam_rate_loglik_grad_multi()'s own header).
-*/
-void dynam_rateint_loglik_grad_multi(real rowvector theta, real rowvector active,
-		real rowvector egovec, real rowvector tertiusvec, real rowvector modvec,
-		pointer(class DynamState scalar) scalar pS, real scalar ll, real rowvector grad) {
-	real scalar i, s, r, n, j, e, tcur, tprev, dt, intercept
-	real scalar windowindeg, windowoutdeg, weightedindeg, weightedoutdeg, n1
-	real scalar nowindowindeg, nowindowoutdeg, g0, k, a, b, v, pwd, pwo
-	real matrix tieval, windeg, woutdeg, A, AA
-	real rowvector indeg_i, outdeg_i, nodetrans_i, tertius_i, tertiusnumer, tertiusdenom, hasin
-	real rowvector lp, haz, gradfull, idx
-
-	n = (*pS).n
-	ll = 0
-	gradfull = J(1, 6, 0)
-	// tieval, windeg, woutdeg: tie values (summed event values) overall and within the windows - see
-	// dynam_choice_loglik_grad_multi()
-	tieval = J(n, n, 0)
-	windeg = J(n, n, 0)
-	woutdeg = J(n, n, 0)
-	pwd = 1
-	pwo = 1
-	intercept = theta[1]
-
-	windowindeg = modvec[1]
-	windowoutdeg = modvec[2]
-	weightedindeg = modvec[3]
-	weightedoutdeg = modvec[4]
-	n1 = modvec[5]
-	nowindowindeg = (windowindeg >= 1e300)
-	nowindowoutdeg = (windowoutdeg >= 1e300)
-
-	idx = J(1, 5, 0)
-	j = 1
-	for (e=1; e<=5; e++) {
-		if (active[e]) {
-			j = j + 1
-			idx[e] = j
-		}
-	}
-
-	for (i=1; i<=(*pS).nevents; i++) {
-		s = (*pS).events[i,1]
-		r = (*pS).events[i,2]
-		tcur = (*pS).events[i,3]
-
-		A = (tieval :> 0)
-		if (!nowindowindeg) dynam_window_expire(pS, windeg, pwd, (*pS).gfirst[i] - 1, tcur, windowindeg, 0)
-		if (!nowindowoutdeg) dynam_window_expire(pS, woutdeg, pwo, (*pS).gfirst[i] - 1, tcur, windowoutdeg, 0)
-		if (nowindowindeg) {
-			if (weightedindeg) indeg_i = colsum(tieval)
-			else indeg_i = colsum(sign(tieval))
-		}
-		else {
-			if (weightedindeg) indeg_i = colsum(windeg)
-			else indeg_i = colsum(sign(windeg))
-		}
-		if (nowindowoutdeg) {
-			if (weightedoutdeg) outdeg_i = rowsum(tieval)'
-			else outdeg_i = rowsum(sign(tieval))'
-		}
-		else {
-			if (weightedoutdeg) outdeg_i = rowsum(woutdeg)'
-			else outdeg_i = rowsum(sign(woutdeg))'
-		}
-		if (active[4]) {
-			AA = A * A
-			nodetrans_i = rowsum(A :* AA)'
-		}
-		if (active[5]) {
-			tertiusnumer = tertiusvec * A
-			tertiusdenom = colsum(A)
-			hasin = (tertiusdenom :> 0)
-			tertius_i = hasin :* (tertiusnumer :/ (tertiusdenom :+ (1 :- hasin)))
-		}
-
-		lp = J(1, n, intercept)
-		if (active[1]) lp = lp :+ theta[idx[1]] :* indeg_i
-		if (active[2]) lp = lp :+ theta[idx[2]] :* outdeg_i
-		if (active[3]) lp = lp :+ theta[idx[3]] :* egovec
-		if (active[4]) lp = lp :+ theta[idx[4]] :* nodetrans_i
-		if (active[5]) lp = lp :+ theta[idx[5]] :* tertius_i
-		// Two-mode: mode-2 actors can never be the next sender - see
-		// dynam_rate_loglik_grad_multi()'s own identical comment. Here
-		// this also correctly zeroes their contribution to the hazard
-		// SUM below (exp(-1e300) underflows to 0), not just the
-		// softmax the no-intercept engine uses.
-		if (n1 > 0) lp[(n1+1)..n] = J(1, n-n1, -1e300)
-
-		if (i == 1) {
-			ll = ll + lp[s]
-			gradfull[1] = gradfull[1] + 1
-			if (active[1]) gradfull[idx[1]] = gradfull[idx[1]] + indeg_i[s]
-			if (active[2]) gradfull[idx[2]] = gradfull[idx[2]] + outdeg_i[s]
-			if (active[3]) gradfull[idx[3]] = gradfull[idx[3]] + egovec[s]
-			if (active[4]) gradfull[idx[4]] = gradfull[idx[4]] + nodetrans_i[s]
-			if (active[5]) gradfull[idx[5]] = gradfull[idx[5]] + tertius_i[s]
-		}
-		else {
-			dt = tcur - tprev
-			haz = exp(lp)
-			ll = ll + lp[s] - dt * sum(haz)
-			gradfull[1] = gradfull[1] + (1 - dt * sum(haz))
-			if (active[1]) gradfull[idx[1]] = gradfull[idx[1]] + (indeg_i[s] - dt * sum(haz :* indeg_i))
-			if (active[2]) gradfull[idx[2]] = gradfull[idx[2]] + (outdeg_i[s] - dt * sum(haz :* outdeg_i))
-			if (active[3]) gradfull[idx[3]] = gradfull[idx[3]] + (egovec[s] - dt * sum(haz :* egovec))
-			if (active[4]) gradfull[idx[4]] = gradfull[idx[4]] + (nodetrans_i[s] - dt * sum(haz :* nodetrans_i))
-			if (active[5]) gradfull[idx[5]] = gradfull[idx[5]] + (tertius_i[s] - dt * sum(haz :* tertius_i))
-		}
-
-		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
-			a = (*pS).events[k,1]
-			b = (*pS).events[k,2]
-			v = (*pS).events[k,4]
-			tieval[a,b] = tieval[a,b] + v
-			if (!nowindowindeg) windeg[a,b] = windeg[a,b] + v
-			if (!nowindowoutdeg) woutdeg[a,b] = woutdeg[a,b] + v
-		}
-		tprev = tcur
-	}
-
-	grad = gradfull[1..1]
-	for (e=1; e<=5; e++) if (active[e]) grad = (grad, gradfull[idx[e]])
-}
-
-real scalar dynam_rateint_loglik_multi(real rowvector theta, real rowvector active,
-		real rowvector egovec, real rowvector tertiusvec, real rowvector modvec,
-		pointer(class DynamState scalar) scalar pS) {
-	real scalar ll
-	real rowvector grad
-	dynam_rateint_loglik_grad_multi(theta, active, egovec, tertiusvec, modvec, pS, ll, grad)
-	return(ll)
-}
-
-void dynam_rateint_eval_multi(real scalar todo, real rowvector theta, pointer(real rowvector) scalar pActive,
-		pointer(real rowvector) scalar pEgovec, pointer(real rowvector) scalar pTertiusvec,
-		pointer(real rowvector) scalar pModvec,
-		pointer(class DynamState scalar) scalar pS, real scalar y, real rowvector g, real matrix H) {
-	real rowvector grad
-	dynam_rateint_loglik_grad_multi(theta, *pActive, *pEgovec, *pTertiusvec, *pModvec, pS, y, grad)
-	if (todo >= 1) g = grad
-}
-
-/*
-	CACHED evaluator of the with-intercept rate sub-model (nwdynam 1.4.0). Every statistic of the likelihood
-	(indeg, outdeg, ego, nodeTrans, tertius, with windows, weights and the two-mode mask) depends only on the
-	event history, never on theta. dynam_rateint_build_cache() therefore computes them ONCE per event row
-	(rows of a group of equal times share the state from before the group) into N x n matrices, and
-	dynam_rateint_cached_eval() evaluates log likelihood, gradient and Hessian of
-	  sum_i [ lp(i, s_i) - w_i * sum_j exp(lp(i, j)) ],  lp(i, j) = theta_0 + sum_k theta_k X_k(i, j),
-	w_1 = 0 (the first event has no hazard integral), w_i = t_i - t_(i-1) (so 0 within a group of equal
-	times), with a few matrix operations. The function is concave in theta, so Newton-Raphson from a data-driven
-	start finds the unique maximum; the analytic Hessian gives the standard errors. The formulas are those of
-	dynam_rateint_loglik_grad_multi() above (the former evaluator, kept as the fallback for very large
-	problems), which was verified against goldfish.
-*/
-struct DynamRICache {
-	pointer(real matrix) rowvector X   // one N x n matrix per active effect, in the order of the active effects
-	real rowvector sXs                 // per active effect: sum over events of the statistic of the sender
-	real colvector w                   // time gap before each event (0 for the first event and within groups)
-	real scalar N, n, n1, P
-}
-
-struct DynamRICache scalar dynam_rateint_build_cache(pointer(class DynamState scalar) scalar pS, real rowvector active,
-		real rowvector egovec, real rowvector tertiusvec, real rowvector modvec) {
-	struct DynamRICache scalar C
-	real scalar i, s, tcur, tprev, g0, k, a, b, v, pwd, pwo, e, N, n, p
-	real scalar windowindeg, windowoutdeg, weightedindeg, weightedoutdeg, nowindowindeg, nowindowoutdeg
-	real matrix tieval, windeg, woutdeg, A, AA
-	real rowvector indeg_i, outdeg_i, nodetrans_i, tertius_i, tertiusnumer, tertiusdenom, hasin, row
-	real rowvector eff, indegrun, outdegrun
-
-	n = (*pS).n
-	N = (*pS).nevents
-	C.N = N
-	C.n = n
-	C.n1 = modvec[5]
-	eff = selectindex(active)
-	p = cols(eff)
-	C.P = p
-	C.X = J(1, p, NULL)
-	for (k=1; k<=p; k++) C.X[k] = &(J(N, n, 0))
-	C.sXs = J(1, p, 0)
-	C.w = J(N, 1, 0)
-
-	tieval = J(n, n, 0)
-	windeg = J(n, n, 0)
-	woutdeg = J(n, n, 0)
-	indegrun = J(1, n, 0)
-	outdegrun = J(1, n, 0)
-	pwd = 1
-	pwo = 1
-	windowindeg = modvec[1]
-	windowoutdeg = modvec[2]
-	weightedindeg = modvec[3]
-	weightedoutdeg = modvec[4]
-	nowindowindeg = (windowindeg >= 1e300)
-	nowindowoutdeg = (windowoutdeg >= 1e300)
-
-	for (i=1; i<=N; i++) {
-		s = (*pS).events[i,1]
-		tcur = (*pS).events[i,3]
-		if ((*pS).gfirst[i] == i) {
-			// first row of a group (or a sequential row): build the statistics of the current state
-			if (active[4] | active[5]) A = (tieval :> 0)
-			if (!nowindowindeg) dynam_window_expire(pS, windeg, pwd, (*pS).gfirst[i] - 1, tcur, windowindeg, 0)
-			if (!nowindowoutdeg) dynam_window_expire(pS, woutdeg, pwo, (*pS).gfirst[i] - 1, tcur, windowoutdeg, 0)
-			// without a window the degrees are kept up to date in O(1) per tie update (below), as the native kernel does
-			if (active[1]) {
-				if (nowindowindeg) indeg_i = indegrun
-				else {
-					if (weightedindeg) indeg_i = colsum(windeg)
-					else indeg_i = colsum(sign(windeg))
-				}
-			}
-			if (active[2]) {
-				if (nowindowoutdeg) outdeg_i = outdegrun
-				else {
-					if (weightedoutdeg) outdeg_i = rowsum(woutdeg)'
-					else outdeg_i = rowsum(sign(woutdeg))'
-				}
-			}
-			if (active[4]) {
-				AA = A * A
-				nodetrans_i = rowsum(A :* AA)'
-			}
-			if (active[5]) {
-				tertiusnumer = tertiusvec * A
-				tertiusdenom = colsum(A)
-				hasin = (tertiusdenom :> 0)
-				tertius_i = hasin :* (tertiusnumer :/ (tertiusdenom :+ (1 :- hasin)))
-			}
-		}
-		for (k=1; k<=p; k++) {
-			e = eff[k]
-			if (e == 1) row = indeg_i
-			else if (e == 2) row = outdeg_i
-			else if (e == 3) row = egovec
-			else if (e == 4) row = nodetrans_i
-			else row = tertius_i
-			(*C.X[k])[i,.] = row
-			C.sXs[k] = C.sXs[k] + row[s]
-		}
-		if (i > 1) C.w[i] = tcur - tprev
-		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
-			a = (*pS).events[k,1]
-			b = (*pS).events[k,2]
-			v = (*pS).events[k,4]
-			if (weightedindeg) indegrun[b] = indegrun[b] + v
-			else indegrun[b] = indegrun[b] - sign(tieval[a,b]) + sign(tieval[a,b] + v)
-			if (weightedoutdeg) outdegrun[a] = outdegrun[a] + v
-			else outdegrun[a] = outdegrun[a] - sign(tieval[a,b]) + sign(tieval[a,b] + v)
-			tieval[a,b] = tieval[a,b] + v
-			if (!nowindowindeg) windeg[a,b] = windeg[a,b] + v
-			if (!nowindowoutdeg) woutdeg[a,b] = woutdeg[a,b] + v
-		}
-		tprev = tcur
-	}
-	return(C)
-}
-
-void dynam_rateint_cached_eval(real scalar todo, real rowvector theta, pointer(struct DynamRICache scalar) scalar pC,
-		transmorphic pAux, real scalar y, real rowvector g, real matrix H) {
-	real scalar k, l, m, P, N, n, nn, sw
-	real matrix L, Ew, EX
-	real colvector sr
-	real rowvector gg
-
-	P = (*pC).P
-	N = (*pC).N
-	n = (*pC).n
-	nn = ((*pC).n1 > 0 ? (*pC).n1 : n)
-	L = J(N, nn, theta[1])
-	for (k=1; k<=P; k++) L = L :+ theta[k+1] :* (*(*pC).X[k])[., 1..nn]
-	// overflow guard: exp() of a large number is missing in Mata and sum() would drop it silently; report a missing
-	// value instead so that the optimizer takes a shorter step
-	m = max(L)
-	if (m > 700 | missing(m)) {
-		y = .
-		if (todo >= 1) g = J(1, P+1, .)
-		if (todo >= 2) H = J(P+1, P+1, .)
-		return
-	}
-	// mode-2 actors of a two-mode network are not at risk: their columns are left out (nn < n)
-	Ew = exp(L) :* (*pC).w
-	sr = rowsum(Ew)
-	sw = sum(sr)
-	y = N * theta[1] + sum(theta[2..(P+1)] :* (*pC).sXs) - sw
-	if (todo >= 1) {
-		gg = J(1, P+1, 0)
-		gg[1] = N - sw
-		for (k=1; k<=P; k++) gg[k+1] = (*pC).sXs[k] - sum(Ew :* (*(*pC).X[k])[., 1..nn])
-		g = gg
-	}
-	if (todo >= 2) {
-		H = J(P+1, P+1, 0)
-		H[1,1] = -sw
-		for (k=1; k<=P; k++) {
-			EX = Ew :* (*(*pC).X[k])[., 1..nn]
-			H[1,k+1] = -sum(EX)
-			H[k+1,1] = H[1,k+1]
-			for (l=k; l<=P; l++) {
-				H[k+1,l+1] = -sum(EX :* (*(*pC).X[l])[., 1..nn])
-				H[l+1,k+1] = H[k+1,l+1]
-			}
-		}
-	}
-}
-
-void dynam_rateint_cached_eval_d1(real scalar todo, real rowvector theta, pointer(struct DynamRICache scalar) scalar pC,
-		real scalar y, real rowvector g, real matrix H) {
-	dynam_rateint_cached_eval(min((todo, 1)), theta, pC, NULL, y, g, H)
-}
-
-/*
-	Returns 1 and fills bname/vname/llname when the cached Newton fit succeeded, 0 when it did not run (too much memory
-	or no convergence); the caller then uses the former multi-start fit.
-*/
-real scalar dynam_rateint_cached_fit(pointer(class DynamState scalar) scalar pS, real rowvector activevec,
-		real rowvector egovec, real rowvector tertiusvec, real rowvector modvec,
-		string scalar bname, string scalar vname, string scalar llname) {
-	struct DynamRICache scalar C
-	pointer(struct DynamRICache scalar) scalar pC
-	transmorphic S_opt
-	real rowvector theta0, theta_hat
-	real matrix V
-	real scalar nparams, ttot, nrisk, errcode, ok, ll
-
-	nparams = 1 + sum(activevec)
-	// memory: X (nparams-1 matrices) plus about three work matrices, each N x n doubles
-	if ((*pS).nevents * (*pS).n * (nparams + 3) * 8 > 1.5e9) return(0)
-	C = dynam_rateint_build_cache(pS, activevec, egovec, tertiusvec, modvec)
-	pC = &C
-	ttot = sum(C.w)
-	nrisk = (C.n1 > 0 ? C.n1 : C.n)
-	theta0 = J(1, nparams, 0)
-	if (ttot > 0 & C.N > 1) theta0[1] = ln((C.N - 1) / (nrisk * ttot))
-	dynam_rateint_newton(&dynam_rateint_cached_eval(), theta0, pC, 0, theta_hat, V, ll, ok)
-	if (ok) {
-		st_matrix(bname, theta_hat)
-		st_matrix(vname, V)
-		st_numscalar(llname, ll)
-		return(1)
-	}
-	// no Newton result: BFGS on the cached evaluator, started from the data-driven point
-	S_opt = optimize_init()
-	optimize_init_evaluator(S_opt, &dynam_rateint_cached_eval_d1())
-	optimize_init_evaluatortype(S_opt, "d1")
-	optimize_init_params(S_opt, theta0)
-	optimize_init_argument(S_opt, 1, pC)
-	optimize_init_technique(S_opt, "bfgs")
-	optimize_init_which(S_opt, "max")
-	optimize_init_tracelevel(S_opt, "none")
-	optimize_init_conv_warning(S_opt, "off")
-	optimize_init_conv_maxiter(S_opt, 200)
-	errcode = _optimize(S_opt)
-	if (errcode == 0 & optimize_result_converged(S_opt) == 1) {
-		theta_hat = optimize_result_params(S_opt)
-		if (!missing(theta_hat)) {
-			V = optimize_result_V_oim(S_opt)
-			if (!missing(V)) {
-				st_matrix(bname, theta_hat)
-				st_matrix(vname, V)
-				st_numscalar(llname, optimize_result_value(S_opt))
-				return(1)
-			}
-		}
-	}
-	return(0)
-}
-
-/*
 	Acceptance test for a Newton-Raphson fit of the with-intercept rate sub-model: at the optimum the Newton decrement
 	g' (-H)^-1 g is zero, and optimize() may stop only after tolerances that round-off cannot meet at large log
 	likelihoods (it then keeps taking "backed up" steps). A result is accepted when the decrement is below 1e-8, i.e.
@@ -2310,214 +302,6 @@ void dynam_rateint_newton(transmorphic f, real rowvector theta0, transmorphic a1
 	theta_hat = t
 	ll = y
 	ok = 1
-}
-
-/*
-	NATIVE evaluator of the with-intercept rate sub-model for the effects indeg and outdeg (one-mode, no window, not
-	weighted): plugin code 3 of dynam_sim.c returns log likelihood, gradient and Hessian in O(n * nevents) time and
-	O(n^2) memory per call, so it also serves problems too large for the cached evaluator. `act' = (indeg active,
-	outdeg active); theta = (intercept, active effects in order).
-*/
-void dynam_rateint_native_eval(real scalar todo, real rowvector theta, pointer(class DynamState scalar) scalar pS,
-		pointer(real rowvector) scalar pAct, real scalar y, real rowvector g, real matrix H) {
-	real rowvector act, idx
-	real colvector res
-	real matrix hmap
-	real scalar j, k, p
-	string scalar argstr
-
-	act = *pAct
-	argstr = strofreal(3 + 10*((*pS).ngroups < (*pS).nevents) + 100*(*pS).nativevalued) + " " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " " + strofreal(theta[1], "%25.17g")
-	k = 1
-	idx = 1
-	for (j=1; j<=2; j++) {
-		if (act[j]) {
-			k = k + 1
-			argstr = argstr + " " + strofreal(theta[k], "%25.17g")
-			idx = (idx, 1 + j)
-		}
-		else argstr = argstr + " 0"
-	}
-	stata("plugin call dynamnative v1 v2 v3 v4 v5 v6, " + char(34) + argstr + char(34))
-	res = st_data((1::10), "v3")
-	y = res[1]
-	p = cols(idx)
-	if (missing(y)) {
-		if (todo >= 1) g = J(1, p, .)
-		if (todo >= 2) H = J(p, p, .)
-		return
-	}
-	if (todo >= 1) g = res[1 :+ idx]'
-	if (todo >= 2) {
-		hmap = (1,2,3 \ 2,4,5 \ 3,5,6)
-		H = J(p, p, 0)
-		for (j=1; j<=p; j++) for (k=1; k<=p; k++) H[j,k] = res[4 + hmap[idx[j], idx[k]]]
-	}
-}
-
-real scalar dynam_rateint_native_fit(pointer(class DynamState scalar) scalar pS, real rowvector activevec,
-		real rowvector modvec, string scalar bname, string scalar vname, string scalar llname) {
-	transmorphic S_opt
-	real rowvector theta0, theta_hat, act
-	real matrix V
-	real colvector gend, wgap
-	real scalar nparams, ttot, errcode, rcprobe, __junk, ok, y0, ll
-	real rowvector g0
-	real matrix H0
-	string scalar origframe
-
-	// scope of the kernel: indeg/outdeg only, no window, not weighted, one-mode, native plugin present
-	if (activevec[3] | activevec[4] | activevec[5]) return(0)
-	if (modvec[1] < 1e300 | modvec[2] < 1e300 | modvec[3] | modvec[4] | modvec[5] > 0) return(0)
-	if (!DynamNativeAvailable()) return(0)
-	act = activevec[1..2]
-	nparams = 1 + sum(act)
-	wgap = J((*pS).nevents, 1, 0)
-	if ((*pS).nevents > 1) wgap[2::(*pS).nevents] = (*pS).events[2::(*pS).nevents, 3] - (*pS).events[1::((*pS).nevents-1), 3]
-
-	origframe = st_framecurrent()
-	stata("capture frame drop __nwdynam_native")
-	stata("frame create __nwdynam_native")
-	st_framecurrent("__nwdynam_native")
-	st_addobs(max(((*pS).nevents, 10)))
-	__junk = st_addvar("double", "v1")
-	__junk = st_addvar("double", "v2")
-	__junk = st_addvar("double", "v3")
-	__junk = st_addvar("double", "v4")
-	__junk = st_addvar("double", "v5")
-	__junk = st_addvar("double", "v6")
-	st_store((1::(*pS).nevents), ("v1","v2"), (*pS).events[., (1,2)])
-	gend = J((*pS).nevents, 1, 1)
-	if ((*pS).nevents > 1) gend[1::((*pS).nevents-1)] = ((*pS).gfirst[2::(*pS).nevents] :== (2::(*pS).nevents))
-	st_store((1::(*pS).nevents), "v4", gend)
-	(*pS).nativevalued = (min((*pS).events[., 4]) <= 0)
-	st_store((1::(*pS).nevents), "v5", (*pS).events[., 4])
-	st_store((1::(*pS).nevents), "v6", wgap)
-	rcprobe = _stata("capture program dynamnative, plugin using(" + char(34) + DynamNativePluginPath() + char(34) + ")")
-	ok = 0
-	theta0 = J(1, nparams, 0)
-	ttot = sum(wgap)
-	if (ttot > 0 & (*pS).nevents > 1) theta0[1] = ln(((*pS).nevents - 1) / ((*pS).n * ttot))
-	if (rcprobe == 0) {
-		// probe: an old or incompatible plugin without code 3 must not abort the fit
-		rcprobe = _stata("plugin call dynamnative v1 v2 v3 v4 v5 v6, " + char(34) + "3 " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " 0 0 0" + char(34), 1)
-	}
-	if (rcprobe == 0) {
-		dynam_rateint_newton(&dynam_rateint_native_eval(), theta0, pS, &act, theta_hat, V, ll, ok)
-	}
-	st_framecurrent(origframe)
-	stata("capture frame drop __nwdynam_native")
-	if (ok) {
-		st_matrix(bname, theta_hat)
-		st_matrix(vname, V)
-		st_numscalar(llname, ll)
-	}
-	return(ok)
-}
-
-/*
-	DynamRateInterceptFitMulti() -- fits the WITH-INTERCEPT rate
-	sub-model (see dynam_rateint_loglik_grad_multi()'s own header
-	comment for the formula and its real-goldfish verification,
-	including the window/weighted/two-mode combinations added in
-	"expansion batch 18"). The intercept is ALWAYS estimated (theta[1]);
-	`activevec' selects any subset of the same five rate effects the
-	NO-intercept engine has. `windowindeg'/`windowoutdeg' each >=1e300
-	means no window for that effect; `weightedindeg'/`weightedoutdeg'
-	mirror the no-intercept engine's own flags; `n1' is the mode-1 actor
-	count (0 = not two-mode) - all five bundled into ONE `modvec'
-	argument for the same optimize_init_argument()-cap reason as
-	DynamRateFitMulti()'s own modvec. Multi-start strategy matches every
-	other Multi engine in this file.
-*/
-void DynamRateInterceptFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
-		real rowvector egovec, real rowvector tertiusvec,
-		real scalar windowindeg, real scalar windowoutdeg,
-		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1,
-		string scalar bname, string scalar vname, string scalar llname) {
-	class DynamState scalar S
-	transmorphic S_opt
-	real rowvector theta0, theta_hat, modvec
-	real matrix V_best
-	real scalar nparams, attempt, nconverged, errcode, nstarts, thisval, bestval
-	real matrix starts
-
-	S = DynamState()
-	S.init(eventmat, n)
-
-	modvec = (windowindeg, windowoutdeg, weightedindeg, weightedoutdeg, n1)
-
-	// native kernel (nwdynam 1.4.0) for indeg/outdeg; needs no cache of per-event statistics
-	if (dynam_rateint_native_fit(&S, activevec, modvec, bname, vname, llname)) return
-	// fast path (nwdynam 1.4.0): statistics computed once, Newton-Raphson on the concave log likelihood
-	if (dynam_rateint_cached_fit(&S, activevec, egovec, tertiusvec, modvec, bname, vname, llname)) return
-
-	nparams = 1 + sum(activevec)
-
-	nstarts = 8
-	starts = J(nstarts, nparams, 0)
-	for (attempt=1; attempt<=nstarts; attempt++) {
-		starts[attempt,.] = (runiform(1,nparams) :- 0.5) :* (0.15 * (mod(attempt-1, nstarts) + 1))
-	}
-
-	// Same non-concavity caution as DynamCoordFitMulti() (see its own
-	// header comment for the discovery): the intercept's own hazard-sum
-	// term is not guaranteed to leave this surface globally concave, so
-	// every start is run (not just until the first "success") and every
-	// value needed from the winning attempt is extracted immediately,
-	// never deferred to after the loop.
-	nconverged = 0
-	bestval = .
-	for (attempt=1; attempt<=rows(starts); attempt++) {
-		theta0 = starts[attempt,.]
-		S_opt = optimize_init()
-		optimize_init_evaluator(S_opt, &dynam_rateint_eval_multi())
-		optimize_init_evaluatortype(S_opt, "d1")
-		optimize_init_params(S_opt, theta0)
-		optimize_init_argument(S_opt, 1, &activevec)
-		optimize_init_argument(S_opt, 2, &egovec)
-		optimize_init_argument(S_opt, 3, &tertiusvec)
-		optimize_init_argument(S_opt, 4, &modvec)
-		optimize_init_argument(S_opt, 5, &S)
-		optimize_init_technique(S_opt, "bfgs")
-		optimize_init_which(S_opt, "max")
-		optimize_init_tracelevel(S_opt, "none")
-		optimize_init_conv_warning(S_opt, "off")
-		optimize_init_conv_maxiter(S_opt, 100)
-		errcode = _optimize(S_opt)
-		if (errcode == 0 & optimize_result_converged(S_opt) == 1) {
-			thisval = optimize_result_value(S_opt)
-			if (nconverged == 0 | thisval > bestval) {
-				bestval = thisval
-				theta_hat = optimize_result_params(S_opt)
-				V_best = optimize_result_V_oim(S_opt)
-			}
-			nconverged = nconverged + 1
-		}
-	}
-	if (nconverged == 0) {
-		S_opt = optimize_init()
-		optimize_init_evaluator(S_opt, &dynam_rateint_eval_multi())
-		optimize_init_evaluatortype(S_opt, "d1")
-		optimize_init_params(S_opt, J(1, nparams, 0.01))
-		optimize_init_argument(S_opt, 1, &activevec)
-		optimize_init_argument(S_opt, 2, &egovec)
-		optimize_init_argument(S_opt, 3, &tertiusvec)
-		optimize_init_argument(S_opt, 4, &modvec)
-		optimize_init_argument(S_opt, 5, &S)
-		optimize_init_technique(S_opt, "nm")
-		optimize_init_which(S_opt, "max")
-		optimize_init_tracelevel(S_opt, "none")
-		optimize_init_conv_warning(S_opt, "off")
-		optimize_init_conv_maxiter(S_opt, 300)
-		theta_hat = optimize(S_opt)
-		bestval = optimize_result_value(S_opt)
-		V_best = optimize_result_V_oim(S_opt)
-	}
-
-	st_matrix(bname, theta_hat)
-	st_matrix(vname, V_best)
-	st_numscalar(llname, bestval)
 }
 
 /*
@@ -2994,6 +778,343 @@ void DynamCoordFitMulti(real matrix eventmat, real scalar n, real rowvector acti
 	st_matrix(bname, theta_hat)
 	st_matrix(vname, V_best)
 	st_numscalar(llname, bestval)
+}
+/*
+	NATIVE ENGINE. Every nwdynam fit runs in the compiled plugin (native/dynam_sim.c); there is no Mata fallback.
+	class DynamNat writes the model (events, covariates, windows, masks) once per fit into the native frame
+	__nwdynam_native (variable v1, "blob"; layout in the header of dynam_sim.c) and dynam_nat_eval() is the optimize()
+	evaluator: one plugin call per evaluation, only theta travels (at full double precision), the result (log
+	likelihood, gradient, Hessian) comes back in v2. Mata's optimize() drives the outer loop.
+
+	The plugin must exist and speak the protocol of this package (DynamNat::open() asks it with code 99):
+	  r(601)  the plugin file for this platform is not installed
+	  r(3495) the installed plugin is too old for this version of nwdynam (or cannot be loaded)
+	Both stop the command with a message; the Mata evaluators of the earlier versions survive only as reference code of
+	the test suite (cscripts/ref_dynam_mata.do).
+*/
+class DynamNat {
+	real scalar L        // length of the blob
+	real scalar Pt       // number of parameters
+	real scalar isopen
+	string scalar origframe
+
+	void open()
+	void close()
+	void setup()
+}
+
+real scalar DYNAM_PROTOCOL_NEEDED() return(2)
+
+void DynamNat::open() {
+	string scalar p, fname, q
+	real scalar rc, junk, ver
+
+	isopen = 0
+	fname = DynamNativePluginFilename()
+	p = DynamNativePluginPath()
+	if (p == "" | !fileexists(p)) {
+		errprintf("{p 0 0 2}nwdynam: the compiled plugin {bf:%s} was not found. nwdynam fits every model with this plugin and has no Mata fallback; reinstall the package with {bf:net install nwdynam, replace}.{p_end}\n", fname)
+		exit(601)
+	}
+	origframe = st_framecurrent()
+	stata("capture frame drop __nwdynam_native")
+	stata("frame create __nwdynam_native")
+	st_framecurrent("__nwdynam_native")
+	isopen = 1
+	st_addobs(4)
+	junk = st_addvar("double", "v1")
+	junk = st_addvar("double", "v2")
+	q = char(34)
+	stata("capture program drop dynamnative")
+	stata("capture program dynamnative, plugin using(" + q + p + q + ")")
+	// the zeros after the code are for plugins of version 1, which read three numbers before they look at the code (and crash
+	// on a shorter string); they answer 198 to code 99
+	rc = _stata("plugin call dynamnative v1 v2, " + q + "99 0 0 0 0 0 0" + q, 1)
+	ver = .
+	if (rc == 0) ver = st_data(1, 2)
+	if (rc != 0 | ver != DYNAM_PROTOCOL_NEEDED()) {
+		close()
+		errprintf("{p 0 0 2}nwdynam: the installed plugin {bf:%s} is too old for this version of nwdynam (or it cannot be loaded). Reinstall the package with {bf:net install nwdynam, replace}.{p_end}\n", fname)
+		exit(3495)
+	}
+}
+
+void DynamNat::close() {
+	if (isopen) {
+		st_framecurrent(origframe)
+		stata("capture frame drop __nwdynam_native")
+		isopen = 0
+	}
+}
+
+/*
+	setup(): model 1 choice, 2 rate, 3 rate with intercept, 4 coordination. active = 0/1 vector of the effect slots,
+	covmat = 7 x n covariate rows, win4/wgt4 = windows and weighted flags (inertia, recip, indeg, outdeg), n1 = mode-1
+	actors (0 = one-mode), oppmat (nevents x n or 0 x 0), tiemat (n x n or 0 x 0).
+*/
+void DynamNat::setup(real scalar model, pointer(class DynamState scalar) scalar pS, real rowvector active,
+		real matrix covmat, real rowvector win4, real rowvector wgt4, real scalar n1, real matrix oppmat, real matrix tiemat) {
+	real scalar nev, hasopp, hastie, M, nres
+	real colvector gend, blob
+	real rowvector hdr
+
+	nev = (*pS).nevents
+	M = cols(active)
+	hasopp = (rows(oppmat) > 0)
+	hastie = (rows(tiemat) > 0)
+	gend = J(nev, 1, 1)
+	if (nev > 1) gend[1::(nev-1)] = ((*pS).gfirst[2::nev] :== (2::nev))
+	hdr = (DYNAM_PROTOCOL_NEEDED(), model, (*pS).n, nev, n1, M, hasopp, hastie, win4, wgt4, active, J(1, 20 - M, 0))
+	blob = hdr' \ vec(((*pS).events, gend)') \ vec(covmat')
+	if (hasopp) blob = blob \ vec(oppmat')
+	if (hastie) blob = blob \ vec(tiemat')
+	L = rows(blob)
+	Pt = sum(active) + (model == 3)
+	nres = 1 + Pt + Pt * Pt
+	if (max((L, nres)) > st_nobs()) st_addobs(max((L, nres)) - st_nobs())
+	st_store((1::L), 1, blob)
+}
+
+void dynam_nat_eval(real scalar todo, real rowvector theta, pointer(class DynamNat scalar) scalar pN,
+		real scalar y, real rowvector g, real matrix H) {
+	real scalar k, pt
+	string scalar argstr
+	real colvector res
+
+	pt = (*pN).Pt
+	argstr = "20 " + strofreal((*pN).L, "%18.0f") + " " + strofreal(min((todo, 2))) + " " + strofreal(pt)
+	for (k = 1; k <= pt; k++) argstr = argstr + " " + strofreal(theta[k], "%25.17g")
+	stata("plugin call dynamnative v1 v2, " + char(34) + argstr + char(34))
+	res = st_data((1::(1 + pt + (todo >= 2 ? pt * pt : 0))), 2)
+	y = res[1]
+	if (missing(y)) {
+		if (todo >= 1) g = J(1, pt, .)
+		if (todo >= 2) H = J(pt, pt, .)
+		return
+	}
+	if (todo >= 1) g = res[2::(1 + pt)]'
+	if (todo >= 2) H = rowshape(res[(2 + pt)::(1 + pt + pt * pt)], pt)
+}
+
+// the same evaluator with the two argument slots of dynam_rateint_newton()
+void dynam_nat_eval_nr(real scalar todo, real rowvector theta, pointer(class DynamNat scalar) scalar pN, transmorphic pAux,
+		real scalar y, real rowvector g, real matrix H) {
+	dynam_nat_eval(todo, theta, pN, y, g, H)
+}
+
+void dynam_nat_eval_d1(real scalar todo, real rowvector theta, pointer(class DynamNat scalar) scalar pN,
+		real scalar y, real rowvector g, real matrix H) {
+	dynam_nat_eval(min((todo, 1)), theta, pN, y, g, H)
+}
+
+/*
+	Maximisation on the native evaluator. mode 0 (choice and rate, concave): up to 8 random starts, BFGS with the analytic
+	Hessian, the first converged start wins, Nelder-Mead from 0.01 as the last resort. mode 1 (coordination, not concave):
+	every start is run and the best converged result is kept (see the reference evaluator for the history of that rule).
+	mode 2 (rate with intercept, concave): Newton-Raphson from a data-driven start, then BFGS from it, then mode 0.
+	Fills theta_hat, V, ll.
+*/
+void dynam_nat_optimize(pointer(class DynamNat scalar) scalar pN, real scalar mode, real rowvector theta0data,
+		real rowvector theta_hat, real matrix V, real scalar ll) {
+	transmorphic S_opt
+	real rowvector theta0, th2
+	real matrix starts, V_best, V2
+	real scalar nparams, nstarts, attempt, ok, errcode, nconverged, thisval, bestval, nrok, ll2
+
+	nparams = (*pN).Pt
+	nstarts = 8
+	if (mode == 2) {
+		dynam_rateint_newton(&dynam_nat_eval_nr(), theta0data, pN, 0, theta_hat, V, ll, nrok)
+		if (nrok) return
+		S_opt = optimize_init()
+		optimize_init_evaluator(S_opt, &dynam_nat_eval())
+		optimize_init_evaluatortype(S_opt, "d2")
+		optimize_init_params(S_opt, theta0data)
+		optimize_init_argument(S_opt, 1, pN)
+		optimize_init_technique(S_opt, "bfgs")
+		optimize_init_which(S_opt, "max")
+		optimize_init_tracelevel(S_opt, "none")
+		optimize_init_conv_warning(S_opt, "off")
+		optimize_init_conv_maxiter(S_opt, 200)
+		errcode = _optimize(S_opt)
+		if (errcode == 0 & optimize_result_converged(S_opt) == 1) {
+			theta_hat = optimize_result_params(S_opt)
+			if (!missing(theta_hat)) {
+				V = optimize_result_V_oim(S_opt)
+				if (!missing(V)) {
+					ll = optimize_result_value(S_opt)
+					return
+				}
+			}
+		}
+		mode = 0
+	}
+	starts = J(nstarts, nparams, 0)
+	for (attempt = 1; attempt <= nstarts; attempt++) {
+		starts[attempt, .] = (runiform(1, nparams) :- 0.5) :* (0.15 * (mod(attempt - 1, nstarts) + 1))
+	}
+	// the first start is fixed, so that a fit without seed() is reproducible
+	starts[1, .] = J(1, nparams, 0.01)
+	nconverged = 0
+	bestval = .
+	ok = 0
+	for (attempt = 1; attempt <= nstarts & (mode == 1 | ok == 0); attempt++) {
+		theta0 = starts[attempt, .]
+		S_opt = optimize_init()
+		if (mode == 1) optimize_init_evaluator(S_opt, &dynam_nat_eval_d1())
+		else optimize_init_evaluator(S_opt, &dynam_nat_eval())
+		optimize_init_evaluatortype(S_opt, (mode == 1 ? "d1" : "d2"))
+		optimize_init_params(S_opt, theta0)
+		optimize_init_argument(S_opt, 1, pN)
+		optimize_init_technique(S_opt, "bfgs")
+		optimize_init_which(S_opt, "max")
+		optimize_init_tracelevel(S_opt, "none")
+		optimize_init_conv_warning(S_opt, "off")
+		optimize_init_conv_maxiter(S_opt, (mode == 1 ? 100 : 60))
+		errcode = _optimize(S_opt)
+		if (mode == 1) {
+			if (errcode == 0 & optimize_result_converged(S_opt) == 1) {
+				thisval = optimize_result_value(S_opt)
+				if (nconverged == 0 | thisval > bestval) {
+					bestval = thisval
+					theta_hat = optimize_result_params(S_opt)
+					V_best = optimize_result_V_oim(S_opt)
+				}
+				nconverged = nconverged + 1
+			}
+		}
+		else if (errcode == 0) {
+			theta_hat = optimize_result_params(S_opt)
+			V = optimize_result_V_oim(S_opt)
+			ll = optimize_result_value(S_opt)
+			ok = 1
+		}
+	}
+	if (mode == 1 & nconverged > 0) {
+		V = V_best
+		ll = bestval
+		return
+	}
+	if (ok) {
+		// concave log likelihood: Newton-Raphson on the analytic Hessian from the BFGS result brings the gradient to round-off
+		// level (BFGS stops at its default tolerances); the BFGS result stays when Newton does not accept
+		dynam_rateint_newton(&dynam_nat_eval_nr(), theta_hat, pN, 0, th2, V2, ll2, nrok)
+		if (nrok) {
+			theta_hat = th2
+			V = V2
+			ll = ll2
+		}
+		return
+	}
+	S_opt = optimize_init()
+	optimize_init_evaluator(S_opt, &dynam_nat_eval_d1())
+	optimize_init_evaluatortype(S_opt, "d1")
+	optimize_init_params(S_opt, J(1, nparams, 0.01))
+	optimize_init_argument(S_opt, 1, pN)
+	optimize_init_technique(S_opt, "nm")
+	optimize_init_which(S_opt, "max")
+	optimize_init_tracelevel(S_opt, "none")
+	optimize_init_conv_warning(S_opt, "off")
+	optimize_init_conv_maxiter(S_opt, 300)
+	theta_hat = optimize(S_opt)
+	V = optimize_result_V_oim(S_opt)
+	ll = optimize_result_value(S_opt)
+}
+
+/* ---- the fit functions called by nwdynam.ado (signatures unchanged since 1.4.0) ---- */
+
+void DynamChoiceFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
+		real rowvector samevec, real rowvector diffvec, real rowvector simvec, real rowvector altervec,
+		real rowvector tertiusvec, real rowvector egoalterint1vec, real rowvector egoalterint2vec,
+		real scalar windowinertia, real scalar windowrecip,
+		real scalar weightedinertia, real scalar weightedrecip, real scalar weightedindeg, real scalar weightedoutdeg,
+		real scalar n1, real matrix oppmat, real matrix tiemat,
+		string scalar bname, string scalar vname, string scalar llname) {
+	class DynamState scalar S
+	class DynamNat scalar NT
+	real matrix covmat, V
+	real rowvector theta_hat
+	real scalar ll
+
+	S = DynamState()
+	S.init(eventmat, n)
+	if (sum(activevec) == 0) _error("nwdynam: at least one effect must be selected.")
+	covmat = (samevec \ diffvec \ simvec \ altervec \ tertiusvec \ egoalterint1vec \ egoalterint2vec)
+	NT = DynamNat()
+	NT.open()
+	NT.setup(1, &S, activevec, covmat, (windowinertia, windowrecip, 1e300, 1e300),
+		(weightedinertia, weightedrecip, weightedindeg, weightedoutdeg), n1, oppmat, tiemat)
+	dynam_nat_optimize(&NT, 0, ., theta_hat, V, ll)
+	NT.close()
+	st_matrix(bname, theta_hat)
+	st_matrix(vname, V)
+	st_numscalar(llname, ll)
+}
+
+void DynamRateFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
+		real rowvector egovec, real rowvector tertiusvec, real scalar windowindeg, real scalar windowoutdeg,
+		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1,
+		string scalar bname, string scalar vname, string scalar llname) {
+	class DynamState scalar S
+	class DynamNat scalar NT
+	real matrix covmat, V
+	real rowvector theta_hat
+	real scalar ll
+
+	S = DynamState()
+	S.init(eventmat, n)
+	if (sum(activevec) == 0) _error("nwdynam: at least one effect must be selected.")
+	covmat = (J(3, n, 0) \ egovec \ tertiusvec \ J(2, n, 0))
+	NT = DynamNat()
+	NT.open()
+	NT.setup(2, &S, activevec, covmat, (1e300, 1e300, windowindeg, windowoutdeg),
+		(0, 0, weightedindeg, weightedoutdeg), n1, J(0, 0, 0), J(0, 0, 0))
+	dynam_nat_optimize(&NT, 0, ., theta_hat, V, ll)
+	NT.close()
+	st_matrix(bname, theta_hat)
+	st_matrix(vname, V)
+	st_numscalar(llname, ll)
+}
+
+void DynamRateInterceptFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
+		real rowvector egovec, real rowvector tertiusvec,
+		real scalar windowindeg, real scalar windowoutdeg,
+		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1,
+		string scalar bname, string scalar vname, string scalar llname) {
+	class DynamState scalar S
+	class DynamNat scalar NT
+	real matrix covmat, V
+	real rowvector theta_hat, theta0
+	real scalar ll, nev, ttot, nrisk
+
+	S = DynamState()
+	S.init(eventmat, n)
+	covmat = (J(3, n, 0) \ egovec \ tertiusvec \ J(2, n, 0))
+	nev = S.nevents
+	ttot = S.events[nev, 3] - S.events[1, 3]
+	nrisk = (n1 > 0 ? n1 : n)
+	// start: the intercept of the model without effects (events per actor and time unit), all effects 0
+	theta0 = J(1, 1 + sum(activevec), 0)
+	if (ttot > 0 & nev > 1) theta0[1] = ln((nev - 1) / (nrisk * ttot))
+	NT = DynamNat()
+	NT.open()
+	NT.setup(3, &S, activevec, covmat, (1e300, 1e300, windowindeg, windowoutdeg),
+		(0, 0, weightedindeg, weightedoutdeg), n1, J(0, 0, 0), J(0, 0, 0))
+	dynam_nat_optimize(&NT, 2, theta0, theta_hat, V, ll)
+	NT.close()
+	st_matrix(bname, theta_hat)
+	st_matrix(vname, V)
+	st_numscalar(llname, ll)
+}
+
+// the three-effect choice model and the two-effect rate model without options (kept as short forms)
+void DynamFitUnit1(real matrix eventmat, real scalar n, string scalar bname, string scalar vname, string scalar llname) {
+	DynamChoiceFitMulti(eventmat, n, (1, 1, 1, J(1, 14, 0)), J(1, n, 0), J(1, n, 0), J(1, n, 0), J(1, n, 0), J(1, n, 0), J(1, n, 0), J(1, n, 0),
+		1e300, 1e300, 0, 0, 0, 0, 0, J(0, 0, 0), J(0, 0, 0), bname, vname, llname)
+}
+
+void DynamFitRateUnit1(real matrix eventmat, real scalar n, string scalar bname, string scalar vname, string scalar llname) {
+	DynamRateFitMulti(eventmat, n, (1, 1, 0, 0, 0), J(1, n, 0), J(1, n, 0), 1e300, 1e300, 0, 0, 0, bname, vname, llname)
 }
 
 end

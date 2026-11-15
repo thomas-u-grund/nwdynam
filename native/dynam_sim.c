@@ -7,498 +7,675 @@
  * or FITNESS FOR A PARTICULAR PURPOSE. See the file LICENSE for the full text.
  */
 /*
-	dynam_sim.c -- native (C) DyNAM likelihood/gradient kernel for
-	nwcommands (nwdynam).
+	dynam_sim.c -- native (C) log likelihood, gradient and Hessian of every nwdynam model
+	(choice, rate, rate with intercept, choice_coordination).
 
-	See the development notes (scope/status) and unw_dynam.do's own
-	header comment (Mata reference implementation, built and
-	CORRECTNESS-VERIFIED against a real reference R implementation
-	FIRST - dev/dynam_unit1_choice_crosscheck.do,
-	dev/dynam_unit2_rate_crosscheck.do - matching this project's own
-	established sequencing discipline, ergm_mcmc.c's own header: get the
-	Mata reference right and crosschecked before writing
-	performance-critical C, since a fast wrong answer is worse than a
-	slow right one).
+	Every fit of nwdynam runs here: Stata's Mata optimize() drives the outer loop and calls this plugin once per
+	evaluation at a given theta. The plugin carries no state between calls. The model (events, covariates, windows,
+	masks) is written ONCE per fit as a block of numbers into the first variable of a frame (the "blob", layout below);
+	each call passes only the length of the blob, the parameter count and theta in the argument string and gets the
+	result in the second variable: row 1 = log likelihood (missing when exp() overflows), rows 2..P+1 = gradient, then
+	the P x P Hessian by rows (only when todo = 2; choice_coordination has no Hessian).
 
-	WHAT THIS ACCELERATES: unlike ergm_mcmc.c (a full from-scratch MCMC
-	sampler, since Mata's own optimize() has no equivalent) or
-	saom_sim.c (a full ministep simulation loop), nwdynam fits via plain
-	MLE - Mata's own optimize() (BFGS, with a Nelder-Mead fallback)
-	already handles the outer optimization robustly and is NOT
-	reimplemented here. This plugin accelerates only the HOT INNER LOOP:
-	one log-likelihood + analytic-gradient evaluation at a given theta,
-	called repeatedly (once per outer optimizer iteration - typically a
-	few dozen calls per fit, not thousands) from Mata's own evaluator
-	callback. Each such call still does the SAME O(n) per-event work the
-	Mata engine does (dynam_choice_loglik_grad_unit1()/
-	dynam_rate_loglik_grad_unit1() in unw_dynam.do) - the win is
-	removing Mata's own per-operation interpreter overhead on that
-	tight, compounding loop, the identical rationale nwgraph.c's own
-	header already gives for betweenness centrality.
+	Argument string: "<code> <L> <todo> <P> <theta_1> ... <theta_P>"
+	  code 20 = evaluate; code 99 = report the protocol number (row 1 of variable 2). Version 1 plugins (nwdynam 1.4.0
+	  and earlier) know the codes 1, 2, 3 only and fail on 99, which is how the Mata glue recognises a plugin that is too old.
 
-	ONE REAL ALGORITHMIC IMPROVEMENT OVER THE MATA REFERENCE, NOT JUST A
-	COMPILED PORT: unw_dynam.do's own dynam_choice_loglik_grad_unit1()
-	recomputes `indeg_i = colsum(tie)` - an O(n) reduction over an n x n
-	MATRIX, i.e. genuinely O(n^2) work - AT EVERY EVENT, for both the
-	choice sub-model's own indeg-alter effect and (implicitly, via the
-	analogous call) the rate sub-model's indeg/outdeg-ego effects. Since
-	`tie` only ever grows (a 0 cell flips to 1 exactly once, on the
-	first tie between that ordered pair; a repeat contact leaves it at
-	1), each actor's own in-degree and out-degree can instead be
-	maintained as a genuinely O(1)-per-update running count (`indeg[]`/
-	`outdeg[]` below), collapsing an O(n^2 * nevents) total cost down to
-	O(n * nevents) - the same asymptotic class the row/column inertia/
-	recip lookups already need per event regardless. This is a real,
-	disclosed finding from porting the reference algorithm to C, not
-	silently different behavior: both implementations compute
-	MATHEMATICALLY IDENTICAL quantities (indeg[j] here always equals
-	colsum(tie)[j] there, by construction - tie is monotonically
-	non-decreasing and indeg[j] is incremented exactly once per 0->1
-	flip in column j), so the CERTIFICATION CONTRACT below still holds
-	exactly, not approximately.
+	Blob (doubles; L = total length):
+	  [0] protocol  [1] model (1 choice, 2 rate, 3 rate with intercept, 4 coordination)  [2] n  [3] N  [4] n1 (mode-1
+	  actors of a two-mode network, 0 = one-mode)  [5] M (number of effect slots)  [6] opportunities given  [7] tie() given
+	  [8..11]  windows inertia, recip, indeg, outdeg (>= 1e300 = none)
+	  [12..15] weighted flags inertia, recip, indeg, outdeg
+	  [16..35] active flags of the effect slots (choice 17, rate 5, coordination 12)
+	  [36..] events: N rows of (sender, receiver, time, value, last-of-group flag), sorted by time (the caller sorts)
+	  then 7 covariate rows of n values (same, diff, sim, alter/ego, tertius, egoalterint1, egoalterint2),
+	  then the N x n opportunity matrix (only when [6] = 1), then the n x n matrix of tie() (only when [7] = 1).
 
-	CERTIFICATION CONTRACT: like nwgraph.c's betweenness kernel (and
-	unlike ergm_mcmc.c's stochastic MCMC sampler), this is a
-	DETERMINISTIC, exact numerical computation - the native and Mata
-	implementations of the same log-likelihood/gradient formula on the
-	same event data and the same theta must agree EXACTLY (up to
-	ordinary floating-point summation-order effects from the
-	incremental-vs-colsum reformulation above, not a statistical
-	tolerance) - see cscripts/test_nwdynam_native.do.
-
-	WIRE PROTOCOL: one `plugin call' per OUTER OPTIMIZER ITERATION (not
-	per event) - see unw_dynam.do's own DynamChoiceEvalNative()/
-	DynamRateEvalNative(). Two input frame variables, set up ONCE before
-	the optimizer loop begins and read fresh on every call (a plugin
-	invocation carries no state across calls, same as nwgraph.c's own
-	convention - the per-call CSR/tie-matrix rebuild is a real, accepted
-	cost, small next to the loop it feeds and tiny next to Mata's own
-	per-operation interpreter overhead this whole native path exists to
-	avoid): v1=sender, v2=receiver (nevents rows, 1-indexed actor IDs,
-	in chronological order - the CALLER is responsible for sorting, this
-	file does not re-sort). One output frame variable (v3), used to
-	return a small fixed-shape result: row 1 = log-likelihood, rows
-	2..(nparams+1) = the analytic gradient, in the same effect order
-	unw_dynam.do's own theta vectors use (choice: inertia, recip, indeg;
-	rate: indeg, outdeg). Args string: "algcode n nevents theta1
-	[theta2 [theta3]]" (theta values passed as text, since they are few
-	in number and change on every call - cheaper than a frame column
-	round-trip for 2-3 numbers).
+	The statistics are those of the Mata reference evaluators (cscripts/ref_dynam_mata.do), which agree with goldfish.
+	All counts are kept up to date in O(1) or O(n) per tie change instead of being recomputed at every event.
 */
 
 #include "stplugin.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdint.h>
 
-/* Plugin codes 11 and 12 = codes 1 and 2 with SIMULTANEOUS events (goldfish): a fourth variable v4 is 1 at the last
-   event of each group of equal times, and the tie state is updated only after the last event of a group.
-   Adding 100 to a code (101, 102, 111, 112) passes the VALUE of each event in a fifth variable v5 (v4 is then always
-   passed): as in goldfish, the value is the increment of the tie, a tie exists while the summed value is above 0, and
-   indeg/outdeg add the sign of each tie value (-1 below 0).
-   Without it every event has the value 1 (a tie exists after the first event of a pair). */
-#define ALG_DYNAM_CHOICE 1
-#define ALG_DYNAM_RATE 2
-#define ALG_DYNAM_RATEINT 3
+typedef int64_t nwint;
 
-/* ===================================================================
-   Choice sub-model: inertia + recip + indeg(alter). Direct port of
-   dynam_choice_loglik_grad_unit1() (unw_dynam.do), with indeg tracked
-   incrementally (see this file's own header) instead of a fresh
-   colsum() every event.
-   =================================================================== */
+#define DYNAM_PROTOCOL 2
+#define NOWIN 1e300
+#define HDR 36
+#define M_CHOICE 1
+#define M_RATE 2
+#define M_RATEINT 3
+#define M_COORD 4
 
-static int dynam_choice_loglik_grad(long n, long nevents, long *sender, long *receiver, char *gend, double *val,
-		double theta1, double theta2, double theta3,
-		double *out_ll, double out_grad[3]) {
-	char *tie = NULL;      /* n x n, 0/1, row-major: tie[(s-1)*n + (j-1)] */
-	double *xval = NULL;   /* n x n summed event values (only with val) */
-	double *indeg = NULL;  /* n, running in-degree (distinct senders so far) */
-	double *lp = NULL, *P = NULL;
-	long i, j, k, s, r, gs = 0;
-	double ll = 0.0, grad1 = 0.0, grad2 = 0.0, grad3 = 0.0;
-	double mx, sumP, lrsum, inertia_r, recip_r, indeg_r;
-	int rc = 0;
+typedef struct {
+	int model;
+	nwint n, N, n1;
+	int M, hasopp, hastie;
+	double win[4], wgt[4];
+	double act[20];
+	double *ev;        /* N x 5 */
+	double *cov[7];    /* each n */
+	double *opp;       /* N x n or NULL */
+	double *tie;       /* n x n or NULL */
+	double *blob;
+	int eff[20], P;    /* active effect slots (1-based) and their number */
+} Spec;
 
-	tie = (char *)calloc((size_t)n * (size_t)n, sizeof(char));
-	if (val) xval = (double *)calloc((size_t)n * (size_t)n, sizeof(double));
-	indeg = (double *)calloc((size_t)n, sizeof(double));
-	lp = (double *)malloc((size_t)n * sizeof(double));
-	P = (double *)malloc((size_t)n * sizeof(double));
-	if (!tie || (val && !xval) || !indeg || !lp || !P) { rc = 909; goto cleanup; }
+typedef struct {
+	nwint n;
+	double *tv;                        /* tie values, n x n */
+	char *Ab;                          /* tv > 0 */
+	double *inS, *outS, *inV, *outV;   /* column / row sums of sign(tv) and of tv */
+	double *inA, *outA;                /* column / row counts of Ab */
+	double *W[4];                      /* windowed tie values (slot 0 inertia, 1 recip, 2 indeg, 3 outdeg) */
+	double *wInS, *wInV, *wOutS, *wOutV;
+	nwint ptr[4];
+	int32_t *AA, *AtA, *AAt;
+	double *nt, *tnum;
+	int sym;
+} State;
 
-	for (i = 0; i < nevents; i++) {
-		s = sender[i];
-		r = receiver[i];
+static double sgn(double x) { return (double)((x > 0.0) - (x < 0.0)); }
 
-		mx = -1e300;
-		for (j = 1; j <= n; j++) {
-			if (j == s) { lp[j - 1] = -1e300; continue; }
-			{
-				double inertia_j = tie[(s - 1) * n + (j - 1)] ? 1.0 : 0.0;
-				double recip_j = tie[(j - 1) * n + (s - 1)] ? 1.0 : 0.0;
-				double indeg_j = indeg[j - 1];
-				lp[j - 1] = theta1 * inertia_j + theta2 * recip_j + theta3 * indeg_j;
-			}
-			if (lp[j - 1] > mx) mx = lp[j - 1];
-		}
+static void state_free(State *st) {
+	int q;
+	free(st->tv); free(st->Ab); free(st->inS); free(st->outS); free(st->inV); free(st->outV);
+	free(st->inA); free(st->outA);
+	for (q = 0; q < 4; q++) free(st->W[q]);
+	free(st->wInS); free(st->wInV); free(st->wOutS); free(st->wOutV);
+	free(st->AA); free(st->AtA); free(st->AAt); free(st->nt); free(st->tnum);
+	memset(st, 0, sizeof(State));
+}
 
-		sumP = 0.0;
-		for (j = 1; j <= n; j++) {
-			P[j - 1] = exp(lp[j - 1] - mx);
-			sumP += P[j - 1];
-		}
-		lrsum = mx + log(sumP);
-		ll += (lp[r - 1] - lrsum);
+static int has_eff(const Spec *sp, int e) {
+	int k;
+	for (k = 0; k < sp->P; k++) if (sp->eff[k] == e) return 1;
+	return 0;
+}
 
-		{
-			double sum_inertia_P = 0.0, sum_recip_P = 0.0, sum_indeg_P = 0.0;
-			for (j = 1; j <= n; j++) {
-				double pj = P[j - 1] / sumP;
-				double inertia_j = (j == s) ? 0.0 : (tie[(s - 1) * n + (j - 1)] ? 1.0 : 0.0);
-				double recip_j = (j == s) ? 0.0 : (tie[(j - 1) * n + (s - 1)] ? 1.0 : 0.0);
-				double indeg_j = (j == s) ? 0.0 : indeg[j - 1];
-				sum_inertia_P += inertia_j * pj;
-				sum_recip_P += recip_j * pj;
-				sum_indeg_P += indeg_j * pj;
-			}
-			inertia_r = tie[(s - 1) * n + (r - 1)] ? 1.0 : 0.0;
-			recip_r = tie[(r - 1) * n + (s - 1)] ? 1.0 : 0.0;
-			indeg_r = indeg[r - 1];
-			grad1 += (inertia_r - sum_inertia_P);
-			grad2 += (recip_r - sum_recip_P);
-			grad3 += (indeg_r - sum_indeg_P);
-		}
-
-		/* simultaneous events (same time): the state is updated only after the last event of the group */
-		if (!gend || gend[i]) {
-			for (k = gs; k <= i; k++) {
-				long sk = sender[k], rk = receiver[k];
-				if (val) {
-					long c = (sk - 1) * n + (rk - 1);
-					char now;
-					/* indeg adds the sign of each tie value (goldfish: -1 below 0), inertia/recip test > 0 */
-					double sold = (xval[c] > 0.0) - (xval[c] < 0.0), snew;
-					xval[c] += val[k];
-					now = (xval[c] > 0.0);
-					snew = (xval[c] > 0.0) - (xval[c] < 0.0);
-					indeg[rk - 1] += snew - sold;
-					tie[c] = now;
-				}
-				else if (!tie[(sk - 1) * n + (rk - 1)]) {
-					tie[(sk - 1) * n + (rk - 1)] = 1;
-					indeg[rk - 1] += 1.0;
-				}
-			}
-			gs = i + 1;
+static int state_init(const Spec *sp, State *st) {
+	nwint n = sp->n;
+	size_t nn = (size_t)n * (size_t)n, un = (size_t)n;
+	int q, ch = (sp->model == M_CHOICE), ra = (sp->model == M_RATE || sp->model == M_RATEINT), co = (sp->model == M_COORD);
+	memset(st, 0, sizeof(State));
+	st->n = n;
+	st->sym = co;
+	st->tv = (double *)calloc(nn, sizeof(double));
+	st->Ab = (char *)calloc(nn, 1);
+	st->inS = (double *)calloc(un, sizeof(double)); st->outS = (double *)calloc(un, sizeof(double));
+	st->inV = (double *)calloc(un, sizeof(double)); st->outV = (double *)calloc(un, sizeof(double));
+	st->inA = (double *)calloc(un, sizeof(double)); st->outA = (double *)calloc(un, sizeof(double));
+	if (!st->tv || !st->Ab || !st->inS || !st->outS || !st->inV || !st->outV || !st->inA || !st->outA) return 909;
+	for (q = 0; q < 4; q++) {
+		int use = (ch && q < 2) || (ra && q >= 2);
+		if (use && sp->win[q] < NOWIN) {
+			st->W[q] = (double *)calloc(nn, sizeof(double));
+			if (!st->W[q]) return 909;
 		}
 	}
+	if (ra && sp->win[2] < NOWIN) { st->wInS = (double *)calloc(un, sizeof(double)); st->wInV = (double *)calloc(un, sizeof(double)); if (!st->wInS || !st->wInV) return 909; }
+	if (ra && sp->win[3] < NOWIN) { st->wOutS = (double *)calloc(un, sizeof(double)); st->wOutV = (double *)calloc(un, sizeof(double)); if (!st->wOutS || !st->wOutV) return 909; }
+	if (ch) {
+		if (has_eff(sp, 9) || has_eff(sp, 10)) st->AA = (int32_t *)calloc(nn, sizeof(int32_t));
+		if (has_eff(sp, 11) || has_eff(sp, 13)) st->AtA = (int32_t *)calloc(nn, sizeof(int32_t));
+		if (has_eff(sp, 12)) st->AAt = (int32_t *)calloc(nn, sizeof(int32_t));
+		if (has_eff(sp, 14)) st->nt = (double *)calloc(un, sizeof(double));
+		if (has_eff(sp, 16)) st->tnum = (double *)calloc(un, sizeof(double));
+		if (((has_eff(sp, 9) || has_eff(sp, 10)) && !st->AA) || ((has_eff(sp, 11) || has_eff(sp, 13)) && !st->AtA) ||
+			(has_eff(sp, 12) && !st->AAt) || (has_eff(sp, 14) && !st->nt) || (has_eff(sp, 16) && !st->tnum)) return 909;
+	}
+	else if (ra) {
+		if (has_eff(sp, 4)) st->nt = (double *)calloc(un, sizeof(double));
+		if (has_eff(sp, 5)) st->tnum = (double *)calloc(un, sizeof(double));
+		if ((has_eff(sp, 4) && !st->nt) || (has_eff(sp, 5) && !st->tnum)) return 909;
+	}
+	else if (co) {
+		/* coordination: the products are recomputed per event from Ab where needed; nodeTrans and tertius are kept */
+		if (has_eff(sp, 7)) st->nt = (double *)calloc(un, sizeof(double));
+		if (has_eff(sp, 9)) st->tnum = (double *)calloc(un, sizeof(double));
+		if (has_eff(sp, 8)) st->AA = (int32_t *)calloc(nn, sizeof(int32_t));
+		if (has_eff(sp, 10)) st->AtA = (int32_t *)calloc(nn, sizeof(int32_t));
+		if ((has_eff(sp, 7) && !st->nt) || (has_eff(sp, 9) && !st->tnum) || (has_eff(sp, 8) && !st->AA) || (has_eff(sp, 10) && !st->AtA)) return 909;
+	}
+	return 0;
+}
 
-	*out_ll = ll;
-	out_grad[0] = grad1;
-	out_grad[1] = grad2;
-	out_grad[2] = grad3;
+/* a cell (a,b) of Ab changes by d = +1 / -1 (call BEFORE Ab is changed) */
+static void flip_update(const Spec *sp, State *st, nwint a, nwint b, int d) {
+	nwint n = st->n, i, j, k;
+	const char *A = st->Ab;
+	if (st->nt) {
+		double s1 = 0.0, s2 = 0.0;
+		for (k = 0; k < n; k++) {
+			s1 += (double)(A[a * n + k] & A[k * n + b]);
+			s2 += (double)(A[a * n + k] & A[b * n + k]);
+		}
+		st->nt[a] += d * (s1 + s2);
+		for (i = 0; i < n; i++) if (A[i * n + a] && A[i * n + b]) st->nt[i] += d;
+	}
+	if (st->AA) {
+		for (j = 0; j < n; j++) st->AA[a * n + j] += d * A[b * n + j];
+		for (i = 0; i < n; i++) st->AA[i * n + b] += d * A[i * n + a];
+	}
+	if (st->AtA) {
+		for (j = 0; j < n; j++) {
+			if (j == b) continue;
+			st->AtA[b * n + j] += d * A[a * n + j];
+			st->AtA[j * n + b] += d * A[a * n + j];
+		}
+		st->AtA[b * n + b] += d;
+	}
+	if (st->AAt) {
+		for (j = 0; j < n; j++) {
+			if (j == a) continue;
+			st->AAt[a * n + j] += d * A[j * n + b];
+			st->AAt[j * n + a] += d * A[j * n + b];
+		}
+		st->AAt[a * n + a] += d;
+	}
+	st->inA[b] += d;
+	st->outA[a] += d;
+}
 
-cleanup:
-	free(tie);
-	free(xval);
-	free(indeg);
-	free(lp);
-	free(P);
+static void wupd(State *st, int q, nwint a, nwint b, double dv) {
+	nwint n = st->n;
+	double old = st->W[q][a * n + b], nw = old + dv;
+	if (q == 2) { st->wInS[b] += sgn(nw) - sgn(old); st->wInV[b] += dv; }
+	if (q == 3) { st->wOutS[a] += sgn(nw) - sgn(old); st->wOutV[a] += dv; }
+	st->W[q][a * n + b] = nw;
+}
+
+static void apply_cell(const Spec *sp, State *st, nwint a, nwint b, double v) {
+	nwint n = st->n;
+	double old = st->tv[a * n + b], nw = old + v;
+	int oa = (old > 0.0), na = (nw > 0.0), q;
+	double so = sgn(old), sn = sgn(nw);
+	st->inS[b] += sn - so; st->outS[a] += sn - so;
+	st->inV[b] += v; st->outV[a] += v;
+	if (oa != na) {
+		flip_update(sp, st, a, b, na - oa);
+		if (st->tnum) st->tnum[b] += (na - oa) * sp->cov[4][a];
+		st->Ab[a * n + b] = (char)na;
+	}
+	st->tv[a * n + b] = nw;
+	for (q = 0; q < 4; q++) if (st->W[q]) wupd(st, q, a, b, v);
+}
+
+static void apply_event(const Spec *sp, State *st, nwint k) {
+	nwint a = (nwint)sp->ev[5 * k] - 1, b = (nwint)sp->ev[5 * k + 1] - 1;
+	double v = sp->ev[5 * k + 3];
+	apply_cell(sp, st, a, b, v);
+	if (st->sym) apply_cell(sp, st, b, a, v);
+}
+
+/* windows: drop the events of earlier groups (rows < gs) that are older than the window at time tcur */
+static void expire(const Spec *sp, State *st, nwint gs, double tcur) {
+	int q;
+	nwint n = st->n;
+	for (q = 0; q < 4; q++) {
+		if (!st->W[q]) continue;
+		while (st->ptr[q] < gs) {
+			nwint p = st->ptr[q];
+			if (tcur - sp->ev[5 * p + 2] <= sp->win[q]) break;
+			wupd(st, q, (nwint)sp->ev[5 * p] - 1, (nwint)sp->ev[5 * p + 1] - 1, -sp->ev[5 * p + 3]);
+			st->ptr[q]++;
+		}
+	}
+	(void)n;
+}
+
+/* ------------------------------------------------------------------
+   Statistics of one candidate vector. X is P x n (row k = k-th active effect)
+   ------------------------------------------------------------------ */
+static void choice_stats(const Spec *sp, const State *st, nwint s, double *X, double *tmp) {
+	nwint n = sp->n, j, k, l;
+	int q;
+	const double *tv = st->tv;
+	const char *A = st->Ab;
+	for (q = 0; q < sp->P; q++) {
+		double *x = X + (size_t)q * (size_t)n;
+		switch (sp->eff[q]) {
+		case 1:
+			if (st->W[0]) {
+				const double *w = st->W[0] + s * n;
+				if (sp->wgt[0] != 0.0) for (j = 0; j < n; j++) x[j] = w[j]; else for (j = 0; j < n; j++) x[j] = (w[j] > 0.0);
+			}
+			else if (sp->wgt[0] != 0.0) for (j = 0; j < n; j++) x[j] = tv[s * n + j];
+			else for (j = 0; j < n; j++) x[j] = (double)A[s * n + j];
+			break;
+		case 2:
+			if (st->W[1]) {
+				const double *w = st->W[1];
+				if (sp->wgt[1] != 0.0) for (j = 0; j < n; j++) x[j] = w[j * n + s]; else for (j = 0; j < n; j++) x[j] = (w[j * n + s] > 0.0);
+			}
+			else if (sp->wgt[1] != 0.0) for (j = 0; j < n; j++) x[j] = tv[j * n + s];
+			else for (j = 0; j < n; j++) x[j] = (double)A[j * n + s];
+			break;
+		case 3: for (j = 0; j < n; j++) x[j] = (sp->wgt[2] != 0.0) ? st->inV[j] : st->inS[j]; break;
+		case 4: for (j = 0; j < n; j++) x[j] = (sp->cov[0][j] == sp->cov[0][s]); break;
+		case 5: for (j = 0; j < n; j++) x[j] = fabs(sp->cov[1][j] - sp->cov[1][s]); break;
+		case 6: for (j = 0; j < n; j++) x[j] = -fabs(sp->cov[2][j] - sp->cov[2][s]); break;
+		case 7: for (j = 0; j < n; j++) x[j] = sp->cov[3][j]; break;
+		case 8: for (j = 0; j < n; j++) x[j] = (sp->wgt[3] != 0.0) ? st->outV[j] : st->outS[j]; break;
+		case 9: for (j = 0; j < n; j++) x[j] = (double)st->AA[s * n + j]; break;
+		case 10: for (j = 0; j < n; j++) x[j] = (double)st->AA[j * n + s]; break;
+		case 11: for (j = 0; j < n; j++) x[j] = (double)st->AtA[s * n + j]; break;
+		case 12: for (j = 0; j < n; j++) x[j] = (double)st->AAt[s * n + j]; break;
+		case 13:
+			for (j = 0; j < n; j++) tmp[j] = 0.0;
+			for (k = 0; k < n; k++) if (A[s * n + k]) for (l = 0; l < n; l++) tmp[l] += (double)st->AtA[k * n + l];
+			for (j = 0; j < n; j++) {
+				double a = (double)A[s * n + j];
+				x[j] = tmp[j] - a * (st->outA[s] + (double)st->AtA[j * n + j] - a);
+			}
+			break;
+		case 14: for (j = 0; j < n; j++) x[j] = st->nt[j]; break;
+		case 15: for (j = 0; j < n; j++) x[j] = sp->cov[5][s] * sp->cov[6][j]; break;
+		case 16: for (j = 0; j < n; j++) x[j] = (st->inA[j] > 0.0) ? st->tnum[j] / st->inA[j] : 0.0; break;
+		case 17: for (j = 0; j < n; j++) x[j] = sp->tie[s * n + j]; break;
+		}
+	}
+}
+
+/* rate statistics (the same for every actor-event of a group): X is Pt x n, row 0 = ones when `icpt' */
+static void rate_stats(const Spec *sp, const State *st, double *X, int icpt) {
+	nwint n = sp->n, j;
+	int q, off = icpt ? 1 : 0;
+	if (icpt) for (j = 0; j < n; j++) X[j] = 1.0;
+	for (q = 0; q < sp->P; q++) {
+		double *x = X + (size_t)(q + off) * (size_t)n;
+		switch (sp->eff[q]) {
+		case 1:
+			if (st->W[2]) for (j = 0; j < n; j++) x[j] = (sp->wgt[2] != 0.0) ? st->wInV[j] : st->wInS[j];
+			else for (j = 0; j < n; j++) x[j] = (sp->wgt[2] != 0.0) ? st->inV[j] : st->inS[j];
+			break;
+		case 2:
+			if (st->W[3]) for (j = 0; j < n; j++) x[j] = (sp->wgt[3] != 0.0) ? st->wOutV[j] : st->wOutS[j];
+			else for (j = 0; j < n; j++) x[j] = (sp->wgt[3] != 0.0) ? st->outV[j] : st->outS[j];
+			break;
+		case 3: for (j = 0; j < n; j++) x[j] = sp->cov[3][j]; break;
+		case 4: for (j = 0; j < n; j++) x[j] = st->nt[j]; break;
+		case 5: for (j = 0; j < n; j++) x[j] = (st->inA[j] > 0.0) ? st->tnum[j] / st->inA[j] : 0.0; break;
+		}
+	}
+}
+
+/* ------------------------------------------------------------------
+   Evaluation: choice and rate (no intercept), softmax over a candidate set
+   ------------------------------------------------------------------ */
+static int eval_softmax(const Spec *sp, const double *theta, int todo, double *ll, double *g, double *H) {
+	State st;
+	nwint n = sp->n, N = sp->N, i, j, gs = 0;
+	int P = sp->P, k, l, rc = 0, choice = (sp->model == M_CHOICE);
+	double *X = NULL, *lp = NULL, *Pr = NULL, *m = NULL, *E = NULL, *tmp = NULL, mx, sumP, lrsum;
+	double L = 0.0;
+	int fresh = 1;
+
+	if ((rc = state_init(sp, &st)) != 0) { state_free(&st); return rc; }
+	X = (double *)malloc((size_t)P * (size_t)n * sizeof(double));
+	lp = (double *)malloc((size_t)n * sizeof(double));
+	Pr = (double *)malloc((size_t)n * sizeof(double));
+	m = (double *)malloc((size_t)P * sizeof(double));
+	E = (double *)malloc((size_t)P * (size_t)P * sizeof(double));
+	tmp = (double *)malloc((size_t)n * sizeof(double));
+	if (!X || !lp || !Pr || !m || !E || !tmp) { rc = 909; goto done; }
+	for (k = 0; k < P; k++) g[k] = 0.0;
+	if (todo >= 2) for (k = 0; k < P * P; k++) H[k] = 0.0;
+
+	for (i = 0; i < N; i++) {
+		nwint s = (nwint)sp->ev[5 * i] - 1, r = (nwint)sp->ev[5 * i + 1] - 1;
+		if (fresh) {
+			expire(sp, &st, gs, sp->ev[5 * i + 2]);
+			if (!choice) rate_stats(sp, &st, X, 0);
+		}
+		if (choice) choice_stats(sp, &st, s, X, tmp);
+		/* linear predictor */
+		for (j = 0; j < n; j++) lp[j] = 0.0;
+		for (k = 0; k < P; k++) {
+			const double *x = X + (size_t)k * (size_t)n;
+			double th = theta[k];
+			for (j = 0; j < n; j++) lp[j] += th * x[j];
+		}
+		if (choice) {
+			lp[s] = -1e300;
+			if (sp->n1 > 0) for (j = 0; j < sp->n1; j++) lp[j] = -1e300;
+			if (sp->opp) for (j = 0; j < n; j++) if (sp->opp[i * n + j] == 0.0) lp[j] = -1e300;
+		}
+		else if (sp->n1 > 0) for (j = sp->n1; j < n; j++) lp[j] = -1e300;
+		mx = lp[0];
+		for (j = 1; j < n; j++) if (lp[j] > mx) mx = lp[j];
+		sumP = 0.0;
+		for (j = 0; j < n; j++) { Pr[j] = exp(lp[j] - mx); sumP += Pr[j]; }
+		lrsum = mx + log(sumP);
+		L += lp[choice ? r : s] - lrsum;
+		for (j = 0; j < n; j++) Pr[j] /= sumP;
+		for (k = 0; k < P; k++) {
+			const double *x = X + (size_t)k * (size_t)n;
+			double a = 0.0;
+			for (j = 0; j < n; j++) a += x[j] * Pr[j];
+			m[k] = a;
+			g[k] += x[choice ? r : s] - a;
+		}
+		if (todo >= 2) {
+			for (k = 0; k < P * P; k++) E[k] = 0.0;
+			for (j = 0; j < n; j++) {
+				double pj = Pr[j];
+				if (pj == 0.0) continue;
+				for (k = 0; k < P; k++) {
+					double xk = pj * X[(size_t)k * (size_t)n + j];
+					for (l = k; l < P; l++) E[k * P + l] += xk * X[(size_t)l * (size_t)n + j];
+				}
+			}
+			for (k = 0; k < P; k++) for (l = k; l < P; l++) {
+				double h = -(E[k * P + l] - m[k] * m[l]);
+				H[k * P + l] += h;
+				if (l != k) H[l * P + k] += h;
+			}
+		}
+		if (sp->ev[5 * i + 4] != 0.0) {
+			nwint kk;
+			for (kk = gs; kk <= i; kk++) apply_event(sp, &st, kk);
+			gs = i + 1;
+			fresh = 1;
+		}
+		else fresh = 0;
+	}
+	*ll = L;
+done:
+	free(X); free(lp); free(Pr); free(m); free(E); free(tmp);
+	state_free(&st);
 	return rc;
 }
 
-/* ===================================================================
-   Rate sub-model (no intercept): indeg + outdeg, both ego type. Direct
-   port of dynam_rate_loglik_grad_unit1() (unw_dynam.do) - risk set is
-   ALL n actors (no self-exclusion; the realized sender IS one of the n
-   candidates, unlike the choice sub-model's n-1). Both indeg and
-   outdeg tracked incrementally throughout, same reasoning as the
-   choice kernel above.
-   =================================================================== */
-
-static int dynam_rate_loglik_grad(long n, long nevents, long *sender, long *receiver, char *gend, double *val,
-		double theta1, double theta2,
-		double *out_ll, double out_grad[2]) {
-	char *tie = NULL;
-	double *xval = NULL;
-	double *indeg = NULL, *outdeg = NULL;
-	double *lp = NULL, *P = NULL;
-	long i, j, k, s, r, gs = 0;
-	double ll = 0.0, grad1 = 0.0, grad2 = 0.0;
-	double mx, sumP, lrsum;
-	int rc = 0;
-
-	tie = (char *)calloc((size_t)n * (size_t)n, sizeof(char));
-	if (val) xval = (double *)calloc((size_t)n * (size_t)n, sizeof(double));
-	indeg = (double *)calloc((size_t)n, sizeof(double));
-	outdeg = (double *)calloc((size_t)n, sizeof(double));
-	lp = (double *)malloc((size_t)n * sizeof(double));
-	P = (double *)malloc((size_t)n * sizeof(double));
-	if (!tie || (val && !xval) || !indeg || !outdeg || !lp || !P) { rc = 909; goto cleanup; }
-
-	for (i = 0; i < nevents; i++) {
-		s = sender[i];
-		r = receiver[i];
-
-		mx = -1e300;
-		for (j = 1; j <= n; j++) {
-			lp[j - 1] = theta1 * indeg[j - 1] + theta2 * outdeg[j - 1];
-			if (lp[j - 1] > mx) mx = lp[j - 1];
-		}
-
-		sumP = 0.0;
-		for (j = 1; j <= n; j++) {
-			P[j - 1] = exp(lp[j - 1] - mx);
-			sumP += P[j - 1];
-		}
-		lrsum = mx + log(sumP);
-		ll += (lp[s - 1] - lrsum);
-
-		{
-			double sum_indeg_P = 0.0, sum_outdeg_P = 0.0;
-			for (j = 1; j <= n; j++) {
-				double pj = P[j - 1] / sumP;
-				sum_indeg_P += indeg[j - 1] * pj;
-				sum_outdeg_P += outdeg[j - 1] * pj;
-			}
-			grad1 += (indeg[s - 1] - sum_indeg_P);
-			grad2 += (outdeg[s - 1] - sum_outdeg_P);
-		}
-
-		if (!gend || gend[i]) {
-			for (k = gs; k <= i; k++) {
-				long sk = sender[k], rk = receiver[k];
-				if (val) {
-					long c = (sk - 1) * n + (rk - 1);
-					char now;
-					/* indeg/outdeg add the sign of each tie value (goldfish: -1 below 0) */
-					double sold = (xval[c] > 0.0) - (xval[c] < 0.0), snew;
-					xval[c] += val[k];
-					now = (xval[c] > 0.0);
-					snew = (xval[c] > 0.0) - (xval[c] < 0.0);
-					indeg[rk - 1] += snew - sold;
-					outdeg[sk - 1] += snew - sold;
-					tie[c] = now;
-				}
-				else if (!tie[(sk - 1) * n + (rk - 1)]) {
-					tie[(sk - 1) * n + (rk - 1)] = 1;
-					indeg[rk - 1] += 1.0;
-					outdeg[sk - 1] += 1.0;
-				}
-			}
-			gs = i + 1;
-		}
-	}
-
-	*out_ll = ll;
-	out_grad[0] = grad1;
-	out_grad[1] = grad2;
-
-cleanup:
-	free(tie);
-	free(xval);
-	free(indeg);
-	free(outdeg);
-	free(lp);
-	free(P);
-	return rc;
-}
-
-
-/* ===================================================================
-   Rate sub-model WITH intercept (real-time hazard), effects indeg and outdeg (nwdynam 1.4.0). Port of
-   dynam_rateint_loglik_grad_multi() (unw_dynam.do) for the unweighted, unwindowed, one-mode case. Log likelihood
-     sum_i [ lp(s_i) - w_i * sum_j exp(lp_j) ],  lp_j = th0 + th1 * indeg_j + th2 * outdeg_j,
-   w_i = time since the previous event (0 for the first event and inside a group of equal times). Degrees are kept
-   up to date in O(1) per tie update, so one evaluation costs O(n * nevents) time and O(n^2) bytes, with no cache of
-   per-event statistics. Returns the log likelihood, the gradient (3) and the full Hessian (3 x 3, upper triangle
-   by rows: 00 01 02 11 12 22). If lp overflows exp() the log likelihood is returned missing, so that the optimizer
-   shortens its step.
-   =================================================================== */
-
-static int dynam_rateint_loglik_grad(long n, long nevents, long *sender, long *receiver, char *gend, double *val,
-		double *w, double th[3], int *overflow, double *out_ll, double out_grad[3], double out_h[6]) {
-	char *tie = NULL;
-	double *xval = NULL;
-	double *indeg = NULL, *outdeg = NULL, *e = NULL;
-	long i, j, k, s, gs = 0;
-	double ll = 0.0, g[3] = {0, 0, 0}, h[6] = {0, 0, 0, 0, 0, 0};
-	int rc = 0;
+/* ------------------------------------------------------------------
+   Evaluation: rate with intercept. theta[0] = intercept, then the P effects.
+   ------------------------------------------------------------------ */
+static int eval_rateint(const Spec *sp, const double *theta, int todo, double *ll, double *g, double *H, int *overflow) {
+	State st;
+	nwint n = sp->n, N = sp->N, i, j, gs = 0, nrisk = (sp->n1 > 0 ? sp->n1 : sp->n);
+	int Pt = sp->P + 1, k, l, rc = 0;
+	double *X = NULL, *haz = NULL, *Sx = NULL, *Sxx = NULL, L = 0.0, tprev = 0.0, w, S;
+	int fresh = 1;
 
 	*overflow = 0;
-	tie = (char *)calloc((size_t)n * (size_t)n, sizeof(char));
-	if (val) xval = (double *)calloc((size_t)n * (size_t)n, sizeof(double));
-	indeg = (double *)calloc((size_t)n, sizeof(double));
-	outdeg = (double *)calloc((size_t)n, sizeof(double));
-	e = (double *)malloc((size_t)n * sizeof(double));
-	if (!tie || (val && !xval) || !indeg || !outdeg || !e) { rc = 909; goto cleanup; }
-
-	for (i = 0; i < nevents; i++) {
-		double wi = w[i], lps, S = 0.0, Sx1 = 0.0, Sx2 = 0.0, Sx11 = 0.0, Sx12 = 0.0, Sx22 = 0.0;
-		s = sender[i] - 1;
-		lps = th[0] + th[1] * indeg[s] + th[2] * outdeg[s];
-		if (lps > 700.0) { *overflow = 1; goto cleanup; }
-		ll += lps;
-		g[0] += 1.0;
-		g[1] += indeg[s];
-		g[2] += outdeg[s];
-		if (wi != 0.0) {
-			for (j = 0; j < n; j++) {
-				double lp = th[0] + th[1] * indeg[j] + th[2] * outdeg[j];
-				double x1 = indeg[j], x2 = outdeg[j], ej;
-				if (lp > 700.0) { *overflow = 1; goto cleanup; }
+	if ((rc = state_init(sp, &st)) != 0) { state_free(&st); return rc; }
+	X = (double *)malloc((size_t)Pt * (size_t)n * sizeof(double));
+	haz = (double *)malloc((size_t)n * sizeof(double));
+	Sx = (double *)malloc((size_t)Pt * sizeof(double));
+	Sxx = (double *)malloc((size_t)Pt * (size_t)Pt * sizeof(double));
+	if (!X || !haz || !Sx || !Sxx) { rc = 909; goto done; }
+	for (k = 0; k < Pt; k++) g[k] = 0.0;
+	if (todo >= 2) for (k = 0; k < Pt * Pt; k++) H[k] = 0.0;
+	/* the hazard sums (S, Sx, Sxx) depend on the state only: computed once per group, used by its first event (w > 0) */
+	for (i = 0; i < N; i++) {
+		nwint s = (nwint)sp->ev[5 * i] - 1;
+		double tcur = sp->ev[5 * i + 2], lps = 0.0;
+		if (fresh) {
+			expire(sp, &st, gs, tcur);
+			rate_stats(sp, &st, X, 1);
+		}
+		w = (i > 0) ? tcur - tprev : 0.0;
+		for (k = 0; k < Pt; k++) lps += theta[k] * X[(size_t)k * (size_t)n + s];
+		if (lps > 700.0) { *overflow = 1; goto done; }
+		L += lps;
+		for (k = 0; k < Pt; k++) g[k] += X[(size_t)k * (size_t)n + s];
+		if (w != 0.0) {
+			S = 0.0;
+			for (k = 0; k < Pt; k++) Sx[k] = 0.0;
+			if (todo >= 2) for (k = 0; k < Pt * Pt; k++) Sxx[k] = 0.0;
+			for (j = 0; j < nrisk; j++) {
+				double lp = 0.0, ej;
+				for (k = 0; k < Pt; k++) lp += theta[k] * X[(size_t)k * (size_t)n + j];
+				if (lp > 700.0) { *overflow = 1; goto done; }
 				ej = exp(lp);
+				haz[j] = ej;
 				S += ej;
-				Sx1 += ej * x1;
-				Sx2 += ej * x2;
-				Sx11 += ej * x1 * x1;
-				Sx12 += ej * x1 * x2;
-				Sx22 += ej * x2 * x2;
+				for (k = 0; k < Pt; k++) {
+					double xk = ej * X[(size_t)k * (size_t)n + j];
+					Sx[k] += xk;
+					if (todo >= 2) for (l = k; l < Pt; l++) Sxx[k * Pt + l] += xk * X[(size_t)l * (size_t)n + j];
+				}
 			}
-			ll -= wi * S;
-			g[0] -= wi * S;
-			g[1] -= wi * Sx1;
-			g[2] -= wi * Sx2;
-			h[0] -= wi * S;
-			h[1] -= wi * Sx1;
-			h[2] -= wi * Sx2;
-			h[3] -= wi * Sx11;
-			h[4] -= wi * Sx12;
-			h[5] -= wi * Sx22;
+			L -= w * S;
+			for (k = 0; k < Pt; k++) g[k] -= w * Sx[k];
+			if (todo >= 2) for (k = 0; k < Pt; k++) for (l = k; l < Pt; l++) {
+				double h = -w * Sxx[k * Pt + l];
+				H[k * Pt + l] += h;
+				if (l != k) H[l * Pt + k] += h;
+			}
 		}
-
-		if (!gend || gend[i]) {
-			for (k = gs; k <= i; k++) {
-				long sk = sender[k], rk = receiver[k];
-				if (val) {
-					long c = (sk - 1) * n + (rk - 1);
-					double sold = (xval[c] > 0.0) - (xval[c] < 0.0), snew;
-					xval[c] += val[k];
-					snew = (xval[c] > 0.0) - (xval[c] < 0.0);
-					indeg[rk - 1] += snew - sold;
-					outdeg[sk - 1] += snew - sold;
-					tie[c] = (xval[c] > 0.0);
-				}
-				else if (!tie[(sk - 1) * n + (rk - 1)]) {
-					tie[(sk - 1) * n + (rk - 1)] = 1;
-					indeg[rk - 1] += 1.0;
-					outdeg[sk - 1] += 1.0;
-				}
-			}
+		tprev = tcur;
+		if (sp->ev[5 * i + 4] != 0.0) {
+			nwint kk;
+			for (kk = gs; kk <= i; kk++) apply_event(sp, &st, kk);
 			gs = i + 1;
+			fresh = 1;
 		}
+		else fresh = 0;
 	}
-	*out_ll = ll;
-	for (k = 0; k < 3; k++) out_grad[k] = g[k];
-	for (k = 0; k < 6; k++) out_h[k] = h[k];
-
-cleanup:
-	free(tie);
-	free(xval);
-	free(indeg);
-	free(outdeg);
-	free(e);
+	*ll = L;
+done:
+	free(X); free(haz); free(Sx); free(Sxx);
+	state_free(&st);
 	return rc;
 }
 
-/* ===================================================================
-   Plugin entry point
-   =================================================================== */
 
-static double next_double(void) {
-	return atof(strtok(NULL, " \t"));
+/* ------------------------------------------------------------------
+   Evaluation: choice_coordination (undirected ties). Effect slots: 1 inertia, 2 indeg, 3 same, 4 diff, 5 sim, 6 alter,
+   7 nodeTrans, 8 trans, 9 tertius, 10 four, 11 egoAlterInt, 12 tie.
+   For every event the n x n matrix of linear predictors, p(a,b) = row-normalised softmax without the diagonal,
+   Pnorm(a,b) = p(a,b) p(b,a) / (sum / 2); log likelihood ln Pnorm(s,r); gradient from the row scores (see the reference
+   evaluator). Gradient only (no Hessian).
+   ------------------------------------------------------------------ */
+static double coord_S(const Spec *sp, const State *st, int e, nwint a, nwint b, const int32_t *AAtA) {
+	nwint n = sp->n;
+	switch (e) {
+	case 1: return (double)st->Ab[a * n + b];
+	case 2: return st->inS[b];
+	case 3: return (double)(sp->cov[0][a] == sp->cov[0][b]);
+	case 4: return fabs(sp->cov[1][a] - sp->cov[1][b]);
+	case 5: return -fabs(sp->cov[2][a] - sp->cov[2][b]);
+	case 6: return sp->cov[3][b];
+	case 7: return st->nt[b];
+	case 8: return (double)st->AA[a * n + b];
+	case 9: return (st->inA[b] > 0.0) ? st->tnum[b] / st->inA[b] : 0.0;
+	case 10: {
+		double A = (double)st->Ab[a * n + b];
+		return (double)AAtA[a * n + b] - A * (st->outA[a] + (double)st->AtA[b * n + b] - A);
+	}
+	case 11: return sp->cov[5][a] * sp->cov[6][b];
+	case 12: return sp->tie[a * n + b];
+	}
+	return 0.0;
 }
 
+static int eval_coord(const Spec *sp, const double *theta, int todo, double *ll, double *g) {
+	State st;
+	nwint n = sp->n, N = sp->N, i, a, b, k, l, gs = 0;
+	int P = sp->P, q, rc = 0, dirty = 1, four = has_eff(sp, 10);
+	double *stm = NULL, *p = NULL, *Pn = NULL, *rowexp = NULL, *rowPn = NULL, L = 0.0;
+	int32_t *AAtA = NULL;
+	(void)todo;
+
+	if ((rc = state_init(sp, &st)) != 0) { state_free(&st); return rc; }
+	stm = (double *)malloc((size_t)n * (size_t)n * sizeof(double));
+	p = (double *)malloc((size_t)n * (size_t)n * sizeof(double));
+	Pn = (double *)malloc((size_t)n * (size_t)n * sizeof(double));
+	rowexp = (double *)malloc((size_t)n * sizeof(double));
+	rowPn = (double *)malloc((size_t)n * sizeof(double));
+	if (four) AAtA = (int32_t *)calloc((size_t)n * (size_t)n, sizeof(int32_t));
+	if (!stm || !p || !Pn || !rowexp || !rowPn || (four && !AAtA)) { rc = 909; goto done; }
+	for (q = 0; q < P; q++) g[q] = 0.0;
+
+	for (i = 0; i < N; i++) {
+		nwint s = (nwint)sp->ev[5 * i] - 1, r = (nwint)sp->ev[5 * i + 1] - 1;
+		double tot, Z;
+		if (dirty) {
+			expire(sp, &st, gs, sp->ev[5 * i + 2]);
+			if (four) {
+				/* AAtA = A * (A'A), recomputed when the tie matrix changed */
+				memset(AAtA, 0, (size_t)n * (size_t)n * sizeof(int32_t));
+				for (a = 0; a < n; a++) for (k = 0; k < n; k++) if (st.Ab[a * n + k]) {
+					const int32_t *row = st.AtA + k * n;
+					int32_t *out = AAtA + a * n;
+					for (b = 0; b < n; b++) out[b] += row[b];
+				}
+			}
+			dirty = 0;
+		}
+		for (a = 0; a < n; a++) for (b = 0; b < n; b++) {
+			double v = 0.0;
+			for (q = 0; q < P; q++) v += theta[q] * coord_S(sp, &st, sp->eff[q], a, b, AAtA);
+			stm[a * n + b] = v;
+		}
+		for (a = 0; a < n; a++) {
+			double rmax = stm[a * n], rs = 0.0;
+			for (b = 1; b < n; b++) if (stm[a * n + b] > rmax) rmax = stm[a * n + b];
+			for (b = 0; b < n; b++) { double e = (a == b) ? 0.0 : exp(stm[a * n + b] - rmax); p[a * n + b] = e; rs += e; }
+			for (b = 0; b < n; b++) p[a * n + b] /= rs;
+		}
+		tot = 0.0;
+		for (a = 0; a < n; a++) for (b = 0; b < n; b++) { double v = p[a * n + b] * p[b * n + a]; Pn[a * n + b] = v; tot += v; }
+		Z = tot / 2.0;
+		for (a = 0; a < n; a++) { double rs = 0.0; for (b = 0; b < n; b++) { Pn[a * n + b] /= Z; rs += Pn[a * n + b]; } rowPn[a] = rs; }
+		L += log(Pn[s * n + r]);
+		for (q = 0; q < P; q++) {
+			int e = sp->eff[q];
+			double T1 = 0.0, T2 = 0.0;
+			for (a = 0; a < n; a++) {
+				double re = 0.0;
+				for (b = 0; b < n; b++) {
+					double sv = coord_S(sp, &st, e, a, b, AAtA);
+					re += p[a * n + b] * sv;
+					T1 += Pn[a * n + b] * sv;
+				}
+				rowexp[a] = re;
+				T2 += re * rowPn[a];
+			}
+			{
+				double Ssr = coord_S(sp, &st, e, s, r, AAtA), Srs = coord_S(sp, &st, e, r, s, AAtA);
+				g[q] += (Ssr - rowexp[s]) + (Srs - rowexp[r]) - (T1 - T2);
+			}
+		}
+		if (sp->ev[5 * i + 4] != 0.0) {
+			nwint kk;
+			for (kk = gs; kk <= i; kk++) apply_event(sp, &st, kk);
+			gs = i + 1;
+			dirty = 1;
+		}
+		(void)l;
+	}
+	*ll = L;
+done:
+	free(stm); free(p); free(Pn); free(rowexp); free(rowPn); free(AAtA);
+	state_free(&st);
+	return rc;
+}
+
+/* ------------------------------------------------------------------
+   Blob reading
+   ------------------------------------------------------------------ */
+static int spec_read(Spec *sp, nwint L) {
+	nwint i, pos;
+	int k;
+	memset(sp, 0, sizeof(Spec));
+	sp->blob = (double *)malloc((size_t)L * sizeof(double));
+	if (!sp->blob) return 909;
+	for (i = 0; i < L; i++) {
+		ST_double v;
+		SF_vdata(1, (ST_int)(i + 1), &v);
+		sp->blob[i] = v;
+	}
+	if (L < HDR || (int)sp->blob[0] != DYNAM_PROTOCOL) return 198;
+	sp->model = (int)sp->blob[1];
+	sp->n = (nwint)sp->blob[2];
+	sp->N = (nwint)sp->blob[3];
+	sp->n1 = (nwint)sp->blob[4];
+	sp->M = (int)sp->blob[5];
+	sp->hasopp = (int)sp->blob[6];
+	sp->hastie = (int)sp->blob[7];
+	for (k = 0; k < 4; k++) { sp->win[k] = sp->blob[8 + k]; sp->wgt[k] = sp->blob[12 + k]; }
+	for (k = 0; k < 20; k++) sp->act[k] = sp->blob[16 + k];
+	sp->P = 0;
+	for (k = 0; k < sp->M && k < 20; k++) if (sp->act[k] != 0.0) sp->eff[sp->P++] = k + 1;
+	pos = HDR;
+	sp->ev = sp->blob + pos; pos += 5 * sp->N;
+	for (k = 0; k < 7; k++) { sp->cov[k] = sp->blob + pos; pos += sp->n; }
+	if (sp->hasopp) { sp->opp = sp->blob + pos; pos += sp->N * sp->n; }
+	if (sp->hastie) { sp->tie = sp->blob + pos; pos += sp->n * sp->n; }
+	if (pos != L) return 198;
+	return 0;
+}
+
+/* ------------------------------------------------------------------
+   Plugin entry point
+   ------------------------------------------------------------------ */
 STDLL stata_call(int argc, char *argv[]) {
-	char *argbuf;
-	long algcode, n, nevents, i;
-	int grouped = 0, valued = 0;
-	char *gend = NULL;
-	double *val = NULL;
-	double theta1 = 0.0, theta2 = 0.0, theta3 = 0.0;
-	long *sender = NULL, *receiver = NULL;
-	double ll = 0.0, grad[3], hess[6], th3[3];
-	double *wgap = NULL;
-	int rc = 0, overflow = 0;
+	char *argbuf, *tok;
+	int code, todo, Pt, k, rc = 0, overflow = 0;
+	nwint L;
+	double *theta = NULL, *g = NULL, *H = NULL, ll = 0.0;
+	Spec sp;
 
-	if (argc < 1) { SF_error("dynam_sim: missing argument string\n"); return(198); }
-
+	if (argc < 1) { SF_error("dynam_sim: missing argument string\n"); return 198; }
 	argbuf = (char *)malloc(strlen(argv[0]) + 1);
+	if (!argbuf) return 909;
 	strcpy(argbuf, argv[0]);
-	algcode = (long)atof(strtok(argbuf, " \t"));
-	/* codes 11/12: the same kernels with simultaneous events; v4 = 1 at the last event of each group of equal times */
-	if (algcode > 100) { valued = 1; algcode -= 100; }
-	if (algcode > 10) { grouped = 1; algcode -= 10; }
-	n       = (long)next_double();
-	nevents = (long)next_double();
-	theta1  = next_double();
-	if (algcode == ALG_DYNAM_CHOICE) {
-		theta2 = next_double();
-		theta3 = next_double();
+	tok = strtok(argbuf, " \t");
+	code = tok ? (int)atof(tok) : 0;
+	if (code == 99) {
+		free(argbuf);
+		SF_vstore(2, 1, (ST_double)DYNAM_PROTOCOL);
+		return 0;
 	}
-	else if (algcode == ALG_DYNAM_RATE) {
-		theta2 = next_double();
+	if (code != 20) {
+		free(argbuf);
+		SF_error("dynam_sim: unknown algorithm code (plugin and package versions do not match)\n");
+		return 198;
 	}
-	else if (algcode == ALG_DYNAM_RATEINT) {
-		theta2 = next_double();
-		theta3 = next_double();
-	}
+	L = (nwint)atof(strtok(NULL, " \t"));
+	todo = (int)atof(strtok(NULL, " \t"));
+	Pt = (int)atof(strtok(NULL, " \t"));
+	theta = (double *)malloc((size_t)(Pt > 0 ? Pt : 1) * sizeof(double));
+	g = (double *)malloc((size_t)(Pt > 0 ? Pt : 1) * sizeof(double));
+	H = (double *)malloc((size_t)(Pt > 0 ? Pt : 1) * (size_t)(Pt > 0 ? Pt : 1) * sizeof(double));
+	if (!theta || !g || !H) { free(argbuf); free(theta); free(g); free(H); return 909; }
+	for (k = 0; k < Pt; k++) theta[k] = atof(strtok(NULL, " \t"));
 	free(argbuf);
 
-	if (nevents > 0) {
-		sender = (long *)malloc((size_t)nevents * sizeof(long));
-		receiver = (long *)malloc((size_t)nevents * sizeof(long));
-		if (grouped) gend = (char *)malloc((size_t)nevents);
-		if (valued) val = (double *)malloc((size_t)nevents * sizeof(double));
-		if (algcode == ALG_DYNAM_RATEINT) wgap = (double *)malloc((size_t)nevents * sizeof(double));
-		for (i = 0; i < nevents; i++) {
-			ST_double v;
-			SF_vdata(1, i + 1, &v); sender[i] = (long)v;
-			SF_vdata(2, i + 1, &v); receiver[i] = (long)v;
-			if (grouped) { SF_vdata(4, i + 1, &v); gend[i] = (v != 0.0); }
-			if (valued) { SF_vdata(5, i + 1, &v); val[i] = v; }
-			if (wgap) { SF_vdata(6, i + 1, &v); wgap[i] = v; }
-		}
+	rc = spec_read(&sp, L);
+	if (rc == 0) {
+		int expectP = sp.P + (sp.model == M_RATEINT ? 1 : 0);
+		if (expectP != Pt) { SF_error("dynam_sim: parameter count does not match the model\n"); rc = 198; }
 	}
-
-	switch (algcode) {
-		case ALG_DYNAM_CHOICE:
-			rc = dynam_choice_loglik_grad(n, nevents, sender, receiver, gend, val, theta1, theta2, theta3, &ll, grad);
-			if (rc == 0) {
-				SF_vstore(3, 1, ll);
-				SF_vstore(3, 2, grad[0]);
-				SF_vstore(3, 3, grad[1]);
-				SF_vstore(3, 4, grad[2]);
-			}
+	if (rc == 0) {
+		switch (sp.model) {
+		case M_CHOICE:
+		case M_RATE:
+			rc = eval_softmax(&sp, theta, todo, &ll, g, H);
 			break;
-		case ALG_DYNAM_RATE:
-			rc = dynam_rate_loglik_grad(n, nevents, sender, receiver, gend, val, theta1, theta2, &ll, grad);
-			if (rc == 0) {
-				SF_vstore(3, 1, ll);
-				SF_vstore(3, 2, grad[0]);
-				SF_vstore(3, 3, grad[1]);
-			}
+		case M_RATEINT:
+			rc = eval_rateint(&sp, theta, todo, &ll, g, H, &overflow);
 			break;
-		case ALG_DYNAM_RATEINT:
-			th3[0] = theta1; th3[1] = theta2; th3[2] = theta3;
-			rc = dynam_rateint_loglik_grad(n, nevents, sender, receiver, gend, val, wgap, th3, &overflow, &ll, grad, hess);
-			if (rc == 0) {
-				int q;
-				SF_vstore(3, 1, overflow ? SV_missval : ll);
-				for (q = 0; q < 3; q++) SF_vstore(3, 2 + q, overflow ? SV_missval : grad[q]);
-				for (q = 0; q < 6; q++) SF_vstore(3, 5 + q, overflow ? SV_missval : hess[q]);
-			}
+		case M_COORD:
+			rc = eval_coord(&sp, theta, todo, &ll, g);
 			break;
 		default:
-			SF_error("dynam_sim: unknown algorithm code\n");
+			SF_error("dynam_sim: unknown model\n");
 			rc = 198;
+		}
 	}
-
-	free(sender);
-	free(receiver);
-	free(gend);
-	free(val);
-	free(wgap);
+	if (rc == 0) {
+		SF_vstore(2, 1, overflow ? SV_missval : ll);
+		for (k = 0; k < Pt; k++) SF_vstore(2, (ST_int)(2 + k), overflow ? SV_missval : g[k]);
+		if (todo >= 2 && sp.model != M_COORD) for (k = 0; k < Pt * Pt; k++) SF_vstore(2, (ST_int)(2 + Pt + k), overflow ? SV_missval : H[k]);
+	}
+	free(sp.blob);
+	free(theta); free(g); free(H);
 	return rc;
 }

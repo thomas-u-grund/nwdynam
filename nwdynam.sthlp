@@ -494,25 +494,14 @@ tested, with matching coefficients to within 1e-2. The two-mode support, {opt op
 {opt submodel(choice_coordination)} with its effects, {opt tie()}, {opt intercept} and the weighted effects were
 each compared with {cmd:goldfish} on small hand-traceable event sequences; the package's tests repeat these comparisons.
 
-{pstd}
-Selecting exactly the default effects of the choice or rate sub-model on a one-mode network, with no window, no weighted effect,
-no {opt opportunities()}, no {opt tie()} and (rate) no {opt intercept}, reuses a
-native-eligible (C) engine - any other specification, and every {opt submodel(choice_coordination)} fit, dispatches to a Mata-only engine instead
-(no native backend for these yet). Both
-engines were confirmed to agree with each other on the full structural-effect set.
-
 {marker native}{...}
 {pstd}
-The native (C) backend, when available for the running platform, accelerates the
-log-likelihood/gradient evaluation Mata's own optimizer calls repeatedly - the optimization
-itself always runs in Mata. If the compiled plugin file for the platform is missing, the
-fit runs on the pure-Mata engine, which gives the same results but is slower, and
-{cmd:nwdynam} prints one warning line (once per call) naming the missing file; reinstall the
-package with {bf:net install nwdynam, replace} to restore the plugin. The warning appears
-only for the default structural effect set of the choice and rate sub-models, the
-engines that use the plugin; all other effect sets always run in Mata and print no
-warning.
-
+Every fit runs in the compiled plugin of the package ({cmd:dynam_sim}): the log likelihood, the gradient and
+the Hessian of all sub-models, effects, windows, weighted effects, two-mode networks, {opt opportunities()} and {opt tie()}
+are evaluated natively, and Mata's optimizer calls the plugin for each evaluation. There is no slower fallback.
+If the plugin file of your platform is not installed, {cmd:nwdynam} stops with return code 601 and says which file is
+missing; if the installed plugin is older than the {cmd:.ado} files (or cannot be loaded), it stops with return code 3495.
+Reinstall the package with {bf:net install nwdynam, replace} (and restart Stata) in both cases.
 
 {pstd}
 If the Mata library of nwdynam (lnwdynam.mlib) does not load in your Stata (for example r(3499) because it was built by a newer Stata than yours), build it with your own Stata:
@@ -691,7 +680,7 @@ copies it into the current directory, together with a file that explains how to 
 {cmd:native/} of the repository at {browse "https://github.com/thomas-u-grund/nwdynam"}. {cmd:net install} installs the compiled plugins only.
 
 {pstd}
-If the plugin of your platform is missing, older than the {cmd:.ado} files or does not work on your computer, compile it there:
+If the plugin of your platform is missing (r(601)), older than the {cmd:.ado} files (r(3495)) or does not work on your computer, compile it there:
 {cmd:nwinstall, buildplugin(nwdynam)} fetches the source, compiles it with the compiler of your computer (macOS and Linux; a C compiler and
 {cmd:make} are needed) and installs the plugin; restart Stata afterwards. See {help nwinstall##buildplugin:nwinstall}.
 
