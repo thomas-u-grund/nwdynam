@@ -8,11 +8,12 @@ if [[ -z $NWCORE || ! -f $NWCORE/unw_core.do ]]; then echo "set NWCORE to the nw
 export NWCORE
 jobs=${1:-3}
 STATA=${STATA:-/Applications/Stata/StataBE.app/Contents/MacOS/StataBE}
-tests=(test_fixes_unreleased test_nwdynam_ado test_nwdynam_native test_nwdynam_twomode_ado test_nwdynam_fixes1 test_nwdynam_ordfix test_nwdynam_ties test_nwdynam_noplugin test_nwdynam_oldplugin test_nwdynam_plugin_rate test_nwdynam_plugin_choice test_nwdynam_plugin_coord test_nwdynam_msgwrap test_nwdynam_eventvalues test_nwdynam_rateint_fast)
+tests=($(cd cscripts; ls test_*.do | sed 's/\.do$//'))
 tmp=$(mktemp -d)
 run_one() {
   local t=$1
-  echo "do cscripts/$t.do" > $tmp/run_$t.do
+  mkdir -p $tmp/plus_$t
+  { echo "capture program drop nwinstall"; echo "sysdir set PLUS \"$tmp/plus_$t\""; echo "adopath ++ \"$NWCORE\""; echo "adopath ++ \"$NWCORE/lib\""; echo "adopath ++ \"$PWD\""; echo "adopath ++ \"$PWD/lib\""; echo "adopath ++ \"$PWD/lib/plugins/macos\""; echo "do cscripts/$t.do"; } > $tmp/run_$t.do
   $STATA -e do $tmp/run_$t.do > /dev/null 2>&1
   printf '%-34s PASS lines: %3s   errors: %s\n' $t "$(grep -c -E 'PASS|ALL OK|ALL TESTS PASSED' run_$t.log)" "$(grep -E '^r\([0-9]+\)' run_$t.log | sort -u | tr '\n' ' ')" > $tmp/res_$t.txt
   rm -f run_$t.log
