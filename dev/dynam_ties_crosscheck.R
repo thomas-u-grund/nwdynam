@@ -1,11 +1,11 @@
 # nwdynam: events with identical times (ties) -- goldfish 1.6.12 reference numbers for cscripts/test_nwdynam_ties.do.
 # goldfish treats events with the same time as SIMULTANEOUS: the statistics of every event of a time point are computed
 # from the state before that time point (checked: the fit does not change when the tied rows are permuted).
-# Usage: Rscript dev/dynam_ties_crosscheck.R <path to socialevolution.dta of the core package>
+# Usage: Rscript dev/dynam_ties_crosscheck.R <path to manufacturing.dta of the core package>
 # Writes dev/dynam_ties_toy_events.csv (the toy data used in the test) and prints all numbers.
 suppressMessages({library(goldfish); library(haven)})
 args <- commandArgs(TRUE)
-d <- read_dta(args[1])
+d <- read_dta(args[1]); d <- d[d$t < 5, ]   # first days of the manufacturing emails: 631 events
 actors <- data.frame(label = sort(unique(c(d$sender, d$receiver))), present = TRUE, stringsAsFactors = FALSE)
 nodes <- defineNodes(actors)
 fit <- function(ev, form, sub, nodes, directed = TRUE) {
@@ -20,12 +20,12 @@ fit <- function(ev, form, sub, nodes, directed = TRUE) {
 }
 mk <- function(f) { ev <- data.frame(time = f(d$t), sender = d$sender, receiver = d$receiver, increment = 1,
                                      stringsAsFactors = FALSE); ev[order(ev$time), ] }
-cat("##### A: socialevolution, time = ceil(t/20)  (4 time points)\n")
-evA <- mk(function(t) ceiling(t / 20))
+cat("##### A: manufacturing, t < 5, time = ceil(2t)  (4 time points)\n")
+evA <- mk(function(t) ceiling(t * 2))
 fit(evA, "inertia + recip + indeg", "choice", nodes)
 fit(evA, "indeg + outdeg", "rate", nodes)
-cat("##### B: socialevolution, time = ceil(2t)  (47 time points)\n")
-evB <- mk(function(t) ceiling(t * 2))
+cat("##### B: manufacturing, t < 5, time = ceil(48t)  (43 time points)\n")
+evB <- mk(function(t) ceiling(t * 48))
 fit(evB, "inertia + recip + indeg", "choice", nodes)
 fit(evB, "inertia + recip + indeg + outdeg(net) + trans(net)", "choice", nodes)
 fit(evB, "inertia(net, window = 5) + recip + indeg", "choice", nodes)

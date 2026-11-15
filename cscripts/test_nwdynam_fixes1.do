@@ -17,6 +17,7 @@ capture adopath ++ `"`nwcore'/lib"'
 adopath ++ `"`c(pwd)'"'
 adopath ++ `"`c(pwd)'/lib"'
 adopath ++ `"`c(pwd)'/lib/plugins/macos"'
+global nwwebpath `"`nwcore'/data"'
 
 * (1) first command of the session
 nwdynam version
@@ -47,9 +48,10 @@ assert strpos(" `e(unidentified)' ", " recip ") == 0
 di as text "  PASS: unidentified effects are reported (`e(unidentified)')"
 
 * an identified fit reports nothing
-nwwebuse socialevolution, nwclear
-nwset sender receiver, eventtime(t) directed name(calls)
-nwdynam calls
+nwwebuse manufacturing, nwclear
+keep if t < 5
+nwset sender receiver, eventtime(t) directed name(mail)
+nwdynam mail
 assert `"`e(unidentified)'"' == ""
 di as text "  PASS: identified fit has empty e(unidentified)"
 di as result "ALL TESTS PASSED"

@@ -32,41 +32,44 @@ program chk
 end
 
 nwclear
-nwwebuse socialevolution, nwclear
-generate tt = ceil(t/20)
-generate th = ceil(t*2)
+nwwebuse manufacturing, nwclear
+keep if t < 5
+generate tt = ceil(t*2)
+generate th = ceil(t*48)
+assert t == t[_n-1] | t > t[_n-1] if _n > 1
+generate long tstrict = _n
 generate long row = _n
 tempfile d
 save `d'
 
-* ---- A: 4 time points, 435 tied events
+* ---- A: 4 time points, 631 tied events
 use `d', clear
 nwset sender receiver, eventtime(tt) directed name(a)
 nwdynam a, inertia recip indeg
 assert e(ntimes) == 4
 assert "`e(ties)'" == "simultaneous"
-chk "A choice inertia recip indeg" -1595.32649 3.5380732 1.3654605 -.3843064
+chk "A choice inertia recip indeg" -2576.748 1.457867 2.326090 .05560886
 nwdynam a, submodel(rate) indeg outdeg
-chk "A rate indeg outdeg" -1735.62725 .3342426 .1606922
+chk "A rate indeg outdeg" -2884.893 .01549955 .1719255
 
-* ---- B: 47 time points
+* ---- B: 43 time points
 nwclear
 use `d', clear
 nwset sender receiver, eventtime(th) directed name(b)
 nwdynam b, inertia recip indeg
-chk "B choice (native)" -825.301403 4.584526 1.339734 -.358509
+chk "B choice (native)" -2403.316 1.327586 2.486849 .08555338
 scalar llnative = e(ll)
 nwdynam b, inertia recip indeg inertiawindow(1e9)
 assert reldif(e(ll), llnative) < 1e-9
 di as text "  PASS: B choice, Mata evaluator = native evaluator under ties"
 nwdynam b, inertia recip indeg outdeg trans
-chk "B choice + outdeg trans" -808.384668 4.4871244 1.889513 -.3468104 -.3027759 .5348534
+chk "B choice + outdeg trans" -2397.745 1.308292 2.484381 .07508011 .01725865 .3528997
 nwdynam b, inertia recip indeg inertiawindow(5)
-chk "B choice inertiawindow(5)" -908.015839 4.0422002 2.17348962 -.07505825
+chk "B choice inertiawindow(5)" -2416.93384 1.1708973 2.9183053 .1022024
 nwdynam b, submodel(rate) indeg outdeg
-chk "B rate indeg outdeg" -1674.11949 .2603611 .239943
+chk "B rate indeg outdeg" -2869.869 .02597912 .1678525
 nwdynam b, submodel(rate) intercept indeg outdeg
-chk "B rate intercept" -1271.82665 -2.9698256 .5391501 .2448834
+chk "B rate intercept" -2274.449 -2.706195 -.0003323426 .03730036
 
 * ---- order of the tied rows does not matter
 nwclear
@@ -76,9 +79,9 @@ generate double u = runiform()
 sort th u
 nwset sender receiver, eventtime(th) directed name(b2)
 nwdynam b2, inertia recip indeg
-chk "B rows of ties shuffled" -825.301403 4.584526 1.339734 -.358509
+chk "B rows of ties shuffled" -2403.316 1.327586 2.486849 .08555338
 nwdynam b2, submodel(rate) intercept indeg outdeg
-chk "B rate intercept, shuffled" -1271.82665 -2.9698256 .5391501 .2448834
+chk "B rate intercept, shuffled" -2274.449 -2.706195 -.0003323426 .03730036
 
 * ---- option sequential: the old behaviour (events one after another, in input order)
 nwclear
@@ -87,11 +90,11 @@ sort tt row
 nwset sender receiver, eventtime(tt) directed name(c)
 nwdynam c, inertia recip indeg sequential
 assert "`e(ties)'" == "sequential"
-assert reldif(e(ll), -652.8339) < 1e-6
-assert abs(el(e(b), 1, 1) - 4.99798) < 1e-4
-di as text "  PASS: sequential reproduces the old fit (ll -652.8339, inertia 5.00)"
+assert reldif(e(ll), -2184.5636) < 1e-6
+assert abs(el(e(b), 1, 1) - 1.70191) < 1e-4
+di as text "  PASS: sequential reproduces the old fit (ll -2184.5636, inertia 1.70)"
 nwdynam c, inertia recip indeg
-assert e(ll) < -1500
+assert e(ll) < -2500
 
 * ---- toy data with tied times: undirected coordination and directed models
 nwclear
@@ -116,7 +119,7 @@ chk "toy rate intercept" -26.8764901 -.9173658 -.2049949 .1516609
 * ---- data without ties: e(ties) is none
 nwclear
 use `d', clear
-nwset sender receiver, eventtime(t) directed name(e)
+nwset sender receiver, eventtime(tstrict) directed name(e)
 nwdynam e, inertia recip indeg
 assert "`e(ties)'" == "none"
 assert e(ntimes) == e(N)

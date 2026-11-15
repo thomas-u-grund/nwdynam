@@ -20,8 +20,9 @@ adopath ++ `"`c(pwd)'/lib/plugins/macos"'
 global nwwebpath `"`nwcore'/data"'
 
 nwclear
-nwwebuse socialevolution, nwclear
-generate tt = ceil(t/20)
+nwwebuse manufacturing, nwclear
+keep if t < 5
+generate tt = ceil(t*48)
 generate long row = _n
 sort tt row
 duplicates report tt
