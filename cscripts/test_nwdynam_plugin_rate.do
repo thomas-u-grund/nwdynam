@@ -92,3 +92,28 @@ assert scalar(worstll) < 1e-9
 assert scalar(worsth) < 1e-5
 assert scalar(worstc) < 1e-9
 di "PASS: plugin rate / rate with intercept equal the Mata reference"
+
+* an actor index outside 1..n is refused by the plugin (r(198)), it never indexes memory outside its arrays
+mata:
+void badindex() {
+	class DynamState scalar S
+	class DynamNat scalar NT
+	real scalar y
+	real rowvector g
+	real matrix H
+	S = DynamState()
+	S.init((1,2,1 \ 2,9,2 \ 3,1,3), 5)
+	NT = DynamNat()
+	NT.open()
+	NT.setup(2, &S, (1,1,0,0,0), J(7,5,0), (1e300,1e300,1e300,1e300), (0,0,0,0), 0, J(0,0,0), J(0,0,0))
+	dynam_nat_eval(1, (0,0), &NT, y, g, H)
+}
+end
+local __f = c(frame)
+capture mata: badindex()
+local __rc = _rc
+capture frame change default
+capture frame drop __nwdynam_native
+di "return code of the refused call: `__rc'"
+assert `__rc' != 0
+di "PASS: actor index outside 1..n -> r(198)"

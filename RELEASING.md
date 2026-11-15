@@ -33,6 +33,7 @@ Most tests print no PASS marker: failure is an `r()` error and a missing log is 
 
 `native/dynam_sim.c` builds `dynam_sim` (CI commits the binaries to `lib/plugins/` on `main`; `pull --rebase`, tag after the bot commit; nwdynam v1.1.0 is tagged on the bot commit). Ties in event times are simultaneous as in goldfish (`sequential` for the old way); events with equal time are sorted with the row number as second key.
 A stale installed plugin shadows the repo build: scratch `adopath`, `rm` before `cp`.
+Every fit needs the plugin (no Mata fallback). The protocol number is `DYNAM_PROTOCOL` in `native/dynam_sim.c` and `DYNAM_PROTOCOL_NEEDED()` in `unw_dynam.do`; raise both together whenever the blob layout or the meaning of an argument changes, so that an old plugin is recognised (r(3495)) instead of giving wrong numbers. A release rebuilds `lib/lnwdynam.mlib` with Stata 17 and the three plugins (macOS here, Linux and Windows by CI) from the same commit: until CI has rebuilt Linux and Windows those platforms stop with r(3495). The Mata evaluators of the earlier versions are test-only reference code (`cscripts/ref_dynam_mata.do`); `test_nwdynam_plugin_{rate,choice,coord}.do` compare the plugin with them.
 
 ## Manual
 

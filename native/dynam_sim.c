@@ -609,6 +609,15 @@ static int spec_read(Spec *sp, nwint L) {
 	if (sp->hasopp) { sp->opp = sp->blob + pos; pos += sp->N * sp->n; }
 	if (sp->hastie) { sp->tie = sp->blob + pos; pos += sp->n * sp->n; }
 	if (pos != L) return 198;
+	if (sp->n < 2 || sp->N < 1) return 198;
+	/* every actor index of an event must be an actor 1..n (the kernels index arrays with it) */
+	for (i = 0; i < sp->N; i++) {
+		double a = sp->ev[5 * i], b = sp->ev[5 * i + 1];
+		if (!(a >= 1.0 && a <= (double)sp->n && b >= 1.0 && b <= (double)sp->n)) {
+			SF_error("dynam_sim: an event has a sender or receiver outside 1..n\n");
+			return 198;
+		}
+	}
 	return 0;
 }
 
