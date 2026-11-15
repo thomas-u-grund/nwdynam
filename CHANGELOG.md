@@ -12,7 +12,7 @@ project uses [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Larger problems with `intercept` no longer fail: the optimizer used to leave the region where the hazard can be computed (`exp()` overflowed to missing and the hazard term was silently dropped), so no start converged and a Nelder-Mead search followed. The fit now stops a step at such a point and shortens it.
 
-Tested on macOS with Stata 17 BE, Stata 18 BE and StataNow 19.5 MP (the nwdynam test suite, including the goldfish cross-checks under Stata 17). The Linux and Windows plugins are rebuilt by the build workflow after this release; until then those platforms use the Mata evaluator, which is fast as well.
+Tested on macOS with Stata 17 BE, Stata 18 BE and StataNow 19.5 MP (the nwdynam test suite, including the goldfish cross-checks under Stata 17) and on Linux (Ubuntu 22.04) with StataNow 19.5 MP, where the Linux plugin takes the native path and agrees with the Mata evaluator. Windows: not yet tested in Stata; the Windows plugin is built by the build workflow, and until it is tested there that platform may use the Mata evaluator, which is fast as well.
 
 ## [1.3.2] - 2026-11-13
 
