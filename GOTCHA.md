@@ -157,3 +157,11 @@ window test disagreed with goldfish while the choice one agreed). Windows keep t
 `dynam_window_expire()`. With only positive values the binary state equals the old "any event" state, so the native
 kernel gets the values (v5, codes 101/102/111/112) only when some value is 0 or below: the stale Linux/Windows plugins
 answer those codes with r(198) until CI rebuilds them.
+
+## optimize() cannot polish a Newton fit to round-off (rate intercept, 1.4.0)
+
+`optimize()` accepts a step only if the log likelihood rises, and at a log likelihood of -100 (about 1e-14 resolution) the last 1e-8 of the parameters is below that resolution; at -400000 it is far worse and the iterations end in endless "(backed up)" lines (a 50,000-event fit then ran for minutes through the BFGS and old-engine fallbacks). `dynam_rateint_newton()` therefore lets `optimize()` stop at a Newton decrement of 1e-11 and finishes with explicit Newton steps judged by the gradient norm. Do not tighten `conv_nrtol`/`ptol`/`vtol` instead: that only produces more backed-up iterations. The result is accepted through `dynam_rateint_accept()` (decrement below 1e-8), never through `optimize_result_converged()`.
+
+Mata `exp()` of a number above about 709.78 is missing and `sum()` ignores missing values: an evaluator that sums `exp(lp)` silently loses the hazard term and a line search then sees a spurious improvement. Return a missing log likelihood instead (the cached and the native evaluator do, above lp = 700).
+
+The plugin code 3 (rate with intercept, indeg/outdeg) is absent from plugin binaries of earlier releases: the fit probes the loaded plugin once with `_stata(..., 1)` and falls back to the cached Mata evaluator when the call fails (tested with the 1.3.2 macOS plugin). The Linux and Windows plugins are rebuilt by the CI workflow on a push that touches `native/`.

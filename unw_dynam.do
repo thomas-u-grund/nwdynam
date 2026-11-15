@@ -2014,6 +2014,408 @@ void dynam_rateint_eval_multi(real scalar todo, real rowvector theta, pointer(re
 }
 
 /*
+	CACHED evaluator of the with-intercept rate sub-model (nwdynam 1.4.0). Every statistic of the likelihood
+	(indeg, outdeg, ego, nodeTrans, tertius, with windows, weights and the two-mode mask) depends only on the
+	event history, never on theta. dynam_rateint_build_cache() therefore computes them ONCE per event row
+	(rows of a group of equal times share the state from before the group) into N x n matrices, and
+	dynam_rateint_cached_eval() evaluates log likelihood, gradient and Hessian of
+	  sum_i [ lp(i, s_i) - w_i * sum_j exp(lp(i, j)) ],  lp(i, j) = theta_0 + sum_k theta_k X_k(i, j),
+	w_1 = 0 (the first event has no hazard integral), w_i = t_i - t_(i-1) (so 0 within a group of equal
+	times), with a few matrix operations. The function is concave in theta, so Newton-Raphson from a data-driven
+	start finds the unique maximum; the analytic Hessian gives the standard errors. The formulas are those of
+	dynam_rateint_loglik_grad_multi() above (the former evaluator, kept as the fallback for very large
+	problems), which was verified against goldfish.
+*/
+struct DynamRICache {
+	pointer(real matrix) rowvector X   // one N x n matrix per active effect, in the order of the active effects
+	real rowvector sXs                 // per active effect: sum over events of the statistic of the sender
+	real colvector w                   // time gap before each event (0 for the first event and within groups)
+	real scalar N, n, n1, P
+}
+
+struct DynamRICache scalar dynam_rateint_build_cache(pointer(class DynamState scalar) scalar pS, real rowvector active,
+		real rowvector egovec, real rowvector tertiusvec, real rowvector modvec) {
+	struct DynamRICache scalar C
+	real scalar i, s, tcur, tprev, g0, k, a, b, v, pwd, pwo, e, N, n, p
+	real scalar windowindeg, windowoutdeg, weightedindeg, weightedoutdeg, nowindowindeg, nowindowoutdeg
+	real matrix tieval, windeg, woutdeg, A, AA
+	real rowvector indeg_i, outdeg_i, nodetrans_i, tertius_i, tertiusnumer, tertiusdenom, hasin, row
+	real rowvector eff, indegrun, outdegrun
+
+	n = (*pS).n
+	N = (*pS).nevents
+	C.N = N
+	C.n = n
+	C.n1 = modvec[5]
+	eff = selectindex(active)
+	p = cols(eff)
+	C.P = p
+	C.X = J(1, p, NULL)
+	for (k=1; k<=p; k++) C.X[k] = &(J(N, n, 0))
+	C.sXs = J(1, p, 0)
+	C.w = J(N, 1, 0)
+
+	tieval = J(n, n, 0)
+	windeg = J(n, n, 0)
+	woutdeg = J(n, n, 0)
+	indegrun = J(1, n, 0)
+	outdegrun = J(1, n, 0)
+	pwd = 1
+	pwo = 1
+	windowindeg = modvec[1]
+	windowoutdeg = modvec[2]
+	weightedindeg = modvec[3]
+	weightedoutdeg = modvec[4]
+	nowindowindeg = (windowindeg >= 1e300)
+	nowindowoutdeg = (windowoutdeg >= 1e300)
+
+	for (i=1; i<=N; i++) {
+		s = (*pS).events[i,1]
+		tcur = (*pS).events[i,3]
+		if ((*pS).gfirst[i] == i) {
+			// first row of a group (or a sequential row): build the statistics of the current state
+			if (active[4] | active[5]) A = (tieval :> 0)
+			if (!nowindowindeg) dynam_window_expire(pS, windeg, pwd, (*pS).gfirst[i] - 1, tcur, windowindeg, 0)
+			if (!nowindowoutdeg) dynam_window_expire(pS, woutdeg, pwo, (*pS).gfirst[i] - 1, tcur, windowoutdeg, 0)
+			// without a window the degrees are kept up to date in O(1) per tie update (below), as the native kernel does
+			if (active[1]) {
+				if (nowindowindeg) indeg_i = indegrun
+				else {
+					if (weightedindeg) indeg_i = colsum(windeg)
+					else indeg_i = colsum(sign(windeg))
+				}
+			}
+			if (active[2]) {
+				if (nowindowoutdeg) outdeg_i = outdegrun
+				else {
+					if (weightedoutdeg) outdeg_i = rowsum(woutdeg)'
+					else outdeg_i = rowsum(sign(woutdeg))'
+				}
+			}
+			if (active[4]) {
+				AA = A * A
+				nodetrans_i = rowsum(A :* AA)'
+			}
+			if (active[5]) {
+				tertiusnumer = tertiusvec * A
+				tertiusdenom = colsum(A)
+				hasin = (tertiusdenom :> 0)
+				tertius_i = hasin :* (tertiusnumer :/ (tertiusdenom :+ (1 :- hasin)))
+			}
+		}
+		for (k=1; k<=p; k++) {
+			e = eff[k]
+			if (e == 1) row = indeg_i
+			else if (e == 2) row = outdeg_i
+			else if (e == 3) row = egovec
+			else if (e == 4) row = nodetrans_i
+			else row = tertius_i
+			(*C.X[k])[i,.] = row
+			C.sXs[k] = C.sXs[k] + row[s]
+		}
+		if (i > 1) C.w[i] = tcur - tprev
+		if ((g0 = dynam_group_end(pS, i)) > 0) for (k=g0; k<=i; k++) {
+			a = (*pS).events[k,1]
+			b = (*pS).events[k,2]
+			v = (*pS).events[k,4]
+			if (weightedindeg) indegrun[b] = indegrun[b] + v
+			else indegrun[b] = indegrun[b] - sign(tieval[a,b]) + sign(tieval[a,b] + v)
+			if (weightedoutdeg) outdegrun[a] = outdegrun[a] + v
+			else outdegrun[a] = outdegrun[a] - sign(tieval[a,b]) + sign(tieval[a,b] + v)
+			tieval[a,b] = tieval[a,b] + v
+			if (!nowindowindeg) windeg[a,b] = windeg[a,b] + v
+			if (!nowindowoutdeg) woutdeg[a,b] = woutdeg[a,b] + v
+		}
+		tprev = tcur
+	}
+	return(C)
+}
+
+void dynam_rateint_cached_eval(real scalar todo, real rowvector theta, pointer(struct DynamRICache scalar) scalar pC,
+		transmorphic pAux, real scalar y, real rowvector g, real matrix H) {
+	real scalar k, l, m, P, N, n, nn, sw
+	real matrix L, Ew, EX
+	real colvector sr
+	real rowvector gg
+
+	P = (*pC).P
+	N = (*pC).N
+	n = (*pC).n
+	nn = ((*pC).n1 > 0 ? (*pC).n1 : n)
+	L = J(N, nn, theta[1])
+	for (k=1; k<=P; k++) L = L :+ theta[k+1] :* (*(*pC).X[k])[., 1..nn]
+	// overflow guard: exp() of a large number is missing in Mata and sum() would drop it silently; report a missing
+	// value instead so that the optimizer takes a shorter step
+	m = max(L)
+	if (m > 700 | missing(m)) {
+		y = .
+		if (todo >= 1) g = J(1, P+1, .)
+		if (todo >= 2) H = J(P+1, P+1, .)
+		return
+	}
+	// mode-2 actors of a two-mode network are not at risk: their columns are left out (nn < n)
+	Ew = exp(L) :* (*pC).w
+	sr = rowsum(Ew)
+	sw = sum(sr)
+	y = N * theta[1] + sum(theta[2..(P+1)] :* (*pC).sXs) - sw
+	if (todo >= 1) {
+		gg = J(1, P+1, 0)
+		gg[1] = N - sw
+		for (k=1; k<=P; k++) gg[k+1] = (*pC).sXs[k] - sum(Ew :* (*(*pC).X[k])[., 1..nn])
+		g = gg
+	}
+	if (todo >= 2) {
+		H = J(P+1, P+1, 0)
+		H[1,1] = -sw
+		for (k=1; k<=P; k++) {
+			EX = Ew :* (*(*pC).X[k])[., 1..nn]
+			H[1,k+1] = -sum(EX)
+			H[k+1,1] = H[1,k+1]
+			for (l=k; l<=P; l++) {
+				H[k+1,l+1] = -sum(EX :* (*(*pC).X[l])[., 1..nn])
+				H[l+1,k+1] = H[k+1,l+1]
+			}
+		}
+	}
+}
+
+void dynam_rateint_cached_eval_d1(real scalar todo, real rowvector theta, pointer(struct DynamRICache scalar) scalar pC,
+		real scalar y, real rowvector g, real matrix H) {
+	dynam_rateint_cached_eval(min((todo, 1)), theta, pC, NULL, y, g, H)
+}
+
+/*
+	Returns 1 and fills bname/vname/llname when the cached Newton fit succeeded, 0 when it did not run (too much memory
+	or no convergence); the caller then uses the former multi-start fit.
+*/
+real scalar dynam_rateint_cached_fit(pointer(class DynamState scalar) scalar pS, real rowvector activevec,
+		real rowvector egovec, real rowvector tertiusvec, real rowvector modvec,
+		string scalar bname, string scalar vname, string scalar llname) {
+	struct DynamRICache scalar C
+	pointer(struct DynamRICache scalar) scalar pC
+	transmorphic S_opt
+	real rowvector theta0, theta_hat
+	real matrix V
+	real scalar nparams, ttot, nrisk, errcode, ok, ll
+
+	nparams = 1 + sum(activevec)
+	// memory: X (nparams-1 matrices) plus about three work matrices, each N x n doubles
+	if ((*pS).nevents * (*pS).n * (nparams + 3) * 8 > 1.5e9) return(0)
+	C = dynam_rateint_build_cache(pS, activevec, egovec, tertiusvec, modvec)
+	pC = &C
+	ttot = sum(C.w)
+	nrisk = (C.n1 > 0 ? C.n1 : C.n)
+	theta0 = J(1, nparams, 0)
+	if (ttot > 0 & C.N > 1) theta0[1] = ln((C.N - 1) / (nrisk * ttot))
+	dynam_rateint_newton(&dynam_rateint_cached_eval(), theta0, pC, 0, theta_hat, V, ll, ok)
+	if (ok) {
+		st_matrix(bname, theta_hat)
+		st_matrix(vname, V)
+		st_numscalar(llname, ll)
+		return(1)
+	}
+	// no Newton result: BFGS on the cached evaluator, started from the data-driven point
+	S_opt = optimize_init()
+	optimize_init_evaluator(S_opt, &dynam_rateint_cached_eval_d1())
+	optimize_init_evaluatortype(S_opt, "d1")
+	optimize_init_params(S_opt, theta0)
+	optimize_init_argument(S_opt, 1, pC)
+	optimize_init_technique(S_opt, "bfgs")
+	optimize_init_which(S_opt, "max")
+	optimize_init_tracelevel(S_opt, "none")
+	optimize_init_conv_warning(S_opt, "off")
+	optimize_init_conv_maxiter(S_opt, 200)
+	errcode = _optimize(S_opt)
+	if (errcode == 0 & optimize_result_converged(S_opt) == 1) {
+		theta_hat = optimize_result_params(S_opt)
+		if (!missing(theta_hat)) {
+			V = optimize_result_V_oim(S_opt)
+			if (!missing(V)) {
+				st_matrix(bname, theta_hat)
+				st_matrix(vname, V)
+				st_numscalar(llname, optimize_result_value(S_opt))
+				return(1)
+			}
+		}
+	}
+	return(0)
+}
+
+/*
+	Acceptance test for a Newton-Raphson fit of the with-intercept rate sub-model: at the optimum the Newton decrement
+	g' (-H)^-1 g is zero, and optimize() may stop only after tolerances that round-off cannot meet at large log
+	likelihoods (it then keeps taking "backed up" steps). A result is accepted when the decrement is below 1e-8, i.e.
+	the log likelihood is within 1e-8 of its maximum.
+*/
+real scalar dynam_rateint_accept(transmorphic S_opt, real scalar errcode) {
+	real rowvector g
+	real matrix H, Hi
+
+	if (errcode != 0 & errcode != 430) return(0)
+	g = optimize_result_gradient(S_opt)
+	H = optimize_result_Hessian(S_opt)
+	if (missing(g) | missing(H)) return(0)
+	Hi = invsym(-H)
+	if (min(diagonal(Hi)) <= 0) return(0)
+	return(g * Hi * g' < 1e-8)
+}
+
+/*
+	Newton-Raphson on a concave log likelihood with analytic gradient and Hessian: the evaluator f has two argument
+	slots a1, a2. optimize() gets close (and stops after a Newton decrement below 1e-11), but it only accepts a step
+	that raises the log likelihood, which round-off defeats a few digits before the maximum (about 1e-8 in the
+	parameters at a log likelihood of -100, worse at -400000). Explicit Newton steps, judged by the size of the gradient
+	instead, then bring the gradient to round-off level. ok = 1 when a result was found; theta_hat, V (the inverse of
+	minus the Hessian, i.e. the observed information as optimize_result_V_oim() would give it) and ll are then set.
+*/
+void dynam_rateint_newton(transmorphic f, real rowvector theta0, transmorphic a1, transmorphic a2,
+		real rowvector theta_hat, real matrix V, real scalar ll, real scalar ok) {
+	transmorphic S_opt
+	real rowvector t, tn, g, gn
+	real matrix H, Hn
+	real scalar errcode, y, yn, it, converged
+
+	ok = 0
+	S_opt = optimize_init()
+	optimize_init_evaluator(S_opt, f)
+	optimize_init_evaluatortype(S_opt, "d2")
+	optimize_init_params(S_opt, theta0)
+	optimize_init_argument(S_opt, 1, a1)
+	optimize_init_argument(S_opt, 2, a2)
+	optimize_init_technique(S_opt, "nr")
+	optimize_init_which(S_opt, "max")
+	optimize_init_tracelevel(S_opt, "none")
+	optimize_init_conv_warning(S_opt, "off")
+	optimize_init_conv_maxiter(S_opt, 40)
+	optimize_init_conv_ptol(S_opt, 1e-13)
+	optimize_init_conv_vtol(S_opt, 1e-14)
+	optimize_init_conv_nrtol(S_opt, 1e-11)
+	errcode = _optimize(S_opt)
+	if (!dynam_rateint_accept(S_opt, errcode)) return
+	t = optimize_result_params(S_opt)
+	(*f)(2, t, a1, a2, y, g, H)
+	if (missing(y) | missing(g) | missing(H)) return
+	for (it=1; it<=5; it++) {
+		tn = t + g * invsym(-H)
+		(*f)(2, tn, a1, a2, yn, gn, Hn)
+		if (missing(yn) | missing(gn) | missing(Hn)) break
+		if (sqrt(gn * gn') >= sqrt(g * g')) break
+		t = tn
+		y = yn
+		g = gn
+		H = Hn
+	}
+	V = invsym(-H)
+	if (min(diagonal(V)) <= 0) return
+	theta_hat = t
+	ll = y
+	ok = 1
+}
+
+/*
+	NATIVE evaluator of the with-intercept rate sub-model for the effects indeg and outdeg (one-mode, no window, not
+	weighted): plugin code 3 of dynam_sim.c returns log likelihood, gradient and Hessian in O(n * nevents) time and
+	O(n^2) memory per call, so it also serves problems too large for the cached evaluator. `act' = (indeg active,
+	outdeg active); theta = (intercept, active effects in order).
+*/
+void dynam_rateint_native_eval(real scalar todo, real rowvector theta, pointer(class DynamState scalar) scalar pS,
+		pointer(real rowvector) scalar pAct, real scalar y, real rowvector g, real matrix H) {
+	real rowvector act, idx
+	real colvector res
+	real matrix hmap
+	real scalar j, k, p
+	string scalar argstr
+
+	act = *pAct
+	argstr = strofreal(3 + 10*((*pS).ngroups < (*pS).nevents) + 100*(*pS).nativevalued) + " " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " " + strofreal(theta[1], "%25.17g")
+	k = 1
+	idx = 1
+	for (j=1; j<=2; j++) {
+		if (act[j]) {
+			k = k + 1
+			argstr = argstr + " " + strofreal(theta[k], "%25.17g")
+			idx = (idx, 1 + j)
+		}
+		else argstr = argstr + " 0"
+	}
+	stata("plugin call dynamnative v1 v2 v3 v4 v5 v6, " + char(34) + argstr + char(34))
+	res = st_data((1::10), "v3")
+	y = res[1]
+	p = cols(idx)
+	if (missing(y)) {
+		if (todo >= 1) g = J(1, p, .)
+		if (todo >= 2) H = J(p, p, .)
+		return
+	}
+	if (todo >= 1) g = res[1 :+ idx]'
+	if (todo >= 2) {
+		hmap = (1,2,3 \ 2,4,5 \ 3,5,6)
+		H = J(p, p, 0)
+		for (j=1; j<=p; j++) for (k=1; k<=p; k++) H[j,k] = res[4 + hmap[idx[j], idx[k]]]
+	}
+}
+
+real scalar dynam_rateint_native_fit(pointer(class DynamState scalar) scalar pS, real rowvector activevec,
+		real rowvector modvec, string scalar bname, string scalar vname, string scalar llname) {
+	transmorphic S_opt
+	real rowvector theta0, theta_hat, act
+	real matrix V
+	real colvector gend, wgap
+	real scalar nparams, ttot, errcode, rcprobe, __junk, ok, y0, ll
+	real rowvector g0
+	real matrix H0
+	string scalar origframe
+
+	// scope of the kernel: indeg/outdeg only, no window, not weighted, one-mode, native plugin present
+	if (activevec[3] | activevec[4] | activevec[5]) return(0)
+	if (modvec[1] < 1e300 | modvec[2] < 1e300 | modvec[3] | modvec[4] | modvec[5] > 0) return(0)
+	if (!DynamNativeAvailable()) return(0)
+	act = activevec[1..2]
+	nparams = 1 + sum(act)
+	wgap = J((*pS).nevents, 1, 0)
+	if ((*pS).nevents > 1) wgap[2::(*pS).nevents] = (*pS).events[2::(*pS).nevents, 3] - (*pS).events[1::((*pS).nevents-1), 3]
+
+	origframe = st_framecurrent()
+	stata("capture frame drop __nwdynam_native")
+	stata("frame create __nwdynam_native")
+	st_framecurrent("__nwdynam_native")
+	st_addobs(max(((*pS).nevents, 10)))
+	__junk = st_addvar("double", "v1")
+	__junk = st_addvar("double", "v2")
+	__junk = st_addvar("double", "v3")
+	__junk = st_addvar("double", "v4")
+	__junk = st_addvar("double", "v5")
+	__junk = st_addvar("double", "v6")
+	st_store((1::(*pS).nevents), ("v1","v2"), (*pS).events[., (1,2)])
+	gend = J((*pS).nevents, 1, 1)
+	if ((*pS).nevents > 1) gend[1::((*pS).nevents-1)] = ((*pS).gfirst[2::(*pS).nevents] :== (2::(*pS).nevents))
+	st_store((1::(*pS).nevents), "v4", gend)
+	(*pS).nativevalued = (min((*pS).events[., 4]) <= 0)
+	st_store((1::(*pS).nevents), "v5", (*pS).events[., 4])
+	st_store((1::(*pS).nevents), "v6", wgap)
+	rcprobe = _stata("capture program dynamnative, plugin using(" + char(34) + DynamNativePluginPath() + char(34) + ")")
+	ok = 0
+	theta0 = J(1, nparams, 0)
+	ttot = sum(wgap)
+	if (ttot > 0 & (*pS).nevents > 1) theta0[1] = ln(((*pS).nevents - 1) / ((*pS).n * ttot))
+	if (rcprobe == 0) {
+		// probe: an old or incompatible plugin without code 3 must not abort the fit
+		rcprobe = _stata("plugin call dynamnative v1 v2 v3 v4 v5 v6, " + char(34) + "3 " + strofreal((*pS).n) + " " + strofreal((*pS).nevents) + " 0 0 0" + char(34), 1)
+	}
+	if (rcprobe == 0) {
+		dynam_rateint_newton(&dynam_rateint_native_eval(), theta0, pS, &act, theta_hat, V, ll, ok)
+	}
+	st_framecurrent(origframe)
+	stata("capture frame drop __nwdynam_native")
+	if (ok) {
+		st_matrix(bname, theta_hat)
+		st_matrix(vname, V)
+		st_numscalar(llname, ll)
+	}
+	return(ok)
+}
+
+/*
 	DynamRateInterceptFitMulti() -- fits the WITH-INTERCEPT rate
 	sub-model (see dynam_rateint_loglik_grad_multi()'s own header
 	comment for the formula and its real-goldfish verification,
@@ -2044,6 +2446,11 @@ void DynamRateInterceptFitMulti(real matrix eventmat, real scalar n, real rowvec
 	S.init(eventmat, n)
 
 	modvec = (windowindeg, windowoutdeg, weightedindeg, weightedoutdeg, n1)
+
+	// native kernel (nwdynam 1.4.0) for indeg/outdeg; needs no cache of per-event statistics
+	if (dynam_rateint_native_fit(&S, activevec, modvec, bname, vname, llname)) return
+	// fast path (nwdynam 1.4.0): statistics computed once, Newton-Raphson on the concave log likelihood
+	if (dynam_rateint_cached_fit(&S, activevec, egovec, tertiusvec, modvec, bname, vname, llname)) return
 
 	nparams = 1 + sum(activevec)
 

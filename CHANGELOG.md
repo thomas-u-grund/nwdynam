@@ -3,6 +3,17 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-11-15
+
+### Changed
+- `nwdynam, submodel(rate) intercept` is fast. The first 14 days of the manufacturing emails (2,738 events, 129 actors) with `intercept indeg` take 0.2 seconds (before: no result after an hour); 50,000 events among 1,000 actors take a few seconds. All statistics of the real-time hazard are computed once instead of at every likelihood evaluation, and for `indeg` and `outdeg` (one-mode, no window, not weighted) the native plugin evaluates the likelihood without storing them.
+- The estimate is found by Newton-Raphson on the analytic Hessian from a data-driven start (the log likelihood is concave), then polished until the gradient is at round-off level; one start instead of eight. Coefficients and standard errors are now the converged maximum-likelihood values to 12 printed digits. Fits made with earlier versions agreed with that maximum only to about 5 digits (the eight random starts ended at slightly different points), so a re-run can change the last digits of an old `intercept` result.
+
+### Fixed
+- Larger problems with `intercept` no longer fail: the optimizer used to leave the region where the hazard can be computed (`exp()` overflowed to missing and the hazard term was silently dropped), so no start converged and a Nelder-Mead search followed. The fit now stops a step at such a point and shortens it.
+
+Tested on macOS with Stata 17 BE, Stata 18 BE and StataNow 19.5 MP (the nwdynam test suite, including the goldfish cross-checks under Stata 17). The Linux and Windows plugins are rebuilt by the build workflow after this release; until then those platforms use the Mata evaluator, which is fast as well.
+
 ## [1.3.2] - 2026-11-13
 
 ### Changed

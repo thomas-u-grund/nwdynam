@@ -99,6 +99,7 @@
    Without it every event has the value 1 (a tie exists after the first event of a pair). */
 #define ALG_DYNAM_CHOICE 1
 #define ALG_DYNAM_RATE 2
+#define ALG_DYNAM_RATEINT 3
 
 /* ===================================================================
    Choice sub-model: inertia + recip + indeg(alter). Direct port of
@@ -304,6 +305,103 @@ cleanup:
 	return rc;
 }
 
+
+/* ===================================================================
+   Rate sub-model WITH intercept (real-time hazard), effects indeg and outdeg (nwdynam 1.4.0). Port of
+   dynam_rateint_loglik_grad_multi() (unw_dynam.do) for the unweighted, unwindowed, one-mode case. Log likelihood
+     sum_i [ lp(s_i) - w_i * sum_j exp(lp_j) ],  lp_j = th0 + th1 * indeg_j + th2 * outdeg_j,
+   w_i = time since the previous event (0 for the first event and inside a group of equal times). Degrees are kept
+   up to date in O(1) per tie update, so one evaluation costs O(n * nevents) time and O(n^2) bytes, with no cache of
+   per-event statistics. Returns the log likelihood, the gradient (3) and the full Hessian (3 x 3, upper triangle
+   by rows: 00 01 02 11 12 22). If lp overflows exp() the log likelihood is returned missing, so that the optimizer
+   shortens its step.
+   =================================================================== */
+
+static int dynam_rateint_loglik_grad(long n, long nevents, long *sender, long *receiver, char *gend, double *val,
+		double *w, double th[3], int *overflow, double *out_ll, double out_grad[3], double out_h[6]) {
+	char *tie = NULL;
+	double *xval = NULL;
+	double *indeg = NULL, *outdeg = NULL, *e = NULL;
+	long i, j, k, s, gs = 0;
+	double ll = 0.0, g[3] = {0, 0, 0}, h[6] = {0, 0, 0, 0, 0, 0};
+	int rc = 0;
+
+	*overflow = 0;
+	tie = (char *)calloc((size_t)n * (size_t)n, sizeof(char));
+	if (val) xval = (double *)calloc((size_t)n * (size_t)n, sizeof(double));
+	indeg = (double *)calloc((size_t)n, sizeof(double));
+	outdeg = (double *)calloc((size_t)n, sizeof(double));
+	e = (double *)malloc((size_t)n * sizeof(double));
+	if (!tie || (val && !xval) || !indeg || !outdeg || !e) { rc = 909; goto cleanup; }
+
+	for (i = 0; i < nevents; i++) {
+		double wi = w[i], lps, S = 0.0, Sx1 = 0.0, Sx2 = 0.0, Sx11 = 0.0, Sx12 = 0.0, Sx22 = 0.0;
+		s = sender[i] - 1;
+		lps = th[0] + th[1] * indeg[s] + th[2] * outdeg[s];
+		if (lps > 700.0) { *overflow = 1; goto cleanup; }
+		ll += lps;
+		g[0] += 1.0;
+		g[1] += indeg[s];
+		g[2] += outdeg[s];
+		if (wi != 0.0) {
+			for (j = 0; j < n; j++) {
+				double lp = th[0] + th[1] * indeg[j] + th[2] * outdeg[j];
+				double x1 = indeg[j], x2 = outdeg[j], ej;
+				if (lp > 700.0) { *overflow = 1; goto cleanup; }
+				ej = exp(lp);
+				S += ej;
+				Sx1 += ej * x1;
+				Sx2 += ej * x2;
+				Sx11 += ej * x1 * x1;
+				Sx12 += ej * x1 * x2;
+				Sx22 += ej * x2 * x2;
+			}
+			ll -= wi * S;
+			g[0] -= wi * S;
+			g[1] -= wi * Sx1;
+			g[2] -= wi * Sx2;
+			h[0] -= wi * S;
+			h[1] -= wi * Sx1;
+			h[2] -= wi * Sx2;
+			h[3] -= wi * Sx11;
+			h[4] -= wi * Sx12;
+			h[5] -= wi * Sx22;
+		}
+
+		if (!gend || gend[i]) {
+			for (k = gs; k <= i; k++) {
+				long sk = sender[k], rk = receiver[k];
+				if (val) {
+					long c = (sk - 1) * n + (rk - 1);
+					double sold = (xval[c] > 0.0) - (xval[c] < 0.0), snew;
+					xval[c] += val[k];
+					snew = (xval[c] > 0.0) - (xval[c] < 0.0);
+					indeg[rk - 1] += snew - sold;
+					outdeg[sk - 1] += snew - sold;
+					tie[c] = (xval[c] > 0.0);
+				}
+				else if (!tie[(sk - 1) * n + (rk - 1)]) {
+					tie[(sk - 1) * n + (rk - 1)] = 1;
+					indeg[rk - 1] += 1.0;
+					outdeg[sk - 1] += 1.0;
+				}
+			}
+			gs = i + 1;
+		}
+	}
+	*out_ll = ll;
+	for (k = 0; k < 3; k++) out_grad[k] = g[k];
+	for (k = 0; k < 6; k++) out_h[k] = h[k];
+
+cleanup:
+	free(tie);
+	free(xval);
+	free(indeg);
+	free(outdeg);
+	free(e);
+	return rc;
+}
+
 /* ===================================================================
    Plugin entry point
    =================================================================== */
@@ -320,8 +418,9 @@ STDLL stata_call(int argc, char *argv[]) {
 	double *val = NULL;
 	double theta1 = 0.0, theta2 = 0.0, theta3 = 0.0;
 	long *sender = NULL, *receiver = NULL;
-	double ll = 0.0, grad[3];
-	int rc = 0;
+	double ll = 0.0, grad[3], hess[6], th3[3];
+	double *wgap = NULL;
+	int rc = 0, overflow = 0;
 
 	if (argc < 1) { SF_error("dynam_sim: missing argument string\n"); return(198); }
 
@@ -341,6 +440,10 @@ STDLL stata_call(int argc, char *argv[]) {
 	else if (algcode == ALG_DYNAM_RATE) {
 		theta2 = next_double();
 	}
+	else if (algcode == ALG_DYNAM_RATEINT) {
+		theta2 = next_double();
+		theta3 = next_double();
+	}
 	free(argbuf);
 
 	if (nevents > 0) {
@@ -348,12 +451,14 @@ STDLL stata_call(int argc, char *argv[]) {
 		receiver = (long *)malloc((size_t)nevents * sizeof(long));
 		if (grouped) gend = (char *)malloc((size_t)nevents);
 		if (valued) val = (double *)malloc((size_t)nevents * sizeof(double));
+		if (algcode == ALG_DYNAM_RATEINT) wgap = (double *)malloc((size_t)nevents * sizeof(double));
 		for (i = 0; i < nevents; i++) {
 			ST_double v;
 			SF_vdata(1, i + 1, &v); sender[i] = (long)v;
 			SF_vdata(2, i + 1, &v); receiver[i] = (long)v;
 			if (grouped) { SF_vdata(4, i + 1, &v); gend[i] = (v != 0.0); }
 			if (valued) { SF_vdata(5, i + 1, &v); val[i] = v; }
+			if (wgap) { SF_vdata(6, i + 1, &v); wgap[i] = v; }
 		}
 	}
 
@@ -375,6 +480,16 @@ STDLL stata_call(int argc, char *argv[]) {
 				SF_vstore(3, 3, grad[1]);
 			}
 			break;
+		case ALG_DYNAM_RATEINT:
+			th3[0] = theta1; th3[1] = theta2; th3[2] = theta3;
+			rc = dynam_rateint_loglik_grad(n, nevents, sender, receiver, gend, val, wgap, th3, &overflow, &ll, grad, hess);
+			if (rc == 0) {
+				int q;
+				SF_vstore(3, 1, overflow ? SV_missval : ll);
+				for (q = 0; q < 3; q++) SF_vstore(3, 2 + q, overflow ? SV_missval : grad[q]);
+				for (q = 0; q < 6; q++) SF_vstore(3, 5 + q, overflow ? SV_missval : hess[q]);
+			}
+			break;
 		default:
 			SF_error("dynam_sim: unknown algorithm code\n");
 			rc = 198;
@@ -384,5 +499,6 @@ STDLL stata_call(int argc, char *argv[]) {
 	free(receiver);
 	free(gend);
 	free(val);
+	free(wgap);
 	return rc;
 }
