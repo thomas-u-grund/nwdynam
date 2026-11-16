@@ -3,6 +3,17 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-11-16
+
+### Added
+- Time-varying covariates, as in goldfish (attribute change events linked to the nodes): option `change(variable network [variable network ...])` lets a covariate change over the log. The changes are an event network declared with `nwset` (one actor per event, sender = receiver, the new value as the event value); the dataset holds the values at the start. Option `increment` reads the event values as increments (goldfish: `increment` instead of `replace`). `same()`, `diff()`, `sim()`, `ego()`, `alter()`, `egoalterint()` and `tertius()` use the value that holds at the time of each event in the choice, rate (also with `intercept`) and choice_coordination sub-models. A change takes effect for the events after it; an event at exactly the time of a change still sees the old value (goldfish processes the events of a time point before the other event lists). With `intercept` the observation period runs from the first to the last event of either list, and every change splits the time between two events, as goldfish does.
+- Estimates, standard errors and log likelihoods agree with goldfish 1.6.12 to 1e-6 on 42 random event logs with changes (the script and data are in `dev/`, the test is `cscripts/test_nwdynam_timevarying.do`).
+
+### Changed
+- The plugin protocol is 3: plugin binaries of 1.5.1 and earlier are recognised as too old (r(3495)). Until the build workflow has rebuilt the Linux and Windows plugins those platforms stop with r(3495). Fits without `change()` give the same results as before to round-off and are not slower.
+
+Tested on: TO BE FILLED
+
 ## [1.5.1] - 2026-11-16
 
 ### Faster

@@ -1,6 +1,6 @@
 # nwdynam
 
-<!--version-->**Version 1.5.1** (released 16 November 2026)<!--/version-->
+<!--version-->**Version 1.6.0** (released 16 November 2026)<!--/version-->
 
 `nwdynam` fits dynamic network actor models (DyNAM) to relational event data declared as an event-type temporal network with `nwset ..., eventtime()`: a rate model (when does an actor act) and a choice model (whom does the actor choose), with network, covariate, window and coordination effects. The hot likelihood/gradient evaluation runs in a native plugin.
 
@@ -20,7 +20,7 @@ own repository; it needs the core package nwcommands but no other model package.
 
 To install a specific version, point `from()` at the release tag (GitHub serves every tag under its own raw URL), for example version 1.1.3:
 
-       net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/v1.5.1/) replace
+       net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/v1.6.0/) replace
 
 `net describe nwdynam` shows the version and distribution date, `nwdynam version` the package, core and plugin versions, and `e(version)`
 holds the package version in the stored results. Release history: `CHANGELOG.md`; how releases are made: `RELEASING.md`.
@@ -49,6 +49,19 @@ reference implementation are in `dev/`.
 Events with exactly the same time are simultaneous, as in goldfish: the statistics of all events of a time point come from the state before
 that time point, and the state is updated after the whole group. The order of tied rows does not matter. Option `sequential` restores the
 behaviour before 1.1.0 (tied events one after another). Data without ties give the same results as before.
+
+## Time-varying covariates
+
+Node covariates may change while the events happen, as in goldfish (attribute change events linked with `linkEvents()`). The dataset holds
+the values at the start of the log; the changes are an event network of their own (one actor per event, the new value as the event value),
+passed with `change(variable network)`:
+
+    nwset id id2 newvalue, eventtime(time) selfloop name(xchange)     // id2 = copy of id
+    nwdynam net, inertia alter(x) change(x xchange)
+
+The effects `same`, `diff`, `sim`, `ego`, `alter`, `egoalterint` and `tertius` then use the value that holds at the time of each event, in the
+choice, rate (also with `intercept`) and choice_coordination sub-models; `increment` reads the values of the change events as increments. See
+`help nwdynam`. The R script and data of the comparison with goldfish are `dev/dynam_tvc_crosscheck.R` and `dev/tvc/`.
 
 ## Native plugin
 

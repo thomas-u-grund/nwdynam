@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.5.1  16nov2026 author: Thomas Grund}{...}
+{* *! version 1.6.0  16nov2026 author: Thomas Grund}{...}
 {marker topic}
 {helpb nwtopical##analysis_dynamicmodels:[NW-2.6.8] Dynamic & Event-Based Models}
 
@@ -47,6 +47,8 @@
 {opt weightedoutdeg}
 {opt opportunities(varlist)}
 {opt tie(netname)}
+{opt change(varname netname [...])}
+{opt increment}
 {opt intercept}]
 
 
@@ -95,6 +97,10 @@
 
 {syntab:Cross-network effects}
 {synopt:{opt tie(netname)}}choice and choice_coordination sub-models - presence in a SEPARATE, static exogenous network; see {bf:Description} below{p_end}
+
+{syntab:Time-varying covariates}
+{synopt:{opt change(varname netname [...])}}the covariate {it:varname} changes over time; {it:netname} holds its change events (pairs, one per changing covariate); see {bf:Time-varying covariates} below{p_end}
+{synopt:{opt increment}}the values of the change events are increments of the current value instead of new values{p_end}
 
 {syntab:Intercept (rate sub-model only)}
 {synopt:{opt intercept}}genuinely continuous-time competing-risks hazard; see {bf:Description} below{p_end}
@@ -458,9 +464,8 @@ window uses the summed value of the events within the window, as in {cmd:goldfis
 {opt same()}, {opt diff()}, {opt sim()}, {opt ego()}, {opt alter()}, and {opt egoalterint()} have
 no window option at all, matching {cmd:goldfish}'s own effect signatures exactly (checked directly
 against {cmd:goldfish}'s own documentation, not omitted by oversight) - windowing is a real-time
-recency FILTER ON TIES (has this dyad had a recent event?), but these six effects read a STATIC
-per-actor covariate value that never changes over the course of the fit and has no "most recent
-occurrence" to filter on in the first place. {opt inertia}, {opt recip}, {opt indeg}, and
+recency FILTER ON TIES (has this dyad had a recent event?), but these six effects read a per-actor
+covariate value, which has no "most recent occurrence" to filter on in the first place. {opt inertia}, {opt recip}, {opt indeg}, and
 {opt outdeg} are windowable because each is genuinely tie-based (their own value depends on the
 event history), which these six are not. {opt tertius()} DOES read the event history (it is a
 mean over the candidate's own in-neighbors), so it is windowable in {cmd:goldfish}'s own table -
@@ -483,8 +488,44 @@ exactly one row. Without {bf:_nwnode} the dataset must have exactly one row per 
 
 {pstd}
 Every effect is evaluated fresh at each event from the event history strictly prior to that
-event (no lookahead); the covariate effects are static (the covariate itself does not change
-over the fit).
+event (no lookahead). The covariate effects use the covariate values of the dataset, which hold
+for the whole log unless {opt change()} lets them change over time (next section).
+
+{marker tvc}{...}
+{pstd}
+{bf:Time-varying covariates.} As in {cmd:goldfish} (attribute change events linked to the nodes with
+{cmd:linkEvents()}), a covariate may change while the events happen. The values in the dataset are the
+values at the start of the log; the changes are an event list of their own, declared with {help nwset} as
+an event network whose events name one actor (sender and receiver are the same actor) and carry the new
+value of the covariate as the event value:
+
+	{cmd:. nwload mynet, xvars}
+	{cmd:. preserve}
+	{cmd:. use floorchanges, clear}                   // variables: id, time, newfloor
+	{cmd:. gen id2 = id}
+	{cmd:. nwset id id2 newfloor, eventtime(time) selfloop name(floorchg)}
+	{cmd:. restore}
+	{cmd:. nwdynam mynet, inertia same(floor) change(floor floorchg)}
+
+{pstd}
+{opt change()} takes pairs of a covariate variable of the dataset and the name of its change network; several
+covariates change with {cmd:change(floor floorchg grade gradechg)}. The variable must be used by
+{opt same()}, {opt diff()}, {opt sim()}, {opt ego()}, {opt alter()}, {opt tertius()} or
+{opt egoalterint()}; every effect that reads it then sees the value that holds at the time of each event, in
+the choice, the rate (also with {opt intercept}) and the choice_coordination sub-model. Actors are matched by
+label (an actor of the change network that is not an actor of {it:netname} stops the command with error 198);
+the change events need not be sorted, and a covariate is changed by one network. The value of a change event is
+the new value; with {opt increment} it is added to the value the actor has at that time (in the order of time,
+and of the rows of the change network for equal times), as the {cmd:increment} column of {cmd:goldfish}. A
+change takes effect for the events after it: an event at exactly the time of a change still sees the old value,
+because {cmd:goldfish} evaluates the events of a time point before the other event lists. Changes before the
+first and after the last event are allowed (they matter for {opt tertius()} and the estimated rates). With
+{opt intercept} the observation period reaches from the first to the last event of either list, as in
+{cmd:goldfish}, and a change splits the time between two events (the rates of the actors change at that
+moment). The change network needs a value variable ({help nwset}: a variable after the two actor variables);
+without it every change sets the value 1. Missing values of the starting values stay an error (416);
+{opt change()} cannot be combined with {opt opportunities()} (both need the data in memory in a different layout)
+and, like the covariate options, does not apply to two-mode networks.
 
 {pstd}
 {bf:Verified} against the R package {cmd:goldfish} (CRAN, {cmd:stocnet/goldfish}) fit on its own bundled
@@ -685,4 +726,4 @@ If the plugin of your platform is missing (r(601)), older than the {cmd:.ado} fi
 {cmd:make} are needed) and installs the plugin; restart Stata afterwards. See {help nwinstall##buildplugin:nwinstall}.
 
 {hline}
-{pstd}{it:nwdynam version 1.5.1, 16 November 2026}{p_end}{* nwversion}
+{pstd}{it:nwdynam version 1.6.0, 16 November 2026}{p_end}{* nwversion}

@@ -181,3 +181,15 @@ The plugin tests compare log likelihood, gradient and Hessian on random cases (`
 
 ## optimize()'s "nr" technique backs up for hundreds of evaluations at round-off level (found 2026-11-16)
 On dense data (large log likelihood) the Newton decrement stops falling at about 1e-11 and Mata's `optimize()` with technique `nr` keeps taking "backed up" steps (up to 40 iterations times 30 to 50 evaluations each) because it never meets its tolerances. The estimates were right, the time was 20 to 100 times too long (`dynam_nat_optimize` mode 0/2 and the BFGS polish). `dynam_rateint_newton()` therefore runs its own damped Newton loop on the exact Hessian and stops at a decrement below `max(1e-12, 1e-13*|ll|)`. Do not go back to `optimize_init_technique("nr")` for these fits; count evaluations (a global counter in `dynam_nat_eval`) when a fit is slow before suspecting the kernel.
+
+## Time-varying covariates: what goldfish does, so that the plugin does the same
+
+(Plugin protocol 3, nwdynam 1.6.0.) The facts below were found by comparing the plugin with goldfish 1.6.12 on random logs
+(`dev/dynam_tvc_crosscheck.R`, test `cscripts/test_nwdynam_timevarying.do`); they are easy to get wrong:
+- A change event at time t is applied AFTER the dependent events of time t (goldfish takes the dependent list first at equal times): the plugin applies the changes with time < t before it evaluates a group of events at time t.
+- Rate with `intercept`: goldfish's observation period starts at the earliest event of ANY list and ends at the latest. A change before the first dependent event adds the exposure from that change to the first event (the first event then has a positive waiting time), a change after the last event adds the exposure up to it. Every change inside a waiting time splits it (`eval_rateint`). Choice, rate without intercept and coordination are not affected by changes outside the log.
+- Several changes of one actor at one time: the later row wins (increments add up in row order, done in `dynam_change_rows()`).
+- The change network is an ordinary `nwset` event network (sender = receiver); its value variable is the NEW value (the dependent network's value is an increment). Without a value variable nwset stores 1 for every event; the plugin cannot tell, so every change would set 1.
+- The plugin gets the changes as absolute new values (the Mata glue turns increments into values) in blob block "change events"; tertius keeps its running numerator (`tnum`), which a change of the covariate updates for the actor's out-neighbours.
+- Coordination standard errors come from a numerical derivative of the gradient (no analytic Hessian) and differ from goldfish's by up to a few percent, with or without changes; the cross-check allows 10% for them.
+- The old Mata evaluators (`cscripts/ref_dynam_mata.do`) do NOT know time-varying covariates (owner's decision of 2026-11-16: validate against goldfish instead).
