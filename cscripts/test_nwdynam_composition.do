@@ -195,4 +195,37 @@ quietly replace badpres = .
 capture noisily nwdynam net, inertia indeg present(badpres)
 assert _rc == 198
 di as result "PASS: present() with a value other than 0/1, or a missing value -> r(198)"
+* a covariate change event (change()) of an absent actor is an error, as in goldfish; at the time of the join it is allowed
+preserve
+import delimited using `"$COMPDIR/events_c01.csv"', clear varnames(1) stringcols(2 3)
+quietly keep if sender == "A2" | receiver == "A2"
+local t2 = time[1]
+clear
+quietly set obs 2
+generate str3 node = "A2"
+generate str3 node2 = "A2"
+generate float time = 0.1
+generate double value = 0
+quietly replace time = `t2' in 2
+quietly replace value = 1 in 2
+quietly nwset node node2 value, eventtime(time) selfloop name(a2comp)
+clear
+quietly set obs 1
+generate str3 node = "A2"
+generate str3 node2 = "A2"
+generate float time = `t2' / 2
+generate double value = 1.5
+quietly nwset node node2 value, eventtime(time) selfloop name(a2chgbad)
+clear
+quietly set obs 1
+generate str3 node = "A2"
+generate str3 node2 = "A2"
+generate float time = `t2'
+generate double value = 1.5
+quietly nwset node node2 value, eventtime(time) selfloop name(a2chgok)
+restore
+capture noisily nwdynam net, inertia alter(x) change(x a2chgbad) compchange(a2comp)
+assert _rc == 198
+quietly nwdynam net, inertia alter(x) change(x a2chgok) compchange(a2comp)
+di as result "PASS: a covariate change of an absent actor -> r(198); at the time of its join it is allowed"
 di "test_nwdynam_composition: ALL OK"

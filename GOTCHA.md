@@ -193,3 +193,28 @@ On dense data (large log likelihood) the Newton decrement stops falling at about
 - The plugin gets the changes as absolute new values (the Mata glue turns increments into values) in blob block "change events"; tertius keeps its running numerator (`tnum`), which a change of the covariate updates for the actor's out-neighbours.
 - Coordination standard errors come from a numerical derivative of the gradient (no analytic Hessian) and differ from goldfish's by up to a few percent, with or without changes; the cross-check allows 10% for them.
 - The old Mata evaluators (`cscripts/ref_dynam_mata.do`) do NOT know time-varying covariates (owner's decision of 2026-11-16: validate against goldfish instead).
+
+## Composition change: what goldfish does, so that the plugin does the same
+
+(Plugin protocol 4, nwdynam 1.7.0.) Found by reading goldfish's source (`DyNAM_*_default.cpp`, `convert_rdata_to_cdata.cpp`, `class_checks.R`) and
+comparing with goldfish 1.6.12 on random logs (`dev/dynam_comp_crosscheck.R`, test `cscripts/test_nwdynam_composition.do`):
+- Presence changes with time <= t are applied BEFORE the event at time t (`C_convert_composition_change` counts the changes with time <= the reference time),
+  the opposite of covariate changes (those with time < t). So a join at the time of an event lets the actor take part, a leave at that time excludes it.
+- Choice: the candidate receivers are the present actors (not the sender). Rate: the hazard / normaliser sums over the present senders only. Coordination: pairs
+  with an absent member get probability 0 (the row normalisation uses the present partners; an absent actor's own row is all zero). Statistics are computed
+  for everybody (no effect function looks at `present`).
+- Rate with intercept: the composition changes are NOT events of their own: they do not split waiting times. The waiting time that ends at a reference
+  row (a dependent event, or a covariate change when `change()` is used) is exposed to the actors present at that row's time. A leave inside the waiting
+  time removes the actor from the whole waiting time, a join at its end adds it to all of it. A composition change before the first event does not start
+  the observation (only covariate changes do).
+- An event of an absent sender or receiver is an error in goldfish (`checkPresence`, "the node is not present at time"); so is a covariate change event of an
+  absent actor (when the composition list is linked first). nwdynam checks both in `dynam_check_presence()` (Mata, before the fit; the plugin refuses an absent
+  sender/receiver as well). Two-mode: sender (mode 1) and receiver (mode 2) are both checked.
+- `present(var)` is only a convenience: it equals a leave event before the first event. opportunities() cannot be combined with present() (data layout), use the leave event.
+- Absent actors that are not in the log at all are not actors of an `nwset` event network: add them with `nwaddnodes` (one-mode) before the fit; in a two-mode network
+  `nwaddnodes` appends the new node at the END of the node list, which breaks nwdynam's "mode 1 first" assumption (r(198), "sender must be mode 1"): not solved here,
+  the two-mode cross-checks only contain actors with events.
+- Times that must be equal (a join at the time of an event) must be stored with the same precision: an imported `float` event time 63.31 is 63.3100013..., a `double`
+  63.31 is smaller, so the "same time" change would be earlier. Use float variables for such changes or read both from the same source.
+- The old Mata evaluators do NOT know composition change (owner's decision: no new Mata references); the goldfish files in `dev/comp` are the reference.
+- Windows/Linux plugins in the repository are stale (protocol 3) until CI rebuilds them: those platforms stop with r(3495).

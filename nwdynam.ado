@@ -1,4 +1,4 @@
-*! version 1.6.0  16nov2026 nwdynam
+*! version 1.7.0  16nov2026 nwdynam
 * Copyright (C) 2026 Thomas U. Grund
 * This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
 * nwdynam is free software: you can redistribute it and/or modify it under the terms of the GNU General
@@ -944,7 +944,7 @@ program nwdynam, eclass
 
 	// goldfish: an event of an actor who is absent at the time of the event is an error
 	if `__nwdynam_ncomp' > 0 | "`present'" != "" {
-		capture noisily mata: dynam_check_presence(`__nwdynam_comprows', `__nwdynam_events', `netobj'->get_nodenames())
+		capture noisily mata: dynam_check_presence(`__nwdynam_comprows', `__nwdynam_events', `netobj'->get_nodenames(), `__nwdynam_chg')
 		if _rc {
 			local __nwdynam_crc = _rc
 			_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_chg' `__nwdynam_comprows'
@@ -1008,7 +1008,7 @@ program nwdynam, eclass
 
 	ereturn post `b' `V', obs(`nevents')
 	ereturn local cmd "nwdynam"
-	ereturn local version "1.6.0"
+	ereturn local version "1.7.0"
 	ereturn local title "`__nwdynam_title'"
 	ereturn local depvar "`netname'"
 	ereturn local submodel "`submodel'"

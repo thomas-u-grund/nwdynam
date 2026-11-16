@@ -203,12 +203,13 @@ real matrix dynam_comp_rows(real matrix ev, string rowvector chgnames, string ro
 /*
 	dynam_check_presence(): as goldfish, an event whose sender or receiver is absent at the time of the event is an error (the
 	change events at the time of the event count: presence = the last change at or before that time). rows = the 8/9 rows of
-	dynam_comp_rows(), events = the event list (sender, receiver, time, ...), names = actor names of the fitted network.
+	dynam_comp_rows(), events = the event list (sender, receiver, time, ...), names = actor names of the fitted network, chg = the
+	change events of covariates (covariate row, actor, time, value; 0 x 4 when none): goldfish refuses a change event of an absent actor too.
 */
-void dynam_check_presence(real matrix rows, real matrix events, string rowvector names) {
+void dynam_check_presence(real matrix rows, real matrix events, string rowvector names, real matrix chg) {
 	real colvector ord, pres
 	real matrix pc, pin, e
-	real scalar k, p, n
+	real scalar k, p, n, q
 	
 	n = cols(names)
 	pres = J(n, 1, 1)
@@ -228,6 +229,22 @@ void dynam_check_presence(real matrix rows, real matrix events, string rowvector
 		}
 		if (!pres[e[k, 1]] | !pres[e[k, 2]]) {
 			errprintf("{p 0 0 2}nwdynam: actor %s is not present at time %s but has an event (sender %s, receiver %s); events of an absent actor are not allowed - add its join before the event or remove the event.{p_end}\n", names[pres[e[k, 1]] ? e[k, 2] : e[k, 1]], strofreal(e[k, 3]), names[e[k, 1]], names[e[k, 2]])
+			exit(198)
+		}
+	}
+	// the change events of covariates (sorted by time already)
+	pres = J(n, 1, 1)
+	if (rows(pin) > 0) pres[pin[., 2]] = pin[., 4]
+	p = 1
+	for (k = 1; k <= rows(chg); k++) {
+		if (chg[k, 1] > 7) continue
+		while (p <= rows(pc)) {
+			if (pc[p, 3] > chg[k, 3]) break
+			pres[pc[p, 2]] = pc[p, 4]
+			p++
+		}
+		if (!pres[chg[k, 2]]) {
+			errprintf("{p 0 0 2}nwdynam: actor %s is not present at time %s but has a covariate change event (change()); a change event of an absent actor is not allowed - add its join before the change or remove the change.{p_end}\n", names[chg[k, 2]], strofreal(chg[k, 3]))
 			exit(198)
 		}
 	}

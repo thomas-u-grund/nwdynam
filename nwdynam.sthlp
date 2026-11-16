@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.6.0  16nov2026 author: Thomas Grund}{...}
+{* *! version 1.7.0  16nov2026 author: Thomas Grund}{...}
 {marker topic}
 {helpb nwtopical##analysis_dynamicmodels:[NW-2.6.8] Dynamic & Event-Based Models}
 
@@ -49,6 +49,8 @@
 {opt tie(netname)}
 {opt change(varname netname [...])}
 {opt increment}
+{opt present(varname)}
+{opt compchange(netname)}
 {opt intercept}]
 
 
@@ -101,6 +103,10 @@
 {syntab:Time-varying covariates}
 {synopt:{opt change(varname netname [...])}}the covariate {it:varname} changes over time; {it:netname} holds its change events (pairs, one per changing covariate); see {bf:Time-varying covariates} below{p_end}
 {synopt:{opt increment}}the values of the change events are increments of the current value instead of new values{p_end}
+
+{syntab:Composition change}
+{synopt:{opt present(varname)}}0/1 variable of the dataset: 1 = the actor is present at the start of the log, 0 = absent; default: everybody is present; see {bf:Composition change} below{p_end}
+{synopt:{opt compchange(netname)}}event network of the actors who join (value 1) or leave (value 0) the network over the log; see {bf:Composition change} below{p_end}
 
 {syntab:Intercept (rate sub-model only)}
 {synopt:{opt intercept}}genuinely continuous-time competing-risks hazard; see {bf:Description} below{p_end}
@@ -535,6 +541,40 @@ tested, with matching coefficients to within 1e-2. The two-mode support, {opt op
 {opt submodel(choice_coordination)} with its effects, {opt tie()}, {opt intercept} and the weighted effects were
 each compared with {cmd:goldfish} on small hand-traceable event sequences; the package's tests repeat these comparisons.
 
+{marker comp}{...}
+{pstd}
+{bf:Composition change.} As in {cmd:goldfish} (the node attribute {cmd:present}, changed with
+{cmd:linkEvents(nodes, changeEvent = ..., attribute = "present")}), actors may join or leave the network while the
+events happen. An actor who is absent is not in the risk set: it cannot be a sender (rate sub-model: it is left out of the
+hazard and of the normalisation), nor a receiver (choice sub-model: it is not among the candidates), nor a member of a pair of
+the choice_coordination sub-model. Its statistics are still computed, and its earlier ties still count for the degrees of the
+others. {opt present()} gives the presence at the start of the log (a variable of the dataset with the values 1 and 0, one row per
+actor, matched like the covariates; the default is that everybody is present). {opt compchange()} names an event network
+declared with {help nwset} that holds the joins and leaves, one actor per event (sender and receiver are the same actor) and the
+new presence as the event value, 1 = the actor joins, 0 = the actor leaves:
+
+	{cmd:. nwset id id2 joined, eventtime(time) selfloop name(membership)}     // id2 = copy of id, joined = 1 or 0
+	{cmd:. nwdynam mynet, inertia indeg present(member0) compchange(membership)}
+
+{pstd}
+A change takes effect for the events at its time and after it: an actor who joins at exactly the time of an event can take part
+in that event, an actor who leaves at exactly the time of an event cannot (unlike the covariate changes of {opt change()}).
+Several changes of one actor at one time: the later row wins. Changes before the first and after the last event are allowed;
+an actor who is absent during the whole log (but is an actor of {it:netname}) is simply not in any risk set. An event whose
+sender or receiver is absent at its time is an error (198), as in {cmd:goldfish}; so is a change event of a covariate
+({opt change()}) for an actor who is absent at that time. Actors are matched by label (an actor of the change network that is
+not an actor of {it:netname} stops the command with error 198), and an actor with no event of its own at all must be added to the
+network first ({help nwaddnodes}) when it is to be in the risk sets; times that must coincide exactly must be stored in the same way
+(the same variable type) in both event lists. With {opt submodel(rate)} and {opt intercept} the whole waiting time that ends at an
+event is exposed to the actors who are present at the end of it (the leave of an actor at the time of the event, or earlier in
+the waiting time, removes it from the whole waiting time; a join at the end adds it to the whole), as in {cmd:goldfish}. In a
+two-mode network the senders (mode 1) matter for the rate and the receivers (mode 2) for the choice sub-model. With
+{opt opportunities()} the risk set is the intersection of the opportunities and the present actors. {opt present()} cannot be
+combined with {opt opportunities()} (both need the data in memory in a different layout); an actor who is absent at the start can
+then be given a leave event before the first event of the log. Missing values and values other than 0 and 1 in {opt present()}
+or in the change network stop the command with error 198. {opt compchange()} and {opt present()} work together with
+{opt change()}.
+
 {marker native}{...}
 {pstd}
 Every fit runs in the compiled plugin of the package ({cmd:dynam_sim}): the log likelihood, the gradient and
@@ -688,6 +728,8 @@ elapsed time between events, not just their order (combining {opt intercept} wit
 {synopt:{bf:e(depvar)}}name of the event network fit{p_end}
 {synopt:{bf:e(submodel)}}{bf:choice}, {bf:rate} or {bf:choice_coordination}{p_end}
 {synopt:{bf:e(effects)}}space-separated list of the effects actually fit, in their fixed order{p_end}
+{synopt:{bf:e(ncompchange)}}number of join/leave events (only with {opt present()} or {opt compchange()}){p_end}
+{synopt:{bf:e(compchange)}}name of the join/leave network; {bf:e(present)} the variable of the presence at the start{p_end}
 {synopt:{bf:e(ties)}}{bf:none} (all times distinct), {bf:simultaneous} or {bf:sequential} (option){p_end}
 {synopt:{bf:e(unidentified)}}effects without a usable standard error (missing, zero or above 100); empty when all are identified{p_end}
 {synopt:{bf:e(header)}}heading of the results table{p_end}
@@ -726,4 +768,4 @@ If the plugin of your platform is missing (r(601)), older than the {cmd:.ado} fi
 {cmd:make} are needed) and installs the plugin; restart Stata afterwards. See {help nwinstall##buildplugin:nwinstall}.
 
 {hline}
-{pstd}{it:nwdynam version 1.6.0, 16 November 2026}{p_end}{* nwversion}
+{pstd}{it:nwdynam version 1.7.0, 16 November 2026}{p_end}{* nwversion}

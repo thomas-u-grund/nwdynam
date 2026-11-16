@@ -1,6 +1,6 @@
 # nwdynam
 
-<!--version-->**Version 1.6.0** (released 16 November 2026)<!--/version-->
+<!--version-->**Version 1.7.0** (released 16 November 2026)<!--/version-->
 
 `nwdynam` fits dynamic network actor models (DyNAM) to relational event data declared as an event-type temporal network with `nwset ..., eventtime()`: a rate model (when does an actor act) and a choice model (whom does the actor choose), with network, covariate, window and coordination effects. The hot likelihood/gradient evaluation runs in a native plugin.
 
@@ -20,7 +20,7 @@ own repository; it needs the core package nwcommands but no other model package.
 
 To install a specific version, point `from()` at the release tag (GitHub serves every tag under its own raw URL), for example version 1.1.3:
 
-       net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/v1.6.0/) replace
+       net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/v1.7.0/) replace
 
 `net describe nwdynam` shows the version and distribution date, `nwdynam version` the package, core and plugin versions, and `e(version)`
 holds the package version in the stored results. Release history: `CHANGELOG.md`; how releases are made: `RELEASING.md`.
@@ -62,6 +62,20 @@ passed with `change(variable network)`:
 The effects `same`, `diff`, `sim`, `ego`, `alter`, `egoalterint` and `tertius` then use the value that holds at the time of each event, in the
 choice, rate (also with `intercept`) and choice_coordination sub-models; `increment` reads the values of the change events as increments. See
 `help nwdynam`. The R script and data of the comparison with goldfish are `dev/dynam_tvc_crosscheck.R` and `dev/tvc/`.
+
+## Composition change
+
+Actors may join or leave the network while the events happen, as in goldfish (the node attribute `present`). An absent actor is not in the risk
+set (it cannot send in the rate sub-model, cannot be chosen in the choice sub-model, cannot be in a pair of choice_coordination); its statistics
+are still computed. `present(variable)` gives the presence at the start (0/1, one row per actor; default: everybody is present),
+`compchange(network)` the joins (value 1) and leaves (value 0) as an event network with one actor per event:
+
+    nwset id id2 joined, eventtime(time) selfloop name(membership)     // id2 = copy of id
+    nwdynam net, inertia indeg present(member0) compchange(membership)
+
+A change counts for the events at its time and after it; an event of an absent actor is an error, as in goldfish. Estimates, standard errors and log
+likelihoods agree with goldfish 1.6.12 to 1e-6 on 67 random and fixed event logs (choice, rate, rate with intercept, choice_coordination, one- and
+two-mode, together with time-varying covariates). See `help nwdynam`. The R script and data are `dev/dynam_comp_crosscheck.R` and `dev/comp/`.
 
 ## Native plugin
 

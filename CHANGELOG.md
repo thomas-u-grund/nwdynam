@@ -3,6 +3,18 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] - 2026-11-16
+
+### Added
+- Composition change, as in goldfish (the node attribute `present`): actors who join or leave the network over the log. Option `present(variable)` gives the presence at the start (0/1; default everybody), option `compchange(network)` the joins (value 1) and leaves (value 0) as an event network (one actor per event, sender = receiver). An absent actor is not in the risk set: it cannot send (rate sub-model, with and without `intercept`: it is left out of the hazard and its exposure), cannot be chosen (choice) and cannot be a member of a pair (choice_coordination); its statistics are still computed. A change takes effect for the events at its time and after it (a join at the time of an event lets the actor take part, a leave at that time excludes it); with `intercept` the waiting time that ends at an event is exposed to the actors present at its end, as goldfish. An event of an absent actor is an error (198), as in goldfish. Works for one- and two-mode networks, with `opportunities()` (intersection with the present actors; `present()` itself cannot be combined with `opportunities()`) and with `change()`.
+- `e(ncompchange)`, `e(compchange)`, `e(present)` and a line in the output header when composition change is used.
+- Estimates, standard errors and log likelihoods agree with goldfish 1.6.12 to 1e-6 on 67 random and fixed event logs (`dev/dynam_comp_crosscheck.R`, `dev/comp/`, test `cscripts/test_nwdynam_composition.do`).
+
+### Changed
+- The plugin protocol is 4: plugin binaries of 1.6.0 and earlier are recognised as too old (r(3495)). Until the build workflow has rebuilt the Linux and Windows plugins those platforms stop with r(3495). Fits without composition change give the same results as before to round-off and are not slower.
+
+Tested on: TO BE FILLED
+
 ## [1.6.0] - 2026-11-16
 
 ### Added
