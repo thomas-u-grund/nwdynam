@@ -22,7 +22,7 @@ program nwdynam, eclass
 			exit
 		}
 	}
-	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(string) RECIPWINDOW(string) INDEGWINDOW(string) OUTDEGWINDOW(string) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) INTERCEPT SEED(string) SEQUENTIAL Level(cilevel)]
+	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(string) RECIPWINDOW(string) INDEGWINDOW(string) OUTDEGWINDOW(string) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) CHange(string) INCREMENT INTERCEPT SEED(string) SEQUENTIAL Level(cilevel)]
 	// window options: a positive number when given (internally -1 = not given)
 	foreach __nwdynam_w in inertiawindow recipwindow indegwindow outdegwindow {
 		if `"``__nwdynam_w''"' != "" {
@@ -58,6 +58,53 @@ program nwdynam, eclass
 	// opportunities() needs one row per (event, available actor); the covariate options need one row per actor
 	if "`opportunities'" != "" & "`same'`diff'`sim'`alter'`ego'`tertius'`egoalterint'" != "" {
 		di as error "{p 0 0 2}opportunities() cannot be combined with same(), diff(), sim(), alter(), ego(), tertius() or egoalterint(): opportunities() reads one row per event and available actor from the data in memory, the covariate options read one row per actor - see {help nwdynam}.{p_end}"
+		error 198
+	}
+
+	// change(): time-varying covariates, pairs "variable network": the variable is a covariate of same()/diff()/sim()/ego()/alter()/
+	// tertius()/egoalterint(), the network an event network (nwset id id value, eventtime(time)) with its changes
+	local __nwdynam_nchgpairs = 0
+	if `"`change'"' != "" {
+		local __nwdynam_nw : word count `change'
+		if mod(`__nwdynam_nw', 2) != 0 {
+			di as error "{p 0 0 2}change() takes pairs: a covariate variable and the event network with its changes, for example {bf:change(x xchange)}.{p_end}"
+			error 198
+		}
+		if "`same'`diff'`sim'`ego'`alter'`tertius'`egoalterint'" == "" {
+			di as error "{p 0 0 2}change() needs a covariate option (same(), diff(), sim(), ego(), alter(), tertius() or egoalterint()) that uses the variable.{p_end}"
+			error 198
+		}
+		if "`opportunities'" != "" {
+			di as error "{p 0 0 2}change() cannot be combined with opportunities(): both read the data in memory in a different layout - see {help nwdynam}.{p_end}"
+			error 198
+		}
+		local __nwdynam_nchgpairs = `__nwdynam_nw' / 2
+		local __nwdynam_cvused "`same' `diff' `sim' `ego' `alter' `tertius' `egoalterint'"
+		forvalues __nwdynam_i = 1/`__nwdynam_nchgpairs' {
+			local __nwdynam_cvar : word `=2 * `__nwdynam_i' - 1' of `change'
+			local __nwdynam_cnet : word `=2 * `__nwdynam_i'' of `change'
+			capture confirm numeric variable `__nwdynam_cvar'
+			if _rc {
+				di as error "{p 0 0 2}change(): {bf:`__nwdynam_cvar'} is not a numeric variable of the current dataset.{p_end}"
+				error 111
+			}
+			unab __nwdynam_cvar : `__nwdynam_cvar'
+			local __nwdynam_ok : list posof "`__nwdynam_cvar'" in __nwdynam_cvused
+			if `__nwdynam_ok' == 0 {
+				di as error "{p 0 0 2}change(): {bf:`__nwdynam_cvar'} is not used by same(), diff(), sim(), ego(), alter(), tertius() or egoalterint(); name a variable of an effect.{p_end}"
+				error 198
+			}
+			local __nwdynam_cvars "`__nwdynam_cvars' `__nwdynam_cvar'"
+			local __nwdynam_cnets "`__nwdynam_cnets' `__nwdynam_cnet'"
+			local __nwdynam_dup : list dups __nwdynam_cvars
+			if "`__nwdynam_dup'" != "" {
+				di as error "{p 0 0 2}change(): variable {bf:`__nwdynam_dup'} is given twice; one network holds all its changes.{p_end}"
+				error 198
+			}
+		}
+	}
+	else if "`increment'" != "" {
+		di as error "increment needs change() - see {help nwdynam}."
 		error 198
 	}
 
@@ -634,6 +681,47 @@ program nwdynam, eclass
 	}
 	capture mata: mata drop `__nwdynam_rows'
 
+	tempname __nwdynam_chg
+	mata: `__nwdynam_chg' = J(0, 4, 0)
+	forvalues __nwdynam_i = 1/`__nwdynam_nchgpairs' {
+		local __nwdynam_cvar : word `__nwdynam_i' of `__nwdynam_cvars'
+		local __nwdynam_cnet : word `__nwdynam_i' of `__nwdynam_cnets'
+		_nwsyntax `__nwdynam_cnet', other(__nwdynam_chgnet_) max(1)
+		if "`__nwdynam_chgnet_istemporal'" != "true" | "`__nwdynam_chgnet_temporaltype'" != "event" {
+			capture mata: mata drop `__nwdynam_chg' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2'
+			di as error "{p 0 0 2}change(): `__nwdynam_cnet' is not an event network; declare the changes with {bf:nwset id id value, eventtime(time) selfloop name(`__nwdynam_cnet')}.{p_end}"
+			error 198
+		}
+		// the covariate rows that use this variable: 1 same 2 diff 3 sim 4 ego/alter 5 tertius 6/7 egoalterint
+		local __nwdynam_slots ""
+		if "`same'" == "`__nwdynam_cvar'" local __nwdynam_slots "`__nwdynam_slots' 1"
+		if "`diff'" == "`__nwdynam_cvar'" local __nwdynam_slots "`__nwdynam_slots' 2"
+		if "`sim'" == "`__nwdynam_cvar'" local __nwdynam_slots "`__nwdynam_slots' 3"
+		if "`ego'`alter'" != "" & ("`ego'" == "`__nwdynam_cvar'" | "`alter'" == "`__nwdynam_cvar'") local __nwdynam_slots "`__nwdynam_slots' 4"
+		if "`tertius'" == "`__nwdynam_cvar'" local __nwdynam_slots "`__nwdynam_slots' 5"
+		if "`__nwdynam_ea1'" == "`__nwdynam_cvar'" local __nwdynam_slots "`__nwdynam_slots' 6"
+		if "`__nwdynam_ea2'" == "`__nwdynam_cvar'" local __nwdynam_slots "`__nwdynam_slots' 7"
+		local __nwdynam_firstslot : word 1 of `__nwdynam_slots'
+		local __nwdynam_initvec : word `__nwdynam_firstslot' of same diff sim cov4 tertius egoalterint1 egoalterint2
+		if `__nwdynam_firstslot' == 4 {
+			if "`ego'" != "" mata: __nwdynam_iv = `__nwdynam_ego'
+			else mata: __nwdynam_iv = `__nwdynam_alter'
+		}
+		else mata: __nwdynam_iv = `__nwdynam_`__nwdynam_initvec''
+		mata: __nwdynam_cr = *(`__nwdynam_chgnet_netobj'->get_eventlist())
+		capture noisily mata: `__nwdynam_chg' = `__nwdynam_chg' \ dynam_change_rows(__nwdynam_cr, `__nwdynam_chgnet_netobj'->get_nodenames(), `netobj'->get_nodenames(), __nwdynam_iv, ("`increment'" != ""), strtoreal(tokens("`__nwdynam_slots'")), "`__nwdynam_cnet'", "`__nwdynam_cvar'")
+		local __nwdynam_crc = _rc
+		capture mata: mata drop __nwdynam_iv __nwdynam_cr
+		if `__nwdynam_crc' {
+			capture mata: mata drop `__nwdynam_chg' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2'
+			exit `__nwdynam_crc'
+		}
+	}
+	if `__nwdynam_nchgpairs' > 1 {
+		// the order inside a time point: event list order of the pairs, as given; sort by time, stable
+		mata: `__nwdynam_chg' = `__nwdynam_chg'[order((`__nwdynam_chg'[., 3], (1::rows(`__nwdynam_chg'))), (1, 2)), .]
+	}
+
 	if `"`seed'"' != "" {
 		set seed `seed'
 	}
@@ -655,7 +743,7 @@ program nwdynam, eclass
 	mata: st_local("__nwdynam_badt", strofreal(missing(`__nwdynam_events'[., 3])))
 	mata: st_local("__nwdynam_badv", strofreal(cols(`__nwdynam_events') >= 4 ? missing(`__nwdynam_events'[., cols(`__nwdynam_events') >= 4 ? 4 : 3]) : 0))
 	if `__nwdynam_bad0' > 0 | `__nwdynam_badt' > 0 | `__nwdynam_badv' > 0 {
-		_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2'
+		_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_chg'
 		if `__nwdynam_bad0' > 0 {
 			di as error "{p 0 0 2}`__nwdynam_bad0' event(s) of `netname' have a sender or receiver that is not an actor of the network (a missing actor id, or an id that does not match a node label); drop these events before {cmd:nwset}.{p_end}"
 		}
@@ -733,7 +821,7 @@ program nwdynam, eclass
 		}
 		mata: mata drop __nwdynam_oord __nwdynam_orcv __nwdynam_ook __nwdynam_oi
 		if `__nwdynam_oppbad' > 0 {
-			_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_oppmat'
+			_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_oppmat' `__nwdynam_chg'
 			di as error "{p 0 0 2}opportunities(): in `__nwdynam_oppbad' event(s) the realised receiver is not among the available actors (first: event `__nwdynam_oppfirst', receiver `__nwdynam_opprcv'); every event's receiver must be available.{p_end}"
 			error 198
 		}
@@ -813,25 +901,25 @@ program nwdynam, eclass
 	local __nwdynam_frame = c(frame)
 	capture noisily {
 		if "`submodel'" == "choice" {
-			mata: DynamChoiceFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_same', `__nwdynam_diff', `__nwdynam_sim', `__nwdynam_alter', `__nwdynam_tertius', `__nwdynam_egoalterint1', `__nwdynam_egoalterint2', `__nwdynam_windowinertia', `__nwdynam_windowrecip', `__nwdynam_weightedinertia', `__nwdynam_weightedrecip', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_oppmat', `__nwdynam_tiemat', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
+			mata: DynamChoiceFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_same', `__nwdynam_diff', `__nwdynam_sim', `__nwdynam_alter', `__nwdynam_tertius', `__nwdynam_egoalterint1', `__nwdynam_egoalterint2', `__nwdynam_windowinertia', `__nwdynam_windowrecip', `__nwdynam_weightedinertia', `__nwdynam_weightedrecip', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_oppmat', `__nwdynam_tiemat', `__nwdynam_chg', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
 			local __nwdynam_title "Dynamic Network Actor Model, choice sub-model (conditional logit, MLE)"
 			local __nwdynam_hdr "Dynamic Network Actor Model - choice sub-model (MLE)"
 		}
 		else if "`submodel'" == "rate" {
 			if "`intercept'" != "" {
-				mata: DynamRateInterceptFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_ego', `__nwdynam_tertius', `__nwdynam_windowindeg', `__nwdynam_windowoutdeg', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
+				mata: DynamRateInterceptFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_ego', `__nwdynam_tertius', `__nwdynam_windowindeg', `__nwdynam_windowoutdeg', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_chg', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
 				local __nwdynam_collabs "Intercept`__nwdynam_collabs'"
 				local __nwdynam_title "Dynamic Network Actor Model, rate sub-model, WITH intercept (continuous-time competing-risks hazard, MLE)"
 				local __nwdynam_hdr "Dynamic Network Actor Model - rate sub-model, with intercept (MLE)"
 			}
 			else {
-				mata: DynamRateFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_ego', `__nwdynam_tertius', `__nwdynam_windowindeg', `__nwdynam_windowoutdeg', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
+				mata: DynamRateFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_ego', `__nwdynam_tertius', `__nwdynam_windowindeg', `__nwdynam_windowoutdeg', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_chg', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
 				local __nwdynam_title "Dynamic Network Actor Model, rate sub-model, no intercept (ordinal partial likelihood, MLE)"
 				local __nwdynam_hdr "Dynamic Network Actor Model - rate sub-model, no intercept (MLE)"
 			}
 		}
 		else {
-			mata: DynamCoordFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_same', `__nwdynam_diff', `__nwdynam_sim', `__nwdynam_alter', `__nwdynam_tertius', `__nwdynam_egoalterint1', `__nwdynam_egoalterint2', `__nwdynam_tiemat', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
+			mata: DynamCoordFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_same', `__nwdynam_diff', `__nwdynam_sim', `__nwdynam_alter', `__nwdynam_tertius', `__nwdynam_egoalterint1', `__nwdynam_egoalterint2', `__nwdynam_tiemat', `__nwdynam_chg', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
 			local __nwdynam_title "Dynamic Network Actor Model, choice_coordination sub-model (multinomial-multinomial, MLE)"
 			local __nwdynam_hdr "Dynamic Network Actor Model - choice_coordination sub-model (MLE)"
 		}
@@ -841,13 +929,13 @@ program nwdynam, eclass
 	if `__nwdynam_rc' {
 		if "`c(frame)'" != "`__nwdynam_frame'" capture frame change `__nwdynam_frame'
 		capture frame drop __nwdynam_native
-		_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_oppmat' `__nwdynam_tiemat'
+		_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_oppmat' `__nwdynam_tiemat' `__nwdynam_chg'
 		capture matrix drop __nwdynam_b
 		capture matrix drop __nwdynam_V
 		capture scalar drop __nwdynam_ll
 		exit `__nwdynam_rc'
 	}
-	mata: mata drop `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_oppmat' `__nwdynam_tiemat'
+	mata: mata drop `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_oppmat' `__nwdynam_tiemat' `__nwdynam_chg'
 
 	tempname b V
 	matrix `b' = __nwdynam_b

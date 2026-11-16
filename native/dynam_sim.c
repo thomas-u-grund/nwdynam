@@ -28,8 +28,14 @@
 	  [12..15] weighted flags inertia, recip, indeg, outdeg
 	  [16..35] active flags of the effect slots (choice 17, rate 5, coordination 12)
 	  [36..] events: N rows of (sender, receiver, time, value, last-of-group flag), sorted by time (the caller sorts)
-	  then 7 covariate rows of n values (same, diff, sim, alter/ego, tertius, egoalterint1, egoalterint2),
+	  of n values (same, diff, sim, alter/ego, tertius, egoalterint1, egoalterint2): the values at the start of the log,
 	  then the N x n opportunity matrix (only when [6] = 1), then the n x n matrix of tie() (only when [7] = 1).
+
+	Time-varying covariates (as goldfish): a change event sets the value of a covariate row for one actor; it takes effect for
+	the events whose time is LARGER than its time (an event at exactly the same time is evaluated with the old value: in goldfish
+	the dependent events of a time point are processed before the other event lists). Changes before the first event and after
+	the last one are allowed. The caller turns increments into new values. In the rate model with intercept the time between two
+	events is split at every change, because the hazard of the intervals depends on the covariates of that moment.
 
 	The statistics are those of the Mata reference evaluators (cscripts/ref_dynam_mata.do), which agree with goldfish.
 	All counts are kept up to date in O(1) or O(n) per tie change instead of being recomputed at every event.
@@ -43,9 +49,9 @@
 
 typedef int64_t nwint;
 
-#define DYNAM_PROTOCOL 2
+#define DYNAM_PROTOCOL 3
 #define NOWIN 1e300
-#define HDR 36
+#define HDR 40
 #define M_CHOICE 1
 #define M_RATE 2
 #define M_RATEINT 3
@@ -58,7 +64,9 @@ typedef struct {
 	double win[4], wgt[4];
 	double act[20];
 	double *ev;        /* N x 5 */
-	double *cov[7];    /* each n */
+	double *cov[7];    /* each n (values at the start) */
+	nwint C;           /* number of change events */
+	double *chg;       /* C x 4: covariate row (1..7), actor (1..n), time, new value */
 	double *opp;       /* N x n or NULL */
 	double *tie;       /* n x n or NULL */
 	double *blob;
@@ -74,6 +82,9 @@ typedef struct {
 	double *W[4];                      /* windowed tie values (slot 0 inertia, 1 recip, 2 indeg, 3 outdeg) */
 	double *wInS, *wInV, *wOutS, *wOutV;
 	nwint ptr[4];
+	double *cv[7];                     /* the covariates as they are now (changed by the change events) */
+	double *cvbuf;
+	nwint cpos;                        /* next change event */
 	int32_t *AA, *AtA, *AAt;
 	double *nt, *tnum;
 	int sym;
@@ -87,7 +98,7 @@ static void state_free(State *st) {
 	free(st->inA); free(st->outA);
 	for (q = 0; q < 4; q++) free(st->W[q]);
 	free(st->wInS); free(st->wInV); free(st->wOutS); free(st->wOutV);
-	free(st->AA); free(st->AtA); free(st->AAt); free(st->nt); free(st->tnum);
+	free(st->AA); free(st->AtA); free(st->AAt); free(st->nt); free(st->tnum); free(st->cvbuf);
 	memset(st, 0, sizeof(State));
 }
 
@@ -104,6 +115,9 @@ static int state_init(const Spec *sp, State *st) {
 	memset(st, 0, sizeof(State));
 	st->n = n;
 	st->sym = co;
+	st->cvbuf = (double *)malloc(7 * un * sizeof(double));
+	if (!st->cvbuf) return 909;
+	for (q = 0; q < 7; q++) { st->cv[q] = st->cvbuf + (size_t)q * un; memcpy(st->cv[q], sp->cov[q], un * sizeof(double)); }
 	st->tv = (double *)calloc(nn, sizeof(double));
 	st->Ab = (char *)calloc(nn, 1);
 	st->inS = (double *)calloc(un, sizeof(double)); st->outS = (double *)calloc(un, sizeof(double));
@@ -198,7 +212,7 @@ static void apply_cell(const Spec *sp, State *st, nwint a, nwint b, double v) {
 	st->inV[b] += v; st->outV[a] += v;
 	if (oa != na) {
 		flip_update(sp, st, a, b, na - oa);
-		if (st->tnum) st->tnum[b] += (na - oa) * sp->cov[4][a];
+		if (st->tnum) st->tnum[b] += (na - oa) * st->cv[4][a];
 		st->Ab[a * n + b] = (char)na;
 	}
 	st->tv[a * n + b] = nw;
@@ -210,6 +224,22 @@ static void apply_event(const Spec *sp, State *st, nwint k) {
 	double v = sp->ev[5 * k + 3];
 	apply_cell(sp, st, a, b, v);
 	if (st->sym) apply_cell(sp, st, b, a, v);
+}
+
+/* change events (time-varying covariates): apply the next change event */
+static void apply_one_change(const Spec *sp, State *st) {
+	const double *c = sp->chg + 4 * st->cpos;
+	int q = (int)c[0] - 1;
+	nwint a = (nwint)c[1] - 1, b, n = st->n;
+	double old = st->cv[q][a], nw = c[3];
+	if (q == 4 && st->tnum) for (b = 0; b < n; b++) if (st->Ab[a * n + b]) st->tnum[b] += nw - old;
+	st->cv[q][a] = nw;
+	st->cpos++;
+}
+
+/* all change events earlier than tcur (an event at tcur itself still sees the old value, as in goldfish) */
+static void apply_changes(const Spec *sp, State *st, double tcur) {
+	while (st->cpos < sp->C && sp->chg[4 * st->cpos + 2] < tcur) apply_one_change(sp, st);
 }
 
 /* windows: drop the events of earlier groups (rows < gs) that are older than the window at time tcur */
@@ -256,10 +286,10 @@ static void choice_stats(const Spec *sp, const State *st, nwint s, double *X, do
 			else for (j = 0; j < n; j++) x[j] = (double)A[j * n + s];
 			break;
 		case 3: for (j = 0; j < n; j++) x[j] = (sp->wgt[2] != 0.0) ? st->inV[j] : st->inS[j]; break;
-		case 4: for (j = 0; j < n; j++) x[j] = (sp->cov[0][j] == sp->cov[0][s]); break;
-		case 5: for (j = 0; j < n; j++) x[j] = fabs(sp->cov[1][j] - sp->cov[1][s]); break;
-		case 6: for (j = 0; j < n; j++) x[j] = -fabs(sp->cov[2][j] - sp->cov[2][s]); break;
-		case 7: for (j = 0; j < n; j++) x[j] = sp->cov[3][j]; break;
+		case 4: for (j = 0; j < n; j++) x[j] = (st->cv[0][j] == st->cv[0][s]); break;
+		case 5: for (j = 0; j < n; j++) x[j] = fabs(st->cv[1][j] - st->cv[1][s]); break;
+		case 6: for (j = 0; j < n; j++) x[j] = -fabs(st->cv[2][j] - st->cv[2][s]); break;
+		case 7: for (j = 0; j < n; j++) x[j] = st->cv[3][j]; break;
 		case 8: for (j = 0; j < n; j++) x[j] = (sp->wgt[3] != 0.0) ? st->outV[j] : st->outS[j]; break;
 		case 9: for (j = 0; j < n; j++) x[j] = (double)st->AA[s * n + j]; break;
 		case 10: for (j = 0; j < n; j++) x[j] = (double)st->AA[j * n + s]; break;
@@ -274,7 +304,7 @@ static void choice_stats(const Spec *sp, const State *st, nwint s, double *X, do
 			}
 			break;
 		case 14: for (j = 0; j < n; j++) x[j] = st->nt[j]; break;
-		case 15: for (j = 0; j < n; j++) x[j] = sp->cov[5][s] * sp->cov[6][j]; break;
+		case 15: for (j = 0; j < n; j++) x[j] = st->cv[5][s] * st->cv[6][j]; break;
 		case 16: for (j = 0; j < n; j++) x[j] = (st->inA[j] > 0.0) ? st->tnum[j] / st->inA[j] : 0.0; break;
 		case 17: for (j = 0; j < n; j++) x[j] = sp->tie[s * n + j]; break;
 		}
@@ -297,7 +327,7 @@ static void rate_stats(const Spec *sp, const State *st, double *X, int icpt) {
 			if (st->W[3]) for (j = 0; j < n; j++) x[j] = (sp->wgt[3] != 0.0) ? st->wOutV[j] : st->wOutS[j];
 			else for (j = 0; j < n; j++) x[j] = (sp->wgt[3] != 0.0) ? st->outV[j] : st->outS[j];
 			break;
-		case 3: for (j = 0; j < n; j++) x[j] = sp->cov[3][j]; break;
+		case 3: for (j = 0; j < n; j++) x[j] = st->cv[3][j]; break;
 		case 4: for (j = 0; j < n; j++) x[j] = st->nt[j]; break;
 		case 5: for (j = 0; j < n; j++) x[j] = (st->inA[j] > 0.0) ? st->tnum[j] / st->inA[j] : 0.0; break;
 		}
@@ -330,6 +360,7 @@ static int eval_softmax(const Spec *sp, const double *theta, int todo, double *l
 		nwint s = (nwint)sp->ev[5 * i] - 1, r = (nwint)sp->ev[5 * i + 1] - 1;
 		if (fresh) {
 			expire(sp, &st, gs, sp->ev[5 * i + 2]);
+			apply_changes(sp, &st, sp->ev[5 * i + 2]);
 			if (!choice) rate_stats(sp, &st, X, 0);
 		}
 		if (choice) choice_stats(sp, &st, s, X, tmp);
@@ -394,29 +425,75 @@ done:
 /* ------------------------------------------------------------------
    Evaluation: rate with intercept. theta[0] = intercept, then the P effects.
    ------------------------------------------------------------------ */
+/* exposure term -w * sum_j exp(x_j theta) of a period of length w in the current state (X); 1 = overflow */
+static int rateint_exposure(const Spec *sp, const double *theta, int todo, const double *X, double w, double *L, double *g, double *H,
+		double *Sx, double *Sxx) {
+	nwint n = sp->n, j, nrisk = (sp->n1 > 0 ? sp->n1 : sp->n);
+	int Pt = sp->P + 1, k, l;
+	double S = 0.0;
+	for (k = 0; k < Pt; k++) Sx[k] = 0.0;
+	if (todo >= 2) for (k = 0; k < Pt * Pt; k++) Sxx[k] = 0.0;
+	for (j = 0; j < nrisk; j++) {
+		double lp = 0.0, ej;
+		for (k = 0; k < Pt; k++) lp += theta[k] * X[(size_t)k * (size_t)n + j];
+		if (lp > 700.0) return 1;
+		ej = exp(lp);
+		S += ej;
+		for (k = 0; k < Pt; k++) {
+			double xk = ej * X[(size_t)k * (size_t)n + j];
+			Sx[k] += xk;
+			if (todo >= 2) for (l = k; l < Pt; l++) Sxx[k * Pt + l] += xk * X[(size_t)l * (size_t)n + j];
+		}
+	}
+	*L -= w * S;
+	for (k = 0; k < Pt; k++) g[k] -= w * Sx[k];
+	if (todo >= 2) for (k = 0; k < Pt; k++) for (l = k; l < Pt; l++) {
+		double h = -w * Sxx[k * Pt + l];
+		H[k * Pt + l] += h;
+		if (l != k) H[l * Pt + k] += h;
+	}
+	return 0;
+}
+
 static int eval_rateint(const Spec *sp, const double *theta, int todo, double *ll, double *g, double *H, int *overflow) {
 	State st;
-	nwint n = sp->n, N = sp->N, i, j, gs = 0, nrisk = (sp->n1 > 0 ? sp->n1 : sp->n);
-	int Pt = sp->P + 1, k, l, rc = 0;
-	double *X = NULL, *haz = NULL, *Sx = NULL, *Sxx = NULL, L = 0.0, tprev = 0.0, w, S;
+	nwint n = sp->n, N = sp->N, i, gs = 0;
+	int Pt = sp->P + 1, k, rc = 0;
+	double *X = NULL, *Sx = NULL, *Sxx = NULL, L = 0.0, tprev = 0.0;
 	int fresh = 1;
 
 	*overflow = 0;
 	if ((rc = state_init(sp, &st)) != 0) { state_free(&st); return rc; }
 	X = (double *)malloc((size_t)Pt * (size_t)n * sizeof(double));
-	haz = (double *)malloc((size_t)n * sizeof(double));
 	Sx = (double *)malloc((size_t)Pt * sizeof(double));
 	Sxx = (double *)malloc((size_t)Pt * (size_t)Pt * sizeof(double));
-	if (!X || !haz || !Sx || !Sxx) { rc = 909; goto done; }
+	if (!X || !Sx || !Sxx) { rc = 909; goto done; }
 	for (k = 0; k < Pt; k++) g[k] = 0.0;
 	if (todo >= 2) for (k = 0; k < Pt * Pt; k++) H[k] = 0.0;
-	/* the hazard sums (S, Sx, Sxx) depend on the state only: computed once per group, used by its first event (w > 0) */
+	/* the hazard sums (S, Sx, Sxx) depend on the state only: computed once per period of constant state; a group of tied events has
+	   the period before it (w > 0) at its first event only. Change events inside that period split it (the covariates of the
+	   risk set change there). */
 	for (i = 0; i < N; i++) {
 		nwint s = (nwint)sp->ev[5 * i] - 1;
-		double tcur = sp->ev[5 * i + 2], lps = 0.0;
+		double tcur = sp->ev[5 * i + 2], lps = 0.0, w;
 		if (fresh) {
 			expire(sp, &st, gs, tcur);
 			rate_stats(sp, &st, X, 1);
+			if (i > 0) {
+				/* periods ended by a change event earlier than this event */
+				double t0 = tprev;
+				while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] < tcur) {
+					double tc = sp->chg[4 * st.cpos + 2];
+					if (tc > t0) {
+						if (rateint_exposure(sp, theta, todo, X, tc - t0, &L, g, H, Sx, Sxx)) { *overflow = 1; goto done; }
+						t0 = tc;
+					}
+					while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] == tc) apply_one_change(sp, &st);
+					rate_stats(sp, &st, X, 1);
+				}
+				tprev = t0;
+			}
+			else apply_changes(sp, &st, tcur), rate_stats(sp, &st, X, 1);
 		}
 		w = (i > 0) ? tcur - tprev : 0.0;
 		for (k = 0; k < Pt; k++) lps += theta[k] * X[(size_t)k * (size_t)n + s];
@@ -424,29 +501,7 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 		L += lps;
 		for (k = 0; k < Pt; k++) g[k] += X[(size_t)k * (size_t)n + s];
 		if (w != 0.0) {
-			S = 0.0;
-			for (k = 0; k < Pt; k++) Sx[k] = 0.0;
-			if (todo >= 2) for (k = 0; k < Pt * Pt; k++) Sxx[k] = 0.0;
-			for (j = 0; j < nrisk; j++) {
-				double lp = 0.0, ej;
-				for (k = 0; k < Pt; k++) lp += theta[k] * X[(size_t)k * (size_t)n + j];
-				if (lp > 700.0) { *overflow = 1; goto done; }
-				ej = exp(lp);
-				haz[j] = ej;
-				S += ej;
-				for (k = 0; k < Pt; k++) {
-					double xk = ej * X[(size_t)k * (size_t)n + j];
-					Sx[k] += xk;
-					if (todo >= 2) for (l = k; l < Pt; l++) Sxx[k * Pt + l] += xk * X[(size_t)l * (size_t)n + j];
-				}
-			}
-			L -= w * S;
-			for (k = 0; k < Pt; k++) g[k] -= w * Sx[k];
-			if (todo >= 2) for (k = 0; k < Pt; k++) for (l = k; l < Pt; l++) {
-				double h = -w * Sxx[k * Pt + l];
-				H[k * Pt + l] += h;
-				if (l != k) H[l * Pt + k] += h;
-			}
+			if (rateint_exposure(sp, theta, todo, X, w, &L, g, H, Sx, Sxx)) { *overflow = 1; goto done; }
 		}
 		tprev = tcur;
 		if (sp->ev[5 * i + 4] != 0.0) {
@@ -459,7 +514,7 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 	}
 	*ll = L;
 done:
-	free(X); free(haz); free(Sx); free(Sxx);
+	free(X); free(Sx); free(Sxx);
 	state_free(&st);
 	return rc;
 }
@@ -477,10 +532,10 @@ static double coord_S(const Spec *sp, const State *st, int e, nwint a, nwint b, 
 	switch (e) {
 	case 1: return (double)st->Ab[a * n + b];
 	case 2: return st->inS[b];
-	case 3: return (double)(sp->cov[0][a] == sp->cov[0][b]);
-	case 4: return fabs(sp->cov[1][a] - sp->cov[1][b]);
-	case 5: return -fabs(sp->cov[2][a] - sp->cov[2][b]);
-	case 6: return sp->cov[3][b];
+	case 3: return (double)(st->cv[0][a] == st->cv[0][b]);
+	case 4: return fabs(st->cv[1][a] - st->cv[1][b]);
+	case 5: return -fabs(st->cv[2][a] - st->cv[2][b]);
+	case 6: return st->cv[3][b];
 	case 7: return st->nt[b];
 	case 8: return (double)st->AA[a * n + b];
 	case 9: return (st->inA[b] > 0.0) ? st->tnum[b] / st->inA[b] : 0.0;
@@ -488,7 +543,7 @@ static double coord_S(const Spec *sp, const State *st, int e, nwint a, nwint b, 
 		double A = (double)st->Ab[a * n + b];
 		return (double)AAtA[a * n + b] - A * (st->outA[a] + (double)st->AtA[b * n + b] - A);
 	}
-	case 11: return sp->cov[5][a] * sp->cov[6][b];
+	case 11: return st->cv[5][a] * st->cv[6][b];
 	case 12: return sp->tie[a * n + b];
 	}
 	return 0.0;
@@ -517,6 +572,7 @@ static int eval_coord(const Spec *sp, const double *theta, int todo, double *ll,
 		double tot, Z;
 		if (dirty) {
 			expire(sp, &st, gs, sp->ev[5 * i + 2]);
+			apply_changes(sp, &st, sp->ev[5 * i + 2]);
 			if (four) {
 				/* AAtA = A * (A'A), recomputed when the tie matrix changed */
 				memset(AAtA, 0, (size_t)n * (size_t)n * sizeof(int32_t));
@@ -604,12 +660,23 @@ static int spec_read(Spec *sp, nwint L) {
 	sp->P = 0;
 	for (k = 0; k < sp->M && k < 20; k++) if (sp->act[k] != 0.0) sp->eff[sp->P++] = k + 1;
 	pos = HDR;
+	sp->C = (nwint)sp->blob[36];
+	if (sp->C < 0) return 198;
 	sp->ev = sp->blob + pos; pos += 5 * sp->N;
+	sp->chg = sp->blob + pos; pos += 4 * sp->C;
 	for (k = 0; k < 7; k++) { sp->cov[k] = sp->blob + pos; pos += sp->n; }
 	if (sp->hasopp) { sp->opp = sp->blob + pos; pos += sp->N * sp->n; }
 	if (sp->hastie) { sp->tie = sp->blob + pos; pos += sp->n * sp->n; }
 	if (pos != L) return 198;
 	if (sp->n < 2 || sp->N < 1) return 198;
+	for (i = 0; i < sp->C; i++) {
+		double r = sp->chg[4 * i], a = sp->chg[4 * i + 1];
+		if (!(r >= 1.0 && r <= 7.0 && a >= 1.0 && a <= (double)sp->n)) {
+			SF_error("dynam_sim: a change event has an actor or covariate outside the range\n");
+			return 198;
+		}
+		if (i > 0 && sp->chg[4 * i + 2] < sp->chg[4 * i - 2]) { SF_error("dynam_sim: change events are not sorted by time\n"); return 198; }
+	}
 	/* every actor index of an event must be an actor 1..n (the kernels index arrays with it) */
 	for (i = 0; i < sp->N; i++) {
 		double a = sp->ev[5 * i], b = sp->ev[5 * i + 1];

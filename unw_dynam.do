@@ -21,6 +21,7 @@
 
 capture mata: mata drop DynamState()
 capture mata: mata drop dynam_node_rows()
+capture mata: mata drop dynam_change_rows()
 capture mata: mata drop DynamNativePluginFilename()
 capture mata: mata drop DynamNativePluginSubdir()
 capture mata: mata drop DynamNativePluginPath()
@@ -94,6 +95,59 @@ real colvector dynam_node_rows(string rowvector names, string colvector lab)
 		if (asarray_contains(A, names[k])) pos[k] = asarray(A, names[k])
 	}
 	return(pos)
+}
+
+/*
+	dynam_change_rows(): the change events of one time-varying covariate as rows (covariate row, actor, time, new value), sorted by
+	time (the row order of the event list breaks ties). ev = event list of the change network (id, id, time, value) with the
+	actor ids of that network, chgnames = its node names, mainnames = the node names of the fitted network, init = the values
+	at the start (one per actor of the fitted network), slots = the covariate rows (1..7) that use the variable. With
+	increment = 1 the values are increments of the current value (goldfish: increment), else new values (replace). Stops with
+	r(198) for an event whose sender is not its receiver, an actor that is not an actor of the fitted network or a missing value.
+*/
+real matrix dynam_change_rows(real matrix ev, string rowvector chgnames, string rowvector mainnames, real rowvector init,
+		real scalar increment, real rowvector slots, string scalar netname, string scalar varname) {
+	real colvector ord, pos
+	real matrix e, out
+	real rowvector cur
+	real scalar k, a, v, q
+	transmorphic A
+
+	if (rows(ev) == 0) return(J(0, 4, 0))
+	if (cols(ev) < 4) {
+		errprintf("{p 0 0 2}nwdynam: change(): %s has no event values; declare it with a value variable ({bf:nwset id id value, eventtime(time)}): the value is the new value of %s (or its increment with option increment).{p_end}\n", netname, varname)
+		exit(198)
+	}
+	A = asarray_create("string", 1)
+	for (k = 1; k <= cols(mainnames); k++) asarray(A, mainnames[k], k)
+	e = ev[., 1..4]
+	ord = order((e[., 3], (1::rows(e))), (1, 2))
+	e = e[ord, .]
+	pos = J(rows(e), 1, 0)
+	for (k = 1; k <= rows(e); k++) {
+		if (e[k, 1] != e[k, 2]) {
+			errprintf("{p 0 0 2}nwdynam: change(): an event of %s has sender %s and receiver %s; a change event names one actor (sender = receiver), for example {bf:nwset id id value, eventtime(time) selfloop}.{p_end}\n", netname, chgnames[e[k, 1]], chgnames[e[k, 2]])
+			exit(198)
+		}
+		if (missing(e[k, 4])) {
+			errprintf("{p 0 0 2}nwdynam: change(): an event of %s has a missing value.{p_end}\n", netname)
+			exit(198)
+		}
+		if (!asarray_contains(A, chgnames[e[k, 1]])) {
+			errprintf("{p 0 0 2}nwdynam: change(): actor %s of %s is not an actor of the fitted network (actors are matched by label).{p_end}\n", chgnames[e[k, 1]], netname)
+			exit(198)
+		}
+		pos[k] = asarray(A, chgnames[e[k, 1]])
+	}
+	cur = init
+	out = J(rows(e) * cols(slots), 4, .)
+	for (k = 1; k <= rows(e); k++) {
+		a = pos[k]
+		v = (increment ? cur[a] + e[k, 4] : e[k, 4])
+		cur[a] = v
+		for (q = 1; q <= cols(slots); q++) out[(k - 1) * cols(slots) + q, .] = (slots[q], a, e[k, 3], v)
+	}
+	return(out)
 }
 
 void DynamState::init(real matrix rawevents, real scalar nn) {
@@ -329,13 +383,14 @@ class DynamNat {
 	real scalar Pt       // number of parameters
 	real scalar isopen
 	string scalar origframe
+	real matrix chg      // change events of time-varying covariates: (covariate row 1..7, actor, time, new value), sorted by time; unset = none
 
 	void open()
 	void close()
 	void setup()
 }
 
-real scalar DYNAM_PROTOCOL_NEEDED() return(2)
+real scalar DYNAM_PROTOCOL_NEEDED() return(3)
 
 void DynamNat::open() {
 	string scalar p, fname, q
@@ -386,7 +441,7 @@ void DynamNat::close() {
 */
 void DynamNat::setup(real scalar model, pointer(class DynamState scalar) scalar pS, real rowvector active,
 		real matrix covmat, real rowvector win4, real rowvector wgt4, real scalar n1, real matrix oppmat, real matrix tiemat) {
-	real scalar nev, hasopp, hastie, M, nres
+	real scalar nev, hasopp, hastie, M, nres, nchg
 	real colvector gend, blob
 	real rowvector hdr
 
@@ -396,8 +451,11 @@ void DynamNat::setup(real scalar model, pointer(class DynamState scalar) scalar 
 	hastie = (rows(tiemat) > 0)
 	gend = J(nev, 1, 1)
 	if (nev > 1) gend[1::(nev-1)] = ((*pS).gfirst[2::nev] :== (2::nev))
-	hdr = (DYNAM_PROTOCOL_NEEDED(), model, (*pS).n, nev, n1, M, hasopp, hastie, win4, wgt4, active, J(1, 20 - M, 0))
-	blob = hdr' \ vec(((*pS).events, gend)') \ vec(covmat')
+	nchg = (cols(chg) == 4 ? rows(chg) : 0)
+	hdr = (DYNAM_PROTOCOL_NEEDED(), model, (*pS).n, nev, n1, M, hasopp, hastie, win4, wgt4, active, J(1, 20 - M, 0), nchg, 0, 0, 0)
+	blob = hdr' \ vec(((*pS).events, gend)')
+	if (nchg > 0) blob = blob \ vec(chg')
+	blob = blob \ vec(covmat')
 	if (hasopp) blob = blob \ vec(oppmat')
 	if (hastie) blob = blob \ vec(tiemat')
 	L = rows(blob)
@@ -566,7 +624,7 @@ void DynamChoiceFitMulti(real matrix eventmat, real scalar n, real rowvector act
 		real rowvector tertiusvec, real rowvector egoalterint1vec, real rowvector egoalterint2vec,
 		real scalar windowinertia, real scalar windowrecip,
 		real scalar weightedinertia, real scalar weightedrecip, real scalar weightedindeg, real scalar weightedoutdeg,
-		real scalar n1, real matrix oppmat, real matrix tiemat,
+		real scalar n1, real matrix oppmat, real matrix tiemat, real matrix chgmat,
 		string scalar bname, string scalar vname, string scalar llname) {
 	class DynamState scalar S
 	class DynamNat scalar NT
@@ -579,6 +637,7 @@ void DynamChoiceFitMulti(real matrix eventmat, real scalar n, real rowvector act
 	if (sum(activevec) == 0) _error("nwdynam: at least one effect must be selected.")
 	covmat = (samevec \ diffvec \ simvec \ altervec \ tertiusvec \ egoalterint1vec \ egoalterint2vec)
 	NT = DynamNat()
+	NT.chg = chgmat
 	NT.open()
 	NT.setup(1, &S, activevec, covmat, (windowinertia, windowrecip, 1e300, 1e300),
 		(weightedinertia, weightedrecip, weightedindeg, weightedoutdeg), n1, oppmat, tiemat)
@@ -591,7 +650,7 @@ void DynamChoiceFitMulti(real matrix eventmat, real scalar n, real rowvector act
 
 void DynamRateFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
 		real rowvector egovec, real rowvector tertiusvec, real scalar windowindeg, real scalar windowoutdeg,
-		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1,
+		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1, real matrix chgmat,
 		string scalar bname, string scalar vname, string scalar llname) {
 	class DynamState scalar S
 	class DynamNat scalar NT
@@ -604,6 +663,7 @@ void DynamRateFitMulti(real matrix eventmat, real scalar n, real rowvector activ
 	if (sum(activevec) == 0) _error("nwdynam: at least one effect must be selected.")
 	covmat = (J(3, n, 0) \ egovec \ tertiusvec \ J(2, n, 0))
 	NT = DynamNat()
+	NT.chg = chgmat
 	NT.open()
 	NT.setup(2, &S, activevec, covmat, (1e300, 1e300, windowindeg, windowoutdeg),
 		(0, 0, weightedindeg, weightedoutdeg), n1, J(0, 0, 0), J(0, 0, 0))
@@ -617,7 +677,7 @@ void DynamRateFitMulti(real matrix eventmat, real scalar n, real rowvector activ
 void DynamRateInterceptFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
 		real rowvector egovec, real rowvector tertiusvec,
 		real scalar windowindeg, real scalar windowoutdeg,
-		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1,
+		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1, real matrix chgmat,
 		string scalar bname, string scalar vname, string scalar llname) {
 	class DynamState scalar S
 	class DynamNat scalar NT
@@ -635,6 +695,7 @@ void DynamRateInterceptFitMulti(real matrix eventmat, real scalar n, real rowvec
 	theta0 = J(1, 1 + sum(activevec), 0)
 	if (ttot > 0 & nev > 1) theta0[1] = ln((nev - 1) / (nrisk * ttot))
 	NT = DynamNat()
+	NT.chg = chgmat
 	NT.open()
 	NT.setup(3, &S, activevec, covmat, (1e300, 1e300, windowindeg, windowoutdeg),
 		(0, 0, weightedindeg, weightedoutdeg), n1, J(0, 0, 0), J(0, 0, 0))
@@ -648,17 +709,17 @@ void DynamRateInterceptFitMulti(real matrix eventmat, real scalar n, real rowvec
 // the three-effect choice model and the two-effect rate model without options (kept as short forms)
 void DynamFitUnit1(real matrix eventmat, real scalar n, string scalar bname, string scalar vname, string scalar llname) {
 	DynamChoiceFitMulti(eventmat, n, (1, 1, 1, J(1, 14, 0)), J(1, n, 0), J(1, n, 0), J(1, n, 0), J(1, n, 0), J(1, n, 0), J(1, n, 0), J(1, n, 0),
-		1e300, 1e300, 0, 0, 0, 0, 0, J(0, 0, 0), J(0, 0, 0), bname, vname, llname)
+		1e300, 1e300, 0, 0, 0, 0, 0, J(0, 0, 0), J(0, 0, 0), J(0, 4, 0), bname, vname, llname)
 }
 
 void DynamFitRateUnit1(real matrix eventmat, real scalar n, string scalar bname, string scalar vname, string scalar llname) {
-	DynamRateFitMulti(eventmat, n, (1, 1, 0, 0, 0), J(1, n, 0), J(1, n, 0), 1e300, 1e300, 0, 0, 0, bname, vname, llname)
+	DynamRateFitMulti(eventmat, n, (1, 1, 0, 0, 0), J(1, n, 0), J(1, n, 0), 1e300, 1e300, 0, 0, 0, J(0, 4, 0), bname, vname, llname)
 }
 
 void DynamCoordFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
 		real rowvector samevec, real rowvector diffvec, real rowvector simvec, real rowvector altervec,
 		real rowvector tertiusvec, real rowvector egoalterint1vec, real rowvector egoalterint2vec,
-		real matrix tiemat,
+		real matrix tiemat, real matrix chgmat,
 		string scalar bname, string scalar vname, string scalar llname) {
 	class DynamState scalar S
 	class DynamNat scalar NT
@@ -671,6 +732,7 @@ void DynamCoordFitMulti(real matrix eventmat, real scalar n, real rowvector acti
 	if (sum(activevec) == 0) _error("nwdynam: at least one effect must be selected.")
 	covmat = (samevec \ diffvec \ simvec \ altervec \ tertiusvec \ egoalterint1vec \ egoalterint2vec)
 	NT = DynamNat()
+	NT.chg = chgmat
 	NT.open()
 	NT.setup(4, &S, activevec, covmat, (1e300, 1e300, 1e300, 1e300), (0, 0, 0, 0), 0, J(0, 0, 0), tiemat)
 	// not concave (product of two softmax probabilities): every start is run, the best converged result is kept
