@@ -41,11 +41,13 @@
 {opt recipwindow(#)}
 {opt indegwindow(#)}
 {opt outdegwindow(#)}
+{opt tertiuswindow(#)}
 {opt weightedinertia}
 {opt weightedrecip}
 {opt weightedindeg}
 {opt weightedoutdeg}
 {opt opportunities(varlist)}
+{opt oppframe(framename)}
 {opt tie(netname)}
 {opt change(varname netname [...])}
 {opt increment}
@@ -83,19 +85,21 @@
 {synopt:{opt egoalterint(varlist)}}choice and choice_coordination sub-models - interaction of the sender's and candidate's own covariate values (exactly two numeric variables){p_end}
 
 {syntab:Windowed effects (real-time recency cutoff - self-activating, see Description)}
-{synopt:{opt inertiawindow(#)}}choice sub-model only - recency cutoff on {opt inertia}; self-activates {opt inertia}{p_end}
+{synopt:{opt inertiawindow(#)}}choice and choice_coordination sub-models - recency cutoff on {opt inertia}; self-activates {opt inertia}{p_end}
 {synopt:{opt recipwindow(#)}}choice sub-model only - recency cutoff on {opt recip}; self-activates {opt recip}{p_end}
-{synopt:{opt indegwindow(#)}}rate sub-model only - recency cutoff on {opt indeg}; self-activates {opt indeg}{p_end}
+{synopt:{opt indegwindow(#)}}rate and choice_coordination sub-models - recency cutoff on {opt indeg}; self-activates {opt indeg}{p_end}
 {synopt:{opt outdegwindow(#)}}rate sub-model only - recency cutoff on {opt outdeg}; self-activates {opt outdeg}{p_end}
+{synopt:{opt tertiuswindow(#)}}all three sub-models - recency cutoff on {opt tertius()}: only the ties of the last # time units count; needs {opt tertius()}{p_end}
 
 {syntab:Weighted effects (tie value instead of presence - self-activating, see Description)}
-{synopt:{opt weightedinertia}}choice sub-model only - self-activates {opt inertia}{p_end}
+{synopt:{opt weightedinertia}}choice and choice_coordination sub-models - self-activates {opt inertia}{p_end}
 {synopt:{opt weightedrecip}}choice sub-model only - self-activates {opt recip}{p_end}
-{synopt:{opt weightedindeg}}choice and rate sub-models - self-activates {opt indeg}{p_end}
+{synopt:{opt weightedindeg}}all three sub-models - self-activates {opt indeg}{p_end}
 {synopt:{opt weightedoutdeg}}choice and rate sub-models - self-activates {opt outdeg}{p_end}
 
 {syntab:Opportunity restriction (choice sub-model only)}
 {synopt:{opt opportunities(varlist)}}per-event candidate risk-set restriction; see {bf:Description} below{p_end}
+{synopt:{opt oppframe(framename)}}the frame that holds the two variables of {opt opportunities()}, so that the covariates can stay in the dataset in memory{p_end}
 
 {syntab:Cross-network effects}
 {synopt:{opt tie(netname)}}choice and choice_coordination sub-models - presence in a SEPARATE, static exogenous network; see {bf:Description} below{p_end}
@@ -194,15 +198,12 @@ construction). {opt weightedindeg}, {opt weightedoutdeg}, and two-mode (bipartit
 are verified together with {opt intercept} - the same statistic swaps the
 NO-intercept engine already uses turned out to compose correctly with the hazard-integral
 aggregation exactly as written, confirmed by exact agreement with real {cmd:goldfish}.
-{opt indegwindow()} and {opt outdegwindow()} combined with {opt intercept} remain REJECTED - a real,
-disclosed architectural gap, not merely unverified: {cmd:goldfish}'s own {opt window()} mechanism
-inserts synthetic "dissolve" events into the timeline at exactly {it:event_time + window} for every
-windowed tie, forcing its piecewise-constant hazard machinery to recompute right at each expiry;
-this command only recomputes statistics at real dependent events, so a windowed contact would
-silently over-count for the rest of the current inter-event interval once {opt intercept}'s own
-hazard-INTEGRAL aggregation is in play (the NO-intercept engine's ordinal partial likelihood never
-integrates over real time at all, which is why {opt indegwindow()} and {opt outdegwindow()} already work
-correctly without {opt intercept}).
+{opt indegwindow()} and {opt outdegwindow()} combine with {opt intercept}: as in {cmd:goldfish}, a windowed tie
+leaves the statistics at exactly {it:event_time + window}, so the hazard integral is split at these
+expiry times as well as at the changes of time-varying covariates. {opt tertiuswindow()} also combines
+with {opt intercept}; only a {opt change()} of the {opt tertius()} variable together with
+{opt tertiuswindow()} and {opt intercept} is not available, because {cmd:goldfish} orders such a change and
+the expiry of the window in a way that this command does not reproduce.
 
 	{cmd:. nwdynam mynet, submodel(rate) intercept indeg}
 	{cmd:. nwdynam mynet, submodel(rate) intercept outdeg ego(dept)}
@@ -240,9 +241,9 @@ not register a {cmd:choice_coordination} version of them at all; {opt ego()} bec
 {opt submodel(rate)}-only, matching {opt submodel(choice)}'s own scope exactly. {opt tertiusDiff()}
 remains real-goldfish-eligible but not yet wired - a real, disclosed gap rather than a blanket
 restriction.
-{opt opportunities()}, every window option, {opt weightedinertia}, {opt weightedrecip},
-{opt weightedindeg}, {opt weightedoutdeg}, and two-mode networks are likewise not yet supported for
-{opt submodel(choice_coordination)}.
+{opt opportunities()}, {opt recipwindow()}, {opt outdegwindow()}, {opt weightedrecip}, {opt weightedoutdeg}
+and two-mode networks are not supported for {opt submodel(choice_coordination)}; {opt inertiawindow()},
+{opt indegwindow()}, {opt tertiuswindow()}, {opt weightedinertia} and {opt weightedindeg} are.
 
 	{cmd:. nwdynam mynet, submodel(choice_coordination) inertia}
 	{cmd:. nwload mynet, xvars}
@@ -254,32 +255,27 @@ restriction.
 	{cmd:. nwdynam mynet, submodel(choice_coordination) egoalterint(dept dept2)}
 
 {pstd}
-{bf:Two-mode (bipartite) networks} are supported for a real, but DELIBERATELY NARROW, set of
-effects: {opt inertia} (choice), {opt indeg} (choice), and {opt outdeg} (rate) - each verified to
-match {cmd:goldfish} exactly on a real toy affiliation network (see {bf:Remarks} below). Declare
-the network via {help nwset}'s {opt twomode} option combined with {opt eventtime()}:
+{bf:Two-mode (bipartite) networks} are supported with these effects: {opt inertia}, {opt indeg}, {opt alter()}, {opt four},
+{opt egoalterint()} and {opt tertius()} (choice sub-model), and {opt outdeg} and {opt ego()} (rate sub-model),
+all verified to match {cmd:goldfish} on random event logs. Declare the network via {help nwset}'s
+{opt twomode} option combined with {opt eventtime()}:
 
 	{cmd:. nwset sender receiver, twomode eventtime(t) name(mynet)}
 	{cmd:. nwdynam mynet}
 
 {pstd}
 {cmd:nwdynam} requires every event's sender to be mode 1 and receiver to be mode 2 (never the
-reverse), matching {cmd:goldfish}'s own strictly one-directional two-mode DyNAM architecture -
-checked directly against the real event data, not assumed. {opt recip}, {opt outdeg} under
-{opt submodel(choice)}, {opt commonreceiver}, and {opt indeg} under {opt submodel(rate)} are
-rejected outright for two-mode networks - {cmd:goldfish} itself hard-rejects each of these at
-estimation time (a candidate/sender role that structurally cannot exist when mode 2 never sends and
-mode 1 never receives), not merely a scope choice on this command's own part. Every attribute effect
-({opt same()}, {opt diff()}, {opt sim()}, {opt alter()}, {opt ego()}, {opt egoalterint()},
-{opt tertius()}) is ALSO rejected for two-mode - a real limitation found DURING verification, not
-assumed safe: direct comparison against {cmd:goldfish}'s own internal statistics showed even the
-simplest attribute effects computing something different from the obvious combined-covariate
-approach, traced to a {cmd:goldfish}-internal representation detail (its own "exclude the self-tie"
-convention applied by raw row/column index rather than actual actor identity) that could not be
-confidently reverse-engineered in the time available - disclosed as a real gap rather than shipped
-with an unverified formula. {opt trans}, {opt cycle}, {opt commonsender}, {opt four},
-{opt nodetrans}, {opt tie()}, {opt opportunities()} and every windowed or weighted effect are likewise not yet verified for two-mode
-and are rejected outright.
+reverse), matching {cmd:goldfish}'s own strictly one-directional two-mode DyNAM architecture.
+The covariates are one value per actor of the combined actor list (mode 1 first, then mode 2):
+{opt alter()} reads the value of the receiving actor (mode 2), {opt ego()} the value of the sending actor (mode 1),
+{opt egoalterint()} multiplies the sender's value of the first variable by the receiver's value of the second,
+and {opt tertius()} is the mean of the values of the mode-1 actors who have a tie to the candidate.
+{opt recip}, {opt outdeg} under {opt submodel(choice)}, {opt indeg} under {opt submodel(rate)}, {opt tertius()} and
+{opt nodetrans} under {opt submodel(rate)}, {opt trans}, {opt cycle}, {opt commonreceiver}, {opt nodetrans},
+{opt same()}, {opt diff()}, {opt sim()} and {opt commonsender} are rejected for two-mode networks:
+{cmd:goldfish} itself refuses them or returns statistics of the wrong dimension. {opt change()} works
+with the two-mode effects above except {opt egoalterint()}. {opt tie()}, {opt opportunities()} and every
+windowed or weighted effect are not available for two-mode networks and are rejected.
 
 {pstd}
 {opt opportunities(evvar actvar)} restricts the candidate risk set PER EVENT to a caller-supplied
@@ -295,10 +291,15 @@ a given event is excluded from the risk set for that event only; the sender is a
 whether or not it is listed (checked directly against {cmd:goldfish}'s own behavior). As in
 {cmd:goldfish}, the realised receiver of every event must be listed as available for that event
 (error 198 otherwise); rows with a missing value are refused (error 416). Because {opt opportunities()} needs the event/available-actor shape
-and {opt same()}, {opt diff()}, {opt sim()}, {opt alter()}, {opt ego()}, {opt tertius()}, and
-{opt egoalterint()} each need the one-row-per-actor shape, the current dataset cannot satisfy both
-at once - {opt opportunities()} cannot be combined with any of those seven options in the same
-{cmd:nwdynam} call (it stops with error 198).
+and {opt same()}, {opt diff()}, {opt sim()}, {opt alter()}, {opt tertius()} and
+{opt egoalterint()} each need the one-row-per-actor shape, put the opportunities data in a separate frame
+and name it in {opt oppframe(framename)}: the covariates stay in the dataset in memory, the two variables of
+{opt opportunities()} are read from the frame. Without {opt oppframe()} the combination stops with error 198.
+{opt change()} together with {opt opportunities()} also needs {opt oppframe()}.
+
+	{cmd:. frame create opps}
+	{cmd:. frame opps: use opportunities, clear}
+	{cmd:. nwdynam mynet, inertia same(dept) opportunities(evvar actvar) oppframe(opps)}
 
 	{cmd:. nwdynam mynet, inertia opportunities(evvar actvar)}
 
@@ -438,10 +439,12 @@ has passed, even though it was present a moment earlier). {it:#} is a positive n
 {opt eventtime()} values. Each window option on its own both selects its own effect and sets its
 window - no separate {opt inertia}, {opt recip}, {opt indeg}, or {opt outdeg} flag is needed (the
 same convention {help nwergm}'s own {opt gwesp(real)} uses). {opt inertiawindow()} and
-{opt recipwindow()} apply under {opt submodel(choice)} only; {opt indegwindow()} and
-{opt outdegwindow()} apply under {opt submodel(rate)} only ({opt indeg} means something different
+{opt recipwindow()} apply under {opt submodel(choice)} ({opt inertiawindow()} also under
+{opt submodel(choice_coordination)}); {opt indegwindow()} applies under {opt submodel(rate)} and
+{opt submodel(choice_coordination)}, {opt outdegwindow()} under {opt submodel(rate)} only ({opt indeg} means something different
 in each sub-model - see {bf:Effect selection} above - so its own window option is likewise
-sub-model-specific). All windows are fully independent of each other - a model can use different
+sub-model-specific). {opt tertiuswindow(#)} limits {opt tertius()} to the ties of the last {it:#} time units
+(all three sub-models). All windows are fully independent of each other - a model can use different
 values for each.
 
 	{cmd:. nwdynam mynet, inertiawindow(604800)}
@@ -457,8 +460,8 @@ ties from the actor) - {cmd:goldfish}'s {opt weighted = TRUE} argument. Without 
 the weighted effects count the prior events. Self-activating, the same convention
 as the window options above - {opt weightedinertia} alone both selects {opt inertia} and switches
 it to the tie value. {opt weightedindeg} and {opt weightedoutdeg} apply under BOTH sub-models (unlike
-{opt indegwindow()} and {opt outdegwindow()}, which remain {opt submodel(rate)}-only - a real, disclosed
-gap in choice-side windowing, not in choice-side weighting). A weighted effect combined with that same effect's
+{opt indegwindow()} and {opt outdegwindow()}, which are {opt submodel(rate)} options). Under
+{opt submodel(choice_coordination)} {opt weightedinertia} and {opt weightedindeg} are available. A weighted effect combined with that same effect's
 window uses the summed value of the events within the window, as in {cmd:goldfish}.
 
 	{cmd:. nwdynam mynet, weightedinertia}

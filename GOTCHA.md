@@ -218,3 +218,26 @@ comparing with goldfish 1.6.12 on random logs (`dev/dynam_comp_crosscheck.R`, te
   63.31 is smaller, so the "same time" change would be earlier. Use float variables for such changes or read both from the same source.
 - The old Mata evaluators do NOT know composition change (owner's decision: no new Mata references); the goldfish files in `dev/comp` are the reference.
 - Windows/Linux plugins in the repository are stale (protocol 3) until CI rebuilds them: those platforms stop with r(3495).
+
+## Windows on tertius, coordination windows, two-mode effects, opportunities with covariates: what goldfish does
+
+(Plugin protocol 5.) Data and reference values: `dev/win/` (made by `dev/dynam_win_crosscheck.R`, regenerate with `Rscript dev/dynam_win_crosscheck.R dev/win`,
+about 15 minutes; test `cscripts/test_nwdynam_combinations.do`).
+- Event times in the core are stored as float: 125.1 is 125.0999985. A window expires when `time_of_tie + window < current time` (the sum computed in double as in R),
+  so a boundary case is decided by the stored float. The cross-check logs use times that are multiples of 0.25 (exact in float) and are read back with `recast double`.
+  `import delimited` also makes decimals float: recast to double before `nwset`, or the boundary cases differ from goldfish.
+- Windowed rate effects with `intercept`: the hazard integral is split at the expiry of every window as well as at the covariate changes. Expiries after the last
+  change/event do not count. A creation at time t is applied before a dissolve at the same time.
+- Windowed tertius (goldfish `update_REM_choice_tertius`): a per-receiver cache holds the mean attribute of the in-neighbours in the windowed network (NaN if none). When a tie
+  flips sign: if all caches are 0, or any is NaN, or the new value is NaN, every NaN-cache receiver gets the mean of the non-NaN caches as its statistic. goldfish turns
+  a missing statistic into 0 (found with `preprocessingOnly = TRUE`).
+- A change of the tertius variable together with `tertiuswindow()` and `intercept` (rate) is refused: goldfish's likelihood there differs from every ordering of the
+  change and the window expiry tried (about 1 log-likelihood unit on some logs; the statistics of the plugin and of goldfish's own preprocessing agree, the difference is in the
+  start and end of the observation). Do not try to lift this without a new idea.
+- choice_coordination: a windowed and a weighted inertia (or indeg) in one model are nearly collinear and the likelihood is flat: the estimates agree to about 1e-4, not 1e-6,
+  although the log likelihood agrees to 1e-6. The standard errors are numerical (10% tolerance). The generator skips such combinations.
+- Two-mode (goldfish 1.6.12): `alter(isTwoMode = TRUE)` and `ego(isTwoMode = TRUE)` need the flag; `egoAlterInt` has no flag and takes mode-1 attribute x mode-2 attribute; `tertius` uses
+  the mode-1 attribute; `four` works. `same`, `diff`, `sim` stop with an error; `commonSender` returns an n2 x n2 matrix; recip, outdeg (choice), trans, cycle, commonReceiver, nodeTrans
+  and (rate) indeg, tertius, nodeTrans are refused by goldfish. Actor labels sort as text: `A10` comes before `A2`, so an `opportunities()` actor index differs from the
+  generator index when there are 10 or more actors (the cross-check uses at most 9).
+- `opportunities()` takes one row per event and available actor, the covariates one row per actor: `oppframe(name)` reads the two variables from a frame.
