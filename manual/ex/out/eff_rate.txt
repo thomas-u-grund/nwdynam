@@ -1,0 +1,42 @@
+. nwdynam mail, submodel(rate) indeg outdeg
+------------------------------------------------------------
+Dynamic Network Actor Model - rate sub-model, no intercept (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.99e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       indeg |   .0324628   .0121141     2.68   0.007     .0087195     .056206
+      outdeg |   .2981233   .0176336    16.91   0.000     .2635621    .3326845
+------------------------------------------------------------------------------
+
+. estimates store rate0
+
+. nwdynam mail, submodel(rate) indeg outdeg ego(level)
+------------------------------------------------------------
+Dynamic Network Actor Model - rate sub-model, no intercept (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.98e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       indeg |   .0317156   .0119843     2.65   0.008     .0082269    .0552044
+      outdeg |   .2891426   .0177914    16.25   0.000     .2542721    .3240131
+         ego |  -.1205671   .0423816    -2.84   0.004    -.2036334   -.0375008
+------------------------------------------------------------------------------
+
+. estimates store rate1
+
+. lrtest rate1 rate0
+
+Likelihood-ratio test
+Assumption: rate0 nested within rate1
+
+ LR chi2(1) =   8.12
+Prob > chi2 = 0.0044

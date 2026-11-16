@@ -1,0 +1,8 @@
+. capture noisily nwdynam mail, submodel(choice_coordination)
+submodel(choice_coordination) requires an UNDIRECTED network (goldfish's own
+coordination model is for undirected tie-formation events) - declare mail via
+nwset ..., undirected eventtime() - see nwdynam.
+invalid syntax
+
+. display "return code: " _rc
+return code: 198

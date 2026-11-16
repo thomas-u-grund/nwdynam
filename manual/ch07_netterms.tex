@@ -1,0 +1,56 @@
+\chapter{Effects on other networks}\label{ch:netterms}
+
+The effects of Chapter~\ref{ch:effects} read the dependent network, the network of the events that are modeled. Often the question is whether ties in \emph{another} network explain the events: a reporting hierarchy, a friendship network, an earlier sequence of events. \opt{tie()}, \opt{netterms()} and \opt{ignorerep()} add such effects to the choice and the coordination sub-model. They are the effects that \goldfish{} offers through \texttt{tie(network)}, the closure effects with a named network, \texttt{mixedTrans} and its relatives, \texttt{tertiusDiff} and the argument \texttt{ignoreRep}.
+
+\section{Which networks}\label{sec:whichnets}
+
+A network used by one of these terms is the name of a network that was declared with \texttt{nwset}, in one of three forms:
+\begin{itemize}[nosep]
+  \item the \emph{fitted network itself}: the same effect with its own window, weight or \opt{ignorerep};
+  \item an \emph{ordinary} network (not declared with \opt{eventtime()}) with exactly the same number of actors as the fitted network, in the same order. The actors are matched by row and index, not by label, as the covariate options of Section~\ref{sec:attributes} do when the dataset has no label variable;
+  \item a network declared with \opt{eventtime()} that \emph{changes over time} with its own events. It starts empty and its actors are matched to those of the fitted network by label; an actor of this network that is not an actor of the fitted network stops the command with error 198.
+\end{itemize}
+Events of another network at exactly the time of an event of the dependent network are seen by the following events only, as for covariate changes (Section~\ref{sec:tvc}). With a window the statistic starts at 0 whatever the other network holds at the start of the log, as in \goldfish{}.
+\todoowner{Fits that use an \emph{event} network as the second network (for example \texttt{netterms(tie(hier))} with the reporting hierarchy declared as an event network at time 0) did not converge reliably in a test for this manual on the first 631 emails: the estimates depended on the starting values (different \texttt{seed()}, different results, log likelihoods between $-2272$ and $-2307$, the largest not reached by every seed, and some runs reported an estimate near $-28$), although the same tie as an ordinary network gave one stable result ($-2297.04$). \texttt{netterms(trans(mail))} through the fitted network itself was stable. The examples of this manual therefore use ordinary networks. Please check before release whether this is a defect of 1.8.0; the chapter describes the documented behaviour.}
+
+\section{The terms}
+
+The terms of \opt{netterms()} are written as in \goldfish{}, separated by spaces, each one \emph{effect}(\emph{networks}\,[, \emph{options}]). The coefficients follow those of the other effects, in the order of the terms, and are named after them (\texttt{trans\_friends}, \texttt{tie\_adv\_wgt}, \texttt{mixedtrans\_net\_adv}, \ldots; long names are cut in the table, the full name is in \texttt{e(effects)}). With $A^{(\mathrm{net})}$ the tie matrix of a network at the time of the event:
+\begin{longtable}{@{}p{5.2cm}p{6.5cm}p{3.2cm}@{}}
+\toprule
+Term & Statistic $s(i,j)$ & Sub-models\\
+\midrule\endhead
+\bottomrule\endfoot
+\texttt{tie(net)} & $A^{(\mathrm{net})}_{ij}$ (with \texttt{weighted}: the value of the tie) & C, K\\
+\texttt{trans(net)} & $\sum_k A_{ik}A_{kj}$ in net & C, K\\
+\texttt{cycle(net)} & $\sum_k A_{jk}A_{ki}$ in net & C\\
+\texttt{commonsender(net)} & $\sum_k A_{ki}A_{kj}$ in net & C\\
+\texttt{commonreceiver(net)} & $\sum_k A_{ik}A_{jk}$ in net & C\\
+\texttt{four(net)} & $\sum_{k\neq l}A_{ik}A_{lk}A_{lj}$ in net & C, K\\
+\texttt{mixedtrans(net1 net2)} & $\sum_k A^{(1)}_{ik}A^{(2)}_{kj}$ & C, K\\
+\texttt{mixedcycle(net1 net2)} & $\sum_k A^{(1)}_{ki}A^{(2)}_{jk}$ & C\\
+\texttt{mixedcommonsender(net1 net2)} & $\sum_k A^{(1)}_{ki}A^{(2)}_{kj}$, counted in both directions of the pair & C\\
+\texttt{mixedcommonreceiver(net1 net2)} & $\sum_k A^{(1)}_{ik}A^{(2)}_{jk}$, counted in both directions of the pair & C\\
+\texttt{tertiusdiff(var [net])} & $\bigl|x_i-\overline{x}_{N_j}\bigr|$, $N_j$ the in-neighbours of $j$ in net (default: the fitted network) & C, K\\
+\end{longtable}
+\texttt{tertiusdiff} is the absolute difference between the covariate of the sender and the mean covariate of the in-neighbours of the candidate; a candidate without in-neighbour gets the mean of the statistics of the others. A mixed term needs two \emph{different} networks; either of them may be the fitted network, or both may be other networks. In the coordination sub-model only \texttt{tie}, \texttt{trans}, \texttt{four}, \texttt{mixedtrans} and \texttt{tertiusdiff} exist, as in \goldfish{}.
+
+\paragraph{Options of a term.} After a comma: \opt{window(\#)} counts only the events of the last \# time units (as \opt{inertiawindow()}); \opt{weighted} (only \texttt{tie}) uses the value of the tie instead of its presence; \opt{ignorerep} sets the statistic to 0 for the pairs that already have a tie in the dependent network (\goldfish{}: \texttt{ignoreRep = TRUE}).
+\begin{lstlisting}
+. nwdynam chat, inertia netterms(tie(advice) trans(advice))
+. nwdynam chat, inertia netterms(tie(advice, weighted window(30)) mixedtrans(chat advice))
+. nwdynam chat, inertia netterms(tertiusdiff(dept) four(advice, ignorerep))
+\end{lstlisting}
+
+\section{\texttt{tie()} and \texttt{ignorerep()}}
+
+\opt{tie(netname)} is the term \texttt{tie(netname)} without options: whether the tie $i\to j$ exists in another network (present when its value is above 0; negative values are not ties), identical in shape to \opt{inertia} but reading another network instead of the event history of the dependent network. It exists in the choice and the coordination sub-model. The value of the tie, a window and \opt{ignorerep} are options of the term in \opt{netterms()}.
+
+\opt{ignorerep(effects)} sets the named effects of the dependent network to 0 for the pairs that already have a tie in the dependent network, for the effects given by the options \opt{trans}, \opt{four}, \ldots; \opt{inertia} and the covariate effects have no such argument in \goldfish{}. \opt{ignorerep} is not available in the rate sub-model: \goldfish{} accepts it there but the statistic it then computes depends on an internal array layout.
+\begin{lstlisting}
+. nwdynam chat, indeg trans ignorerep(trans)
+\end{lstlisting}
+
+\section{What is not available}
+
+The terms of \opt{netterms()} are not available for two-mode networks, with \texttt{submodel(rate)}, or for a covariate that is changed with \opt{change()}. \opt{tertius}, \opt{indeg}, \opt{outdeg}, \opt{recip} and \opt{nodetrans} through another network are not available (the closure effects, \texttt{tie} and the mixed closures are). Section~\ref{sec:ex_netterms} fits several of the terms on the emails with the reporting hierarchy as the other network.

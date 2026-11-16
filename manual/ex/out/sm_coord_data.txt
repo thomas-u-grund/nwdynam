@@ -1,0 +1,11 @@
+. quietly nwwebuse manufacturing, nwclear
+
+. keep if t < 5
+(49,602 observations deleted)
+
+. nwset sender receiver, undirected eventtime(t) name(contact)
+
+. nwset
+(1 networks)
+--------------------
+      contact

@@ -1,0 +1,29 @@
+. estat outliers, method(top) parameter(5) frame(out)
+
+Outliers of the log likelihood of the events, method top, parameter 5
+(626 missing values generated)
+
+  +----------------------------------------------------+
+  | event        time   sender   receiver           ll |
+  |----------------------------------------------------|
+  |   324   3.5818291     E103       E141   -7.4849733 |
+  |   471   4.4588542     E103       E107   -7.5558189 |
+  |   512   4.5008559      E62        E88   -7.4409287 |
+  |   579   4.5671058      E47        E22   -7.2737644 |
+  |   631     4.98912      E17       E130   -7.2323627 |
+  +----------------------------------------------------+
+Table of the events in frame out (variable outlier = 1 for the flagged events).
+
+. return list
+
+scalars:
+          r(parameter) =  5
+                  r(N) =  631
+         r(n_outliers) =  5
+
+macros:
+              r(frame) : "out"
+             r(method) : "top"
+
+matrices:
+           r(outliers) :  1 x 5

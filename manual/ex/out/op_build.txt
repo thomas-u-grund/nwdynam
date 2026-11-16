@@ -1,0 +1,64 @@
+. * the candidates of every event: the employees of the division of the sender, 
+> and the realised receiver
+. quietly use `ev', clear
+
+. rename sender label
+
+. quietly merge m:1 label using `ids', keep(match) nogenerate keepusing(div)
+
+. rename (label div) (sender sdiv)
+
+. rename sender label
+
+. tempfile evdiv
+
+. quietly save `evdiv'
+
+. quietly use `ids', clear
+
+. rename (label actid) (cand candid)
+
+. keep cand candid div
+
+. rename div sdiv
+
+. joinby sdiv using `evdiv'
+
+. keep evseq candid
+
+. tempfile opp1
+
+. quietly save `opp1'
+
+. quietly use `ev', clear
+
+. rename receiver label
+
+. quietly merge m:1 label using `ids', keep(match) nogenerate keepusing(actid)
+
+. rename actid candid
+
+. keep evseq candid
+
+. append using `opp1'
+
+. quietly duplicates drop
+
+. sort evseq candid
+
+. count
+  29,405
+
+. bysort evseq: gen n = _N
+
+. summarize n
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+           n |     29,405    75.78048    22.19273          2         84
+
+. keep evseq candid
+
+. tempfile opp
+
+. quietly save `opp'

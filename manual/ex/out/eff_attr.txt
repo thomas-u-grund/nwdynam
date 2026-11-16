@@ -1,0 +1,54 @@
+. quietly nwwebuse manufacturing_nodes, nwclear
+
+. encode division, generate(div)
+
+. tempfile actors
+
+. quietly save `actors'
+
+. mkmail 5
+
+. nwload mail, xvars
+
+. gen long row = _n
+
+. gen label = _nwnode
+
+. merge m:1 label using `actors', keep(master match) nogenerate
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                               154  
+    -----------------------------------------
+
+. sort row
+
+. list label level div in 1/4
+
+     +----------------------+
+     | label   level    div |
+     |----------------------|
+  1. |  E102       2    E36 |
+  2. |  E103       2    E85 |
+  3. |  E104       1   E104 |
+  4. |  E105       2   E104 |
+     +----------------------+
+
+. tabulate level
+
+   Steps to |
+ the CEO in |
+        the |
+  reporting |
+  hierarchy |
+  (0 = CEO) |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          0 |          1        0.65        0.65
+          1 |         11        7.14        7.79
+          2 |         64       41.56       49.35
+          3 |         33       21.43       70.78
+          4 |         44       28.57       99.35
+          5 |          1        0.65      100.00
+------------+-----------------------------------
+      Total |        154      100.00

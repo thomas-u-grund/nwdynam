@@ -1,0 +1,33 @@
+. * artificial membership, for illustration of present() and compchange() (not a
+>  recommended analysis):
+. * the employees who neither send nor receive an email before day 4.5 are absen
+> t at the start and join at day 4.5
+. quietly merge m:1 label using `early', keep(master match) nogenerate
+
+. gen byte member0 = seen == 1
+
+. tabulate member0
+
+    member0 |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          0 |         54       35.06       35.06
+          1 |        100       64.94      100.00
+------------+-----------------------------------
+      Total |        154      100.00
+
+. sort row
+
+. preserve
+
+. keep if member0 == 0
+(100 observations deleted)
+
+. gen label2 = label
+
+. gen double tjoin = 4.5
+
+. gen byte joined = 1
+
+. nwset label label2 joined, eventtime(tjoin) selfloop name(membership)
+
+. restore

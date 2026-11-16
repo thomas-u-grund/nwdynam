@@ -1,0 +1,59 @@
+. mkmail 5
+
+. nwdynam mail, inertia recip indeg
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.31e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.764847   .1422701    12.40   0.000     1.486003    2.043691
+       recip |   2.922381   .1401073    20.86   0.000     2.647776    3.196986
+       indeg |   .1096229   .0083142    13.18   0.000     .0933273    .1259185
+------------------------------------------------------------------------------
+
+. quietly nwwebuse manufacturing, nwclear
+
+. keep if t < 5
+(49,602 observations deleted)
+
+. replace t = floor(t * 4) / 4
+(631 real changes made)
+
+. nwset sender receiver, directed eventtime(t) name(coarse)
+
+. nwdynam coarse, inertia recip indeg
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: coarse                        Actors: 102
+Events: 631                            Log likelihood: -2.58e+03
+Note: 623 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+      coarse | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.460311   .1767983     8.26   0.000     1.113792    1.806829
+       recip |   2.318483   .1698931    13.65   0.000     1.985498    2.651467
+       indeg |   .0556754   .0106203     5.24   0.000     .0348599    .0764908
+------------------------------------------------------------------------------
+
+. nwdynam coarse, inertia recip indeg sequential
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: coarse                        Actors: 102
+Events: 631                            Log likelihood: -2.18e+03
+Note: 623 events share a time point; processed one after another (option
+sequential).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+      coarse | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.701936   .1356924    12.54   0.000     1.435984    1.967889
+       recip |   2.674651    .135617    19.72   0.000     2.408847    2.940456
+       indeg |   .0872648   .0085683    10.18   0.000     .0704712    .1040584
+------------------------------------------------------------------------------

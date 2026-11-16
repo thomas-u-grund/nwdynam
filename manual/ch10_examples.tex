@@ -1,0 +1,97 @@
+\chapter{Worked examples}\label{ch:examples}
+
+\section{How the output was produced}\label{sec:howproduced}
+
+All output in this chapter was produced by the do-files in the directory \texttt{manual/ex} of the repository, run with \nwdynam{}~\pkgversion{} and the \texttt{nwcommands} core~3.26.0 in Stata/BE~17 on macOS (Apple silicon), with the native plugin. Each do-file marks the pieces of its log with a line \texttt{*\# name}; the program \texttt{ex/mklistings.py} cuts the Stata logs at these markers into the listings that this manual includes. The data are the emails of a manufacturing company of Section~\ref{sec:datasets}, loaded from the web with \texttt{nwwebuse}, and the data of the comparison with \goldfish{}. Fits without a \opt{seed()} are deterministic here because the optimizer starts from fixed values. Nothing in this chapter is a substantive analysis; the models are chosen to show the commands, and the artificial data that some examples need (changes of a covariate, memberships, event values) are marked as such. The first example, with the declaration of the events, is in Chapter~\ref{ch:start}.
+
+\section{Effects and covariates}\label{sec:ex_effects}
+
+The file \texttt{ex02\_effects.do} puts the level in the reporting hierarchy and the division of each employee into the data (Section~\ref{sec:attributes}) and fits the choice model with and without homophily on the division:
+\showlog{eff_attr}
+\showlog{eff_same}
+Employees write more to someone of their own division (odds ratio $e^{0.60}\approx1.8$) and the likelihood-ratio test rejects the model without the effect ($\chi^2(1)=33.96$). The coefficients of the other effects change little.
+
+Closure effects: two-path closure (\opt{trans}) has a clearly positive coefficient, embeddedness in transitive structures (\opt{nodetrans}) a small one that is not significant at the 5 per cent level.
+\showlog{eff_closure}
+Recency: \opt{inertiawindow(0.5)} lets an email count as a previous contact for half a day only (the time unit is the day); \opt{weightedinertia} replaces the presence of a tie by the number of earlier emails of the pair.
+\showlog{eff_window}
+The log likelihood falls from $-2307.4$ (inertia without window) to $-2312.8$ with the window (a \goldfish{} fit of the same model has the same value, Table~\ref{tab:cmp}), and to about $-2350$ with the weighted version; the models are not nested, so they are compared by log likelihood or information criteria, not by \texttt{lrtest}.
+
+The rate model with a covariate: do employees who are higher up in the hierarchy (smaller \texttt{level}) write more often?
+\showlog{eff_rate}
+\texttt{estat ic} after the last fit:
+\showlog{eff_ic}
+
+\section{Effects of other networks}\label{sec:ex_netterms}
+
+The file \texttt{ex03\_special.do} builds the reporting hierarchy as an ordinary network in the actor order of \texttt{mail} (the tie $i\to j$ is present when $j$ is the supervisor of $i$) and uses it in \opt{netterms()}:
+\showlog{sp_hier}
+The odds of choosing a candidate are about 2.6 times higher ($e^{0.97}$) if the candidate is the sender's supervisor. The mixed closure \texttt{mixedtrans(hier mail)} counts the two-paths \emph{sender $\to$ supervisor $\to$ candidate} in which the second step is an email, that is, the supervisor of the sender wrote to the candidate; every such path multiplies the odds by 3.4 ($e^{1.23}$).
+\showlog{sp_tie}
+\showlog{sp_mixed}
+\texttt{tertiusdiff(level)}: the absolute difference between the level of the sender and the mean level of the people who wrote to the candidate; and \opt{ignorerep}:
+\showlog{sp_tdiff}
+\showlog{sp_ignorerep}
+
+\section{Changing covariates and composition change}\label{sec:ex_special}
+
+The data for these two examples are \emph{artificial} and serve to show the syntax. Ten employees, chosen at random, move one level up on day 4.2, which is declared as a change network; \opt{alter(level)} then reads the level that holds at the time of each event:
+\showlog{sp_changedata}
+\showlog{sp_change}
+For composition change, the employees who neither send nor receive an email before day 4.5 are declared absent at the start and join at day 4.5 (a defensible use would be a real membership list). The 54 absent employees are not in the risk sets before day 4.5, and the header says so:
+\showlog{sp_comp}
+\showlog{sp_compfit}
+
+\section{Opportunities}\label{sec:ex_opp}
+
+A per-event restriction of the candidates needs one row per event and available actor (Section~\ref{sec:opportunities}). As an illustration, the candidates of every event are the employees of the sender's division, plus the realized receiver (which must be available). The file \texttt{ex06\_opp.do} builds this data:
+\showlog{op_ids}
+\showlog{op_build}
+The risk set of an event now has 76 candidates on average, instead of 153. The choice model with the restriction, with the opportunities in the dataset in memory and with the covariates in memory and the opportunities in a frame:
+\showlog{op_fit_inmemory}
+\showlog{op_fit_frame}
+(The covariate \opt{alter(level)} could not be combined with the opportunities in the same dataset.)
+
+\section{Event values}
+
+With a value for every event (artificial here: 1 or 2 at random) the weighted effects use the sum of the values of the earlier events of the pair:
+\showlog{op_value}
+
+\section{Two-mode events}\label{sec:ex_twomode}
+
+An employee (mode 1) writes to a division (mode 2: the division of the receiver, labelled \texttt{D} plus the identifier of the head of the division). With a two-mode network the default effects of the choice model are \opt{inertia} and \opt{indeg}, and of the rate model \opt{outdeg}:
+\showlog{sm_two_data}
+\showlog{sm_two}
+
+\section{The coordination sub-model}\label{sec:ex_coord}
+
+The same emails, taken as undirected contacts (a convenient illustration; emails are not coordination ties):
+\showlog{sm_coord_data}
+\showlog{sm_coord}
+\showlog{sm_coord2}
+The default effects \opt{inertia} and \opt{indeg} could not be fitted on this log (Chapter~\ref{ch:limits}).
+
+\section{Events with identical times}\label{sec:ex_ties}
+
+Coarsening the time stamps creates ties between times. Rounding the emails down to a quarter of a day gives 623 events that share a time point with an earlier event; the estimates differ from those of the exact times, and the option \opt{sequential} gives yet another result (each event then sees the earlier events of its group):
+\showlogpart{sm_ties}{1}{61}
+
+\section{Postestimation}\label{sec:ex_post}
+
+The choice model with the default effects, then the information criteria and the log likelihood of every event, in a frame:
+\showlog{po_ic}
+\showlog{po_eventlik}
+The probabilities of every event, one row per event and candidate (96,543 rows: 631 events, 153 candidates each; the probability of every candidate of the first event is $1/153$ because nothing has happened yet):
+\showlog{po_eventprob}
+The five events with the lowest log likelihood (\opt{method(top)}). The rolling Hampel rule with a window of 50 events (\texttt{estat outliers, window(50)}) flags 12 events; its plot is Figure~\ref{fig:outliers}.
+\showlog{po_outliers}
+Change points in the mean of the log likelihood (PELT, minimum segment length 20 events), and in the variance by binary segmentation:
+\showlog{po_cpts}
+\showlog{po_cpts2}
+The plot of the outliers (Figure~\ref{fig:outliers}), and the log likelihood of every event after a rate model with intercept, whose log likelihood of $-1.4359$ is the sum of the records of Section~\ref{sec:ratemodel}:
+\showlog{po_plot}
+\showlog{po_rateint}
+
+\section{Stored results}\label{sec:ex_ereturn}
+
+\texttt{ereturn list} after the rate model of Chapter~\ref{ch:start} is shown there.

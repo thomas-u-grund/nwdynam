@@ -1,0 +1,26 @@
+. estat eventprob, frame(evp)
+
+Model probabilities of every event (goldfish: returnEventProbabilities), submode
+> l choice: 96543 rows in frame evp
+  One row per event and candidate receiver: p = probability that the actor is
+  the receiver; observed = the realised receiver.
+
+. frame evp: list in 1/6
+
+     +-----------------------------------------------------------+
+     | event       time   actor   actorid   observed           p |
+     |-----------------------------------------------------------|
+  1. |     1   3.235255    E102         1          0   .00653595 |
+  2. |     1   3.235255    E103         2          0   .00653595 |
+  3. |     1   3.235255    E104         3          0   .00653595 |
+  4. |     1   3.235255    E105         4          0   .00653595 |
+  5. |     1   3.235255    E107         5          0   .00653595 |
+     |-----------------------------------------------------------|
+  6. |     1   3.235255    E108         6          0   .00653595 |
+     +-----------------------------------------------------------+
+
+. frame evp: summarize p
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+           p |     96,543    .0065359     .027742   .0003688   .7653612

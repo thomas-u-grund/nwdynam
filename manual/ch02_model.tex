@@ -1,0 +1,63 @@
+\chapter{The model}\label{ch:model}
+
+This chapter states the dynamic network actor model, the three sub-models of \nwdynam{}, the likelihoods that are maximized, and the conventions that govern how the data enter (the order of events, events with identical times, the risk sets). The model and its interpretation are those of Stadtfeld and Block~\cite{stadtfeld2017b} and, for the coordination model, of Stadtfeld, Hollway and Block~\cite{stadtfeld2017h}; the likelihoods are those of \goldfish{}.
+
+\section{Relational events and the state of the network}
+
+The data are a list of $K$ events $e_k=(i_k,j_k,t_k,v_k)$, ordered by time: at time $t_k$ actor $i_k$ (the \emph{sender}) acts towards actor $j_k$ (the \emph{receiver}). The number $v_k$ is the \emph{value} of the event ($v_k=1$ unless a value variable is given, Section~\ref{sec:values}). The $n$ actors of the network are fixed in advance (some actors may have no event; Section~\ref{sec:isolates}), and $i_k\neq j_k$.
+
+At every time $t$ the model has a \emph{state}: the network of ties that the events before $t$ have created. The value of the tie from $i$ to $j$ is the sum of the values of the earlier events from $i$ to $j$; the tie \emph{exists} while this sum is above 0. With unit values the tie exists if $i$ has ever acted towards $j$. With a \emph{window} of length $w$ (Section~\ref{sec:windows}) an event is removed again from the tie value at $t_k+w$, so that the tie exists only if an event of the pair happened within the last $w$ time units. Every \emph{effect} is a statistic $s(\cdot)$ computed from this state, from the covariates of the actors and, for some effects, from other networks. The statistic at the time of an event is evaluated from the history \emph{strictly before} that event: there is no look-ahead.
+
+\section{The sub-models}
+
+A DyNAM separates two questions. The \emph{rate} sub-model describes which actor acts next and when, the \emph{choice} sub-model which receiver the acting actor chooses. Given the history, the two are independent, so that each can be estimated alone, and \nwdynam{} fits one sub-model per call (option \opt{submodel()}).
+
+\subsection{The choice sub-model}\label{sec:choicemodel}
+
+Given that actor $i$ acts at time $t$, the probability that $i$ chooses $j$ is a conditional logit over the candidate receivers,
+\begin{equation}\label{eq:choice}
+  P(j\mid i,t)=\frac{\exp\{\beta^{\top}s(i,j,t)\}}{\sum_{h\in R_i(t)}\exp\{\beta^{\top}s(i,h,t)\}},
+\end{equation}
+where $s(i,j,t)$ is the vector of the effect statistics of the pair $(i,j)$ and $R_i(t)$ is the set of candidates: all other actors who are present at $t$ (Section~\ref{sec:composition}), or, with \opt{opportunities()}, the actors who are available for that event (Section~\ref{sec:opportunities}). The log likelihood is the sum of $\log P(j_k\mid i_k,t_k)$ over the events. A coefficient is the change in the log odds of choosing a candidate when the statistic of that candidate increases by one and the other statistics of the candidates stay the same; $\exp(\beta)$ is an odds ratio of choosing one candidate over another.
+
+\subsection{The rate sub-model}\label{sec:ratemodel}
+
+The rate sub-model asks which actor acts. It has two forms.
+
+\paragraph{Without an intercept (the default).} The probability that actor $i$ is the sender of the next event is
+\begin{equation}\label{eq:rate}
+  P(i\mid t)=\frac{\exp\{\beta^{\top}s(i,t)\}}{\sum_{h\in R(t)}\exp\{\beta^{\top}s(h,t)\}},
+\end{equation}
+where $s(i,t)$ are statistics of the actor alone (its in-degree, its out-degree, its own covariate value; there is no second actor) and $R(t)$ is the set of \emph{all} actors who are present at $t$ ($n$ of them, not $n-1$). This is the ordinal partial likelihood: only the \emph{order} of the events enters it, never the length of the time between them. It is the same kind of likelihood as that of the choice sub-model, taken over a different risk set. A coefficient is the change in the log ratio of the rates of two actors who differ by one unit in the statistic.
+
+\paragraph{With an intercept (\opt{intercept}).} In the continuous-time form each actor is an independent Poisson clock with the hazard $\lambda_i(t)=\exp\{\beta^{\top}s(i,t)\}$, where the first statistic is a constant 1 (the \emph{intercept}). The log likelihood is
+\begin{equation}\label{eq:rateint}
+  \ell(\beta)=\sum_{k=1}^{K}\beta^{\top}s(i_k,t_k)\;-\;\sum_{k=2}^{K}(t_k-t_{k-1})\sum_{h\in R(t_k)}\exp\{\beta^{\top}s(h,t_k)\}
+\end{equation}
+(in the second sum the statistics are those of the period before $t_k$; when a statistic changes inside the period, because a time-varying covariate changes or a windowed tie expires, the integral is split at that time). The first event contributes only its own term: there is no assumed period of exposure before the first observed event. The model is now sensitive to the \emph{scale} of the time between events, that is, to the unit of the variable given to \opt{eventtime()}: the intercept is the log of the rate of an actor whose other statistics are 0, per time unit.
+
+\subsection{The coordination sub-model}\label{sec:coordmodel}
+
+The sub-model \texttt{choice\_coordination} is for \emph{undirected} events in which neither actor plays a privileged role (the forming of a treaty, co-authorship). For an event between $a$ and $b$ the model computes the choice probability \eqref{eq:choice} in both directions, $p(a\to b)$ and $p(b\to a)$, multiplies them, and normalizes over all unordered pairs $\{c,d\}$ of actors who are present:
+\begin{equation}\label{eq:coord}
+  P(\{a,b\}\mid t)=\frac{p(a\to b)\,p(b\to a)}{\sum_{\{c,d\}}p(c\to d)\,p(d\to c)}.
+\end{equation}
+This is a multinomial--multinomial joint model, not a simple conditional logit. The statistics $s(a,b,t)$ are those of the choice sub-model (Chapter~\ref{ch:options} says which effects exist); only the aggregation differs. The network must be undirected.
+
+\section{Events with identical times}\label{sec:ties}
+
+Events that have exactly the same time are \emph{simultaneous}, as in \goldfish{}: the statistics of every event of a time point are computed from the network as it was \emph{before} that time point, and the state is updated only after the whole group has been evaluated. The order of the rows of a group therefore does not matter; each event contributes its own term to the log likelihood. In the rate model with intercept the time between events inside a group is zero, and windowed effects see the group at its common time. Coarsening the time stamps of a log (rounding to days, say) creates ties and changes the estimates; that is intended and it matches \goldfish{} (an example is in Section~\ref{sec:ex_ties}). A note under the header of the results says how many events share a time point. The option \opt{sequential} processes events with equal times one after another instead, in the order in which the network lists them, each seeing the earlier ones of its group; this is what the sibling package \texttt{nwrem} does. Data without tied times are not affected by the choice.
+
+\section{Estimation}\label{sec:estimation}
+
+\nwdynam{} maximizes the log likelihood of the chosen sub-model by Newton's method on the analytic gradient and Hessian. The log likelihoods of the choice and the rate sub-model are concave in $\beta$, so that there is at most one maximum; the log likelihood of the coordination sub-model is not, and can be flat (Section~\ref{sec:technewton}). The covariance matrix of the coefficients is the inverse of the observed information, minus the inverse Hessian at the maximum, stored in \texttt{e(V)}; the table reports $z$ statistics and confidence intervals from it (\opt{level()}).
+
+An effect is flagged as \emph{not identified} when its variance is missing, zero or its standard error exceeds 100 (a separation in the data, too few events for the effect, or effects that are linear functions of each other). The names are stored in \texttt{e(unidentified)} and a note under the table says so; such an estimate must not be interpreted.
+
+\section{Reading the results}
+
+\begin{itemize}[nosep]
+  \item The coefficient of an effect in the choice model is a log odds ratio over candidate receivers (\ref{eq:choice}); in the rate model without intercept a log rate ratio of actors; in the rate model with intercept a log rate per time unit (\ref{eq:rateint}).
+  \item The log likelihood of the choice, the rate and the coordination model are not comparable with each other: they are likelihoods of different events. Models are compared within a sub-model, on the same events and the same risk sets, with \texttt{lrtest} (the models must be nested) or with the information criteria of \texttt{estat ic}.
+  \item With the default likelihoods only the order of events matters. This is not a weakness of the data but a statement of the model: a log with the same order of events and different times between them gives the same estimates. Only the rate model with intercept uses the elapsed time.
+\end{itemize}

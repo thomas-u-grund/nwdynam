@@ -1,0 +1,24 @@
+. ereturn list
+
+scalars:
+                  e(N) =  631
+              e(nodes) =  154
+                 e(ll) =  -2986.282302172496
+             e(ntimes) =  628
+
+macros:
+             e(header) : "Dynamic Network Actor Model - rate sub-model, no i.."
+               e(ties) : "simultaneous"
+          e(estat_cmd) : "nwdynam_estat"
+              e(fitid) : "2110454879000-2"
+            e(effects) : "indeg outdeg"
+           e(submodel) : "rate"
+             e(depvar) : "mail"
+              e(title) : "Dynamic Network Actor Model, rate sub-model, no in.."
+            e(version) : "1.8.0"
+                e(cmd) : "nwdynam"
+         e(properties) : "b V"
+
+matrices:
+                  e(b) :  1 x 2
+                  e(V) :  2 x 2

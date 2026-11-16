@@ -1,0 +1,49 @@
+\chapter{Technical notes}\label{ch:technical}
+
+\section{The native plugin}\label{sec:plugin}
+
+Every fit of \nwdynam{} runs in a compiled plugin (\texttt{dynam\_sim}, written in C): the log likelihood, the gradient and the exact Hessian of all sub-models, effects, windows, weighted effects, two-mode networks, \opt{opportunities()}, \opt{tie()} and the terms of \opt{netterms()} are evaluated natively, and Mata's optimizer calls the plugin for each evaluation. The postestimation commands run in the same plugin. There is \emph{no} slower fallback: Mata code that evaluates the likelihoods exists only as reference code for the tests of the package (Section~\ref{sec:howvalidated}). If the plugin file of the platform is missing, \texttt{nwdynam} stops with return code 601 and says which file is missing; if the installed plugin is older than the \texttt{.ado} files or cannot be loaded, with return code 3495.
+
+The package installs plugins for macOS (a universal binary), Linux and Windows. The C source is part of the package: \texttt{net get nwdynam} (with the same \texttt{from()} as the installation) copies it into the current directory, together with a file that explains how to build the plugin; it is also in the folder \texttt{native} of the repository, \url{https://github.com/thomas-u-grund/nwdynam}. \texttt{net install} installs the compiled plugins only. On macOS the plugin can be rebuilt with \texttt{make -C native macos}; \texttt{nwinstall, buildplugin(nwdynam)} fetches the source, compiles it on your computer (macOS and Linux) and installs it. Windows is not tested yet.
+
+\section{The Mata part}
+
+The Mata library of the package, \texttt{lnwdynam.mlib}, prepares the event stream (sorting by time, grouping events with identical times, the actors, the covariate and change tables, the risk sets), writes the model into the data of the plugin, runs the optimizer and returns the estimates to the \texttt{.ado} file. The library is built with Stata~17, the oldest tested version, because a library built by a newer Stata is ignored by an older one (\texttt{r(3499)}); \texttt{nwinstall, buildmata(nwdynam)} rebuilds it with your own Stata. The library also depends on the Mata library of the core, and \nwdynam{} says so if the two were not built together.
+
+\section{Optimization}\label{sec:technewton}
+
+\paragraph{Newton's method.} The log likelihoods of the choice and the rate sub-model are concave. They are maximized by damped Newton steps on the analytic gradient and Hessian, starting from $\beta=0$: a full step, halved until the log likelihood does not fall. The iteration stops when the Newton decrement $g^{\top}(-H)^{-1}g$ is below $10^{-12}$, or below $10^{-13}$ times the absolute value of the log likelihood where round-off does not allow less, within at most 100 iterations. The covariance matrix is $(-H)^{-1}$ at the maximum. For the rate sub-model with intercept the start is a vector computed from the data.
+
+\paragraph{Fallbacks.} If the Newton iterations do not converge (a Hessian that is not negative definite, effects that are not identified), up to eight starts of BFGS on the analytic gradient follow, the first start fixed and the others drawn at random in an increasing range (with \opt{seed()} they are reproducible); the first converged start wins and Newton polishes it. A Nelder--Mead search from a fixed start is the last resort.
+
+\paragraph{The coordination sub-model.} Its log likelihood is not concave. All starting values are run, with BFGS on the gradient (the Hessian is numerical), and the best converged result is kept. Its standard errors come from a numerical derivative.
+
+\paragraph{Reproducibility.} Fits that Newton's method solves from zero do not use random numbers and need no seed. Fits that fall back on random starting values, and every fit of the coordination sub-model, depend on the seed; give \opt{seed()} to make them reproducible. Results are reproducible on the same platform; across platforms they agree to the accuracy of the optimizer, not to the last digit.
+
+\section{Performance}\label{sec:speed}
+
+The run times of \nwdynam{}~1.8.0 were compared with \goldfish{} on simulated event logs of 200 to 20,000 events among 20 to 100 actors. Four effect sets were used: C1, the default choice effects (\opt{inertia}, \opt{recip}, \opt{indeg}); C2, adding \opt{same()}; C3, \opt{inertia} and \opt{trans}; R1i, the rate sub-model with \opt{intercept} and the default effects. \goldfish{} has three engines; \texttt{default\_c} and \texttt{gather\_compute} took the same time, and \texttt{default} was 1.8 to 15 times slower. Table~\ref{tab:speed} gives a selection of the cells (seconds per fit, medians).
+\begin{table}[ht]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Cell & nwdynam 1.8.0 & goldfish \texttt{default\_c} & goldfish \texttt{default}\\
+\midrule
+C1, 200 events, 20 actors & 0.038 & 0.256 & 0.463\\
+C1, 1000 events, 30 actors & 0.043 & 1.254 & 2.343\\
+C1, 5000 events, 50 actors & 0.063 & 6.332 & 14.0\\
+C1, 20000 events, 100 actors & 0.236 & 26.2 & 101.4\\
+C2, 5000 events, 100 actors & 0.089 & 6.565 & 26.2\\
+C3, 20000 events, 100 actors & 0.166 & 19.8 & 71.0\\
+R1i, 5000 events, 100 actors & 0.089 & 5.405 & 35.0\\
+R1i, 20000 events, 100 actors & 0.217 & 24.3 & 355.3\\
+\bottomrule
+\end{tabular}
+\caption{Seconds per fit on Linux (Intel Core i7-12700K, Ubuntu 22.04.4, StataNow 19.5 MP limited to 8 processors, R 4.6.0), 16 November 2026.}\label{tab:speed}
+\end{table}
+\nwdynam{} was faster than \goldfish{} in every one of the 16 cells measured: 7 to 119 times against \texttt{default\_c} and 12 to 1,637 times against the default engine. The gain grows with the number of events, because the time of \goldfish{} is dominated by a preprocessing step that computes the statistics of each event for each possible receiver, which \nwdynam{} does not have as a separate step. Estimates agree with \goldfish{} to a relative difference of at most $6\cdot10^{-7}$ in every cell, the log likelihood to round-off.
+
+\paragraph{How it was measured.} One fit per process, after an untimed warm-up fit (so that the first call, which loads the libraries, is not in the time); the timer covers the estimation command (for \goldfish{}, the estimation call including its preprocessing), not the loading of the data. Up to seven repeats with a different seed for each repeat (five, three or one in the largest cells of \goldfish{}); the table shows medians. Both programs get the same data and the same specification with their default control settings. Each fit has a limit of 600 seconds. The times of \goldfish{} were measured once, with an earlier version of \nwdynam{}; they were not repeated for 1.8.0, so that the two programs were not timed in turn for this version.
+
+\paragraph{What was not measured.} The effects that were added in version 1.8.0 (effects through other networks, windows, composition change, time-varying covariates, two-mode networks) and the \texttt{estat} commands were not benchmarked; fits that do not use them are as fast as in earlier versions (within noise in all 16 cells). The coordination sub-model was not compared with \goldfish{} in this benchmark. The times of the examples of this manual on a laptop are not reported; each fit takes a fraction of a second.
+\todoowner{The last sentence of the paragraph above (each example fit takes a fraction of a second) is my observation while running the examples, not a measurement recorded in the repository; delete it or time the examples.}

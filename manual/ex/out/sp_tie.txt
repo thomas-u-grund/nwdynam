@@ -1,0 +1,16 @@
+. nwdynam mail, inertia recip indeg netterms(tie(hier))
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.30e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.715472   .1399473    12.26   0.000      1.44118    1.989764
+       recip |   2.893127   .1385704    20.88   0.000     2.621534     3.16472
+       indeg |   .1108786   .0082819    13.39   0.000     .0946463    .1271109
+    tie_hier |    .971987   .1954003     4.97   0.000     .5890095    1.354964
+------------------------------------------------------------------------------

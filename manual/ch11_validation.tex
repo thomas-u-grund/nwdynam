@@ -1,0 +1,55 @@
+\chapter{Validation against goldfish}\label{ch:validation}
+
+\nwdynam{} is a reimplementation, and the only reason to trust its numbers is that they agree with the program that it reimplements. This chapter describes how the comparison with \goldfish{}~\gfver{} (R~4.6) was done, shows a comparison that was run for this manual, and lists the places where the two programs differ. Appendix~\ref{app:translation} gives the translation of the commands and Chapter~\ref{ch:limits} lists what \nwdynam{} does not do.
+
+\section{How the comparison was done}\label{sec:howvalidated}
+
+The comparisons are of three kinds. The package's tests (the do-files in the directory \texttt{cscripts}) rerun the first two without R; the scripts that produced the reference values from \goldfish{} are in the directory \texttt{dev}.
+
+\begin{enumerate}[nosep]
+  \item \textbf{The compiled plugin against reference evaluators.} Every likelihood is also written in Mata, as plain reference code that does not belong to the package's estimation path and was verified against \goldfish{} while it was developed. The plugin is compared with these evaluators on random small event sequences: with simultaneous events, event values (also zero and negative), the option \opt{sequential}, windows, weighted effects, two-mode networks, \opt{opportunities()}, \opt{tie()} and every subset of the effects of a sub-model. The log likelihood and the gradient must agree to a relative $10^{-9}$ and the Hessian with the numerical derivative of the reference gradient to $10^{-5}$.
+  \item \textbf{Random event logs against goldfish.} Event logs (random or hand-built), including attribute changes, memberships, windows and networks, were fitted by \goldfish{}; its estimates, standard errors and log likelihoods are stored with the package, and the tests compare \nwdynam{} with them. Table~\ref{tab:logs} lists the sets.
+  \item \textbf{The Social Evolution data and the emails.} The data set that ships with \goldfish{} (439 calls among 84 students) and the first 631 emails of the manufacturing data were fitted by both programs. Section~\ref{sec:cmpmanual} shows this comparison, rerun for this manual.
+\end{enumerate}
+
+\begin{table}[ht]
+\centering\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{6.4cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{4.8cm}@{}}
+\toprule
+Features & Logs & Tolerance\\
+\midrule
+composition change (\opt{present()}, \opt{compchange()}), together with time-varying covariates, in all sub-models, one- and two-mode & 67 random and fixed & estimates, standard errors, log likelihood $10^{-6}$\\
+time-varying covariates (\opt{change()}), every attribute effect, replace and increment, changes at the time of an event, a window, several variables & 42 random & the same; coordination: estimates $10^{-5}$, standard errors 10\%\\
+windowed rate effects with \opt{intercept}, \opt{tertiuswindow()}, windows and weights in the coordination sub-model, effects in two-mode networks, \opt{opportunities()} with covariates, \opt{change()} in two-mode networks and with \opt{opportunities()} & 306 random & the same; coordination: estimates $5\cdot10^{-4}$, standard errors 10\%\\
+effects of other networks (\opt{tie()}, closures, mixed closures, \texttt{tertiusdiff}, \opt{ignorerep}, with windows and weights, static and changing networks) & about 300 random & the same; coordination: estimates $5\cdot10^{-4}$, standard errors 10\%\\
+postestimation (\texttt{estat}): per-event log likelihoods and probabilities, \texttt{logLik}, AIC, BIC, outliers, change points & 90 random & $10^{-10}$ (values agree to $10^{-13}$); outlier indices and change points exact\\
+\bottomrule
+\end{tabular}
+\caption{The comparisons with \goldfish{}~\gfver{} on random and hand-built event logs.}\label{tab:logs}
+\end{table}
+
+For the coordination sub-model the standard errors are numerical (from a numerical derivative of the likelihood, which is flat and not concave) in both programs and agree to 10 per cent. Effects that \goldfish{} cannot compute, or computes with an ordering of events that \nwdynam{} does not reproduce, are refused with a message (Chapter~\ref{ch:limits}), not silently approximated. The tolerances are those of the tests; a relative tolerance of $10^{-6}$ is not a claim of agreement to the last digit of every number, and a fit that ends in a different local maximum of the coordination likelihood would show up as a larger difference, not as a smaller one.
+
+\section{A comparison run for this manual}\label{sec:cmpmanual}
+
+To show what these comparisons look like, eight models were fitted by both programs on two data sets: the Social Evolution calls (439 events among 84 actors, of whom 54 are active) and the first 631 emails among 154 employees. The Stata side is the do-file \texttt{manual/ex/ex91\_compare\_stata.do}, the R side \texttt{manual/ex/r/compare.R}; both read the same event files, exported by \texttt{ex90\_export\_for\_r.do} (the time stamps in full precision). The models are the choice model with \opt{inertia}, \opt{recip}, \opt{indeg} (with \opt{trans} and with a window of half a day on \opt{inertia} for the emails), and the rate model with \opt{indeg} and \opt{outdeg} without and with an intercept. Table~\ref{tab:cmp} shows the estimates, the relative differences and the standard errors.
+
+The largest relative difference of an estimate is \cmpMaxB{} (\cmpMaxWhere{}), that of a standard error \cmpMaxSE{} and that of a log likelihood \cmpMaxLL{}. The agreement does not depend on the kind of model: all differences are of the same small size in the choice and in the rate models, with and without an intercept, with a window and with a closure effect.
+
+\begin{table}[ht]
+\centering\small
+{\setlength{\tabcolsep}{3pt}\input{gen_compare.tex}}
+\caption{Estimates and standard errors of \nwdynam{} (Stata~17, macOS) and \goldfish{}~\gfver{} (R~4.6.0) on the same event logs.}\label{tab:cmp}
+\end{table}
+
+\section{Where the two programs differ}\label{sec:differs}
+
+\begin{itemize}[nosep]
+  \item \textbf{Specification.} Effects are options in \nwdynam{}, a formula in \goldfish{}. Without effect options \nwdynam{} fits the default effects of the sub-model (Section~\ref{sec:defaults}).
+  \item \textbf{Starting values and optimizer.} Both maximize the same likelihood, so that the estimates agree to the tolerance of their convergence criteria; the optimizers are different (Section~\ref{sec:technewton}).
+  \item \textbf{The \texttt{tertius} effect for an actor with no in-neighbours.} The documentation of \goldfish{} describes an imputation of the average over the actors that have in-neighbours; \goldfish{}~\gfver{} itself computes 0 at estimation time, which is what \nwdynam{} does.
+  \item \textbf{Simultaneous events.} \nwdynam{} follows \goldfish{} (Section~\ref{sec:ties}); the option \opt{sequential} is an addition.
+  \item \textbf{Defaults.} \nwdynam{} has no formula that lists all effects; compare the translation table in Appendix~\ref{app:translation}.
+  \item \textbf{Postestimation.} Nothing that \goldfish{} does not have: no simulation and no goodness of fit.
+\end{itemize}
+Before using \nwdynam{} for an important result, run the same model in \goldfish{}.

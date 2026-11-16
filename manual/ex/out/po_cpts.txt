@@ -1,0 +1,31 @@
+. estat changepoints, window(20)
+
+Change points of the log likelihood of the events, pelt method, change in the me
+> an, minimum segment length (window) 20
+(1 real change made)
+(1 real change made)
+(1 real change made)
+
+  +----------------------------------------------------+
+  | event        time   sender   receiver           ll |
+  |----------------------------------------------------|
+  |   180    3.425231     E166       E128   -4.1383163 |
+  |   435   4.3926392     E117        E47   -1.3500617 |
+  |   492   4.4755092     E152        E62   -4.4874309 |
+  +----------------------------------------------------+
+  The change points are the events that end a regime: the log likelihood of
+  the following events belongs to the next regime.
+
+. return list
+
+scalars:
+             r(window) =  20
+                  r(N) =  631
+             r(n_cpts) =  3
+
+macros:
+             r(moment) : "mean"
+             r(method) : "pelt"
+
+matrices:
+               r(cpts) :  1 x 4

@@ -1,0 +1,24 @@
+. * the reporting hierarchy as an ordinary (static) network in the actor order o
+> f mail: the tie i -> j is present when j is the supervisor of i
+. mata:
+------------------------------------------------- mata (type end to exit) ------
+: lab = st_sdata(., "label"); sup = st_sdata(., "supervisor"); n = rows(lab); M 
+> = J(n, n, 0)
+
+: for (i=1; i<=n; i++) {
+>     j = selectindex(lab :== sup[i])
+>     if (length(j)) M[i, j[1]] = 1
+> }
+
+: st_matrix("HM", M)
+
+: end
+--------------------------------------------------------------------------------
+
+. nwset, mat(HM) name(hier) directed
+
+. nwset
+(2 networks)
+--------------------
+      mail
+      hier

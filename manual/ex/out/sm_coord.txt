@@ -1,0 +1,13 @@
+. nwdynam contact, submodel(choice_coordination) inertia
+------------------------------------------------------------
+Dynamic Network Actor Model - choice_coordination sub-model (MLE)
+Network: contact                       Actors: 102
+Events: 631                            Log likelihood: -4.62e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+     contact | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.968822   .0460709    42.73   0.000     1.878524    2.059119
+------------------------------------------------------------------------------

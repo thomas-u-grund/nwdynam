@@ -1,0 +1,33 @@
+. nwdynam mail, inertia recip indeg trans
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.30e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.732437   .1417931    12.22   0.000     1.454528    2.010347
+       recip |   2.978432   .1384791    21.51   0.000     2.707018    3.249846
+       indeg |    .094776   .0091763    10.33   0.000     .0767909    .1127611
+       trans |   .5027673   .1032202     4.87   0.000     .3004595     .705075
+------------------------------------------------------------------------------
+
+. nwdynam mail, inertia recip indeg nodetrans
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.31e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.773269   .1423466    12.46   0.000     1.494275    2.052263
+       recip |   2.868626   .1431842    20.03   0.000      2.58799    3.149262
+       indeg |    .107881   .0084966    12.70   0.000     .0912278    .1245341
+   nodetrans |    .042856   .0230401     1.86   0.063    -.0023017    .0880138
+------------------------------------------------------------------------------

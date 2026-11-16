@@ -1,0 +1,11 @@
+. use `mail', clear
+(Manufacturing company emails, 2010 (Nurek and Michalski 2020; CC0))
+
+. nwset sender receiver, directed eventtime(t) name(mail)
+
+. nwaddnodes mail, nodenames(`miss')
+
+. nwset
+(1 networks)
+--------------------
+      mail

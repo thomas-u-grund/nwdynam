@@ -1,0 +1,6 @@
+. capture noisily nwdynam mail, submodel(frequency)
+submodel() must be choice, rate, or choice_coordination - see nwdynam.
+invalid syntax
+
+. display "return code: " _rc
+return code: 198

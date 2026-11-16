@@ -1,0 +1,81 @@
+. import delimited using "r/socevo.csv", clear
+(encoding automatically selected: ISO-8859-1)
+(3 vars, 439 obs)
+
+. quietly levelsof sender, local(a)
+
+. quietly levelsof receiver, local(b)
+
+. local seen : list a | b
+
+. display "actors in the log: " `: word count `seen''
+actors in the log: 54
+
+. tostring sender receiver, replace
+sender was byte now str2
+receiver was byte now str2
+
+. nwset sender receiver, directed eventtime(t) name(soc)
+
+. local miss
+
+. forvalues i = 1/84 {
+  2.     if !`: list posof "`i'" in seen' local miss `miss',`i'
+  3. }
+
+. if "`miss'" != "" {
+.     local miss = substr("`miss'", 2, .)
+.     nwaddnodes soc, nodenames(`miss')
+. }
+
+. nwset
+(1 networks)
+--------------------
+      soc
+
+. nwdynam soc, inertia recip indeg
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: soc                           Actors: 84
+Events: 439                            Log likelihood: -695.4608
+------------------------------------------------------------
+------------------------------------------------------------------------------
+         soc | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   5.365559   .1937523    27.69   0.000     4.985811    5.745306
+       recip |    1.38944   .1672873     8.31   0.000     1.061563    1.717317
+       indeg |  -.1735259   .0909703    -1.91   0.056    -.3518245    .0047727
+------------------------------------------------------------------------------
+
+. store `post' soc_choice
+
+. nwdynam soc, submodel(rate) indeg outdeg
+------------------------------------------------------------
+Dynamic Network Actor Model - rate sub-model, no intercept (MLE)
+Network: soc                           Actors: 84
+Events: 439                            Log likelihood: -1.75e+03
+------------------------------------------------------------
+------------------------------------------------------------------------------
+         soc | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       indeg |   .5514446   .0663444     8.31   0.000     .4214121    .6814772
+      outdeg |   .2637839   .0283861     9.29   0.000     .2081483    .3194196
+------------------------------------------------------------------------------
+
+. store `post' soc_rate
+
+. nwdynam soc, submodel(rate) intercept indeg outdeg
+------------------------------------------------------------
+Dynamic Network Actor Model - rate sub-model, with intercept (MLE)
+Network: soc                           Actors: 84
+Events: 439                            Log likelihood: -6.01e+03
+------------------------------------------------------------
+------------------------------------------------------------------------------
+         soc | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+   Intercept |  -14.15642   .0674933  -209.75   0.000    -14.28871   -14.02414
+       indeg |   .7622553    .060175    12.67   0.000     .6443144    .8801962
+      outdeg |   .2568386    .029094     8.83   0.000     .1998153    .3138619
+------------------------------------------------------------------------------
+
+. store `post' soc_rate_int

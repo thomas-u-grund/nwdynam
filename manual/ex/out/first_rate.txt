@@ -1,0 +1,14 @@
+. nwdynam mail, submodel(rate)
+------------------------------------------------------------
+Dynamic Network Actor Model - rate sub-model, no intercept (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.99e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       indeg |   .0324628   .0121141     2.68   0.007     .0087195     .056206
+      outdeg |   .2981233   .0176336    16.91   0.000     .2635621    .3326845
+------------------------------------------------------------------------------

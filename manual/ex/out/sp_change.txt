@@ -1,0 +1,16 @@
+. nwdynam mail, inertia recip indeg alter(level) change(level levelchg)
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.31e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.761572   .1422571    12.38   0.000     1.482753    2.040391
+       recip |   2.923674   .1402963    20.84   0.000     2.648698    3.198649
+       indeg |   .1079362    .008374    12.89   0.000     .0915235    .1243489
+       alter |  -.0643641   .0445449    -1.44   0.148    -.1516706    .0229424
+------------------------------------------------------------------------------

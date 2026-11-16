@@ -1,0 +1,7 @@
+. capture noisily nwdynam mail, submodel(rate) netterms(trans(mail))
+netterms() is available for submodel(choice) and submodel(choice_coordination)
+only: goldfish's rate sub-model has no effect on another network in this
+release.
+
+. display "return code: " _rc
+return code: 198

@@ -1,0 +1,68 @@
+\chapter{Introduction}\label{ch:intro}
+
+\section{What \texorpdfstring{\nwdynam}{nwdynam} is}
+
+\nwdynam{} fits dynamic network actor models (DyNAMs) in Stata. The data of a DyNAM are \emph{relational events}: a list of acts, each by one actor towards another actor (an email, a phone call, a gift, a citation) with the time at which it happened. Between two events nothing is observed. The model asks, event by event: given everything that has happened before, which actor was going to act (the \emph{rate} model), and whom did that actor choose (the \emph{choice} model)? Both parts weigh effects, such as ``an actor writes to someone they wrote to before'' (inertia), ``an actor answers someone who wrote to them'' (reciprocity), or ``an actor writes to someone of the same group'' (homophily), and \nwdynam{} estimates how strong each effect is by maximum likelihood. Chapter~\ref{ch:model} states the model; Stadtfeld and Block~\cite{stadtfeld2017b} introduce it, and Stadtfeld, Hollway and Block~\cite{stadtfeld2017h} add the coordination model for undirected events.
+
+\nwdynam{} is a Stata package of its own that builds on the \texttt{nwcommands} package. The events are declared as a network with \texttt{nwset}, the effects are chosen by options of one command, \texttt{nwdynam}, and the results are returned in \texttt{e()} like those of any Stata estimation command, so that \texttt{estimates store}, \texttt{lrtest}, \texttt{test} and \texttt{lincom} work as usual. The likelihood, its gradient and its Hessian are evaluated in a compiled C plugin that is called from Mata. No R installation or other external software is used when you fit a model.
+
+\section{Relation to \texorpdfstring{\goldfish}{goldfish}}
+
+The reference implementation of DyNAMs is the R package \goldfish{}~\cite{goldfish}. \nwdynam{} follows it closely in its model, in the definitions of the effects, in its likelihoods and in the postestimation tools, so that the documentation of \goldfish{} and the published literature apply to \nwdynam{} as well. It is nevertheless an \emph{independent reimplementation} written in Stata, Mata and C. Its results were compared with \goldfish{}~\gfver{} on event logs of several kinds; Chapter~\ref{ch:validation} documents what was compared and how. \nwdynam{} is not affiliated with, endorsed by or supported by the \goldfish{} project.
+
+\nwdynam{} is meant for researchers who work in Stata, or who prefer it to R. It is \emph{not} a replacement for \goldfish{}, which remains the reference. Where the two programs differ in a way that matters to a user, this manual says so (Chapter~\ref{ch:limits}). The most important differences are these.
+\begin{itemize}[nosep]
+  \item Effects are chosen by Stata options (for example \opt{inertia}, \opt{same(div)}), not by a model formula. Without any effect option the command fits a default set of effects of the sub-model (Section~\ref{sec:defaults}); naming any effect restricts the model to the effects named. In \goldfish{} the formula always lists the effects.
+  \item The data are declared with \texttt{nwset ..., eventtime()} and the actor attributes are variables of the dataset in memory, not \goldfish{} objects (\texttt{defineNodes}, \texttt{defineNetwork}, \texttt{linkEvents}, \texttt{defineDependentEvents}). Appendix~\ref{app:translation} gives the translation.
+  \item \goldfish{} has no goodness-of-fit or simulation function and \nwdynam{} adds none. The postestimation commands are those that \goldfish{} has (Chapter~\ref{ch:postest}).
+\end{itemize}
+
+\section{What is covered}
+
+\begin{itemize}[nosep]
+  \item \textbf{Sub-models.} The \emph{choice} sub-model (directed or two-mode events), the \emph{rate} sub-model without an intercept (the ordinal partial likelihood) and with an intercept (the continuous-time competing-risks hazard), and the \emph{choice\_coordination} sub-model (undirected events).
+  \item \textbf{Effects.} Structural effects (inertia, reciprocity, degrees, two- and three-path closure, embeddedness in transitive structures), covariate effects (homophily, ego, alter, interaction, the covariate of the in-neighbours), recency windows and weighted versions of the tie-based effects, and effects of other networks (a tie in another network, closures through other networks, mixed closures). Chapters~\ref{ch:options}--\ref{ch:netterms} define every effect.
+  \item \textbf{Data features.} Events with a value, events with identical times, two-mode networks, covariates that change over time, actors who join or leave, and a per-event restriction of the candidates (Chapters~\ref{ch:data} and~\ref{ch:special}).
+  \item \textbf{Postestimation.} \texttt{estat ic}, \texttt{estat eventlik}, \texttt{estat eventprob}, \texttt{estat outliers}, \texttt{estat changepoints}.
+\end{itemize}
+
+\paragraph{What \goldfish{} has that \nwdynam{} does not.} Chapter~\ref{ch:limits} lists it in full: the argument \texttt{ignoreRep} in the rate sub-model, \texttt{tertiusDiff} with time-varying attributes or in two-mode networks, \texttt{tertius}, \texttt{indeg}, \texttt{outdeg}, \texttt{recip} and \texttt{nodeTrans} computed through another network, and the effects that \goldfish{} itself cannot compute for two-mode networks. \goldfish{} also offers the model for interactions (\texttt{DyNAMi}) and a relational event model (\texttt{REM}); \nwdynam{} covers neither. \nwdynam{} does not simulate.
+
+\paragraph{How \nwdynam{} differs from \texttt{nwrem}.} The sibling package \texttt{nwrem} fits relational event models in the sense of Butts~\cite{butts2008}. Both work on timestamped dyadic events; \nwdynam{} factors the process into the rate and the choice sub-model, as DyNAMs do.
+
+\section{Installation and requirements}\label{sec:install}
+
+\nwdynam{} needs the \texttt{nwcommands} core package (version 3.24.0 or later; the examples of this manual were run with core 3.26.0), which provides the network objects, \texttt{nwset} and the data-handling commands, and Stata 17 or later. Install the core first and then \nwdynam{}:
+\begin{lstlisting}
+. net install nwcommands, from(https://nwcommands.org/net/) replace
+. nwinstall, all
+. nwinstall, modelpkg(nwdynam)
+\end{lstlisting}
+\texttt{nwinstall, all} installs the help files, dialog boxes and menu of the core, and \texttt{nwinstall, modelpkg(nwdynam)} installs \nwdynam{} from its repository. To install the core and all four model packages in one step, use \texttt{nwinstall, everything}. \nwdynam{} can also be installed by itself, once the core is there:
+\begin{lstlisting}
+. net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/main/) replace
+\end{lstlisting}
+This installs the state of the main branch. A specific release is installed from its tag, for example
+\begin{lstlisting}
+. net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/v1.8.0/) replace
+\end{lstlisting}
+\texttt{net describe nwdynam} shows the version and distribution date installed, \texttt{nwdynam version} the version of the package, of the core, the plugin in use and the version of \goldfish{} the results were compared with (see Chapter~\ref{ch:start}), and \texttt{e(version)} holds the version that produced a set of results. \nwdynam{} checks the core when it starts, and also whether the Mata library of the core and that of \nwdynam{} fit together, and says how to reinstall if they do not.
+
+\paragraph{Platforms.} The package ships a compiled plugin for macOS (universal), Linux and Windows. The examples of this manual were run on macOS with Stata~17; the package was tested on macOS with Stata 17, 18 and 19 (Stata/BE is enough). The run times of Section~\ref{sec:speed} were measured on Linux with Stata~19.5 MP. Windows is not tested yet.
+\todoowner{README.md of the repository says that the Windows plugin passes the full test suite (Stata 19 MP, 9 November 2026), while the changelog of 1.8.0 says that Windows and Linux were not yet tested for this version and the owner said Windows is not tested yet; the sentence above follows the owner. Linux: the benchmark of Section~\ref{sec:speed} ran on Linux, the full test suite is not recorded as run there. Decide the wording.}
+Stata 16 and older have not been tested and are not expected to work.
+
+\paragraph{The native plugin.} Every fit needs the plugin; there is no slower fallback. If the plugin file of your platform is not installed, \texttt{nwdynam} stops with return code 601 and names the missing file; if the installed plugin is older than the \texttt{.ado} files, or cannot be loaded, it stops with return code 3495. Reinstall the package with \texttt{net install nwdynam, replace} and restart Stata. If the shipped plugin does not work on your computer, \texttt{nwinstall, buildplugin(nwdynam)} compiles it there (macOS and Linux; a C compiler and \texttt{make} are needed; restart Stata afterwards). The C source is part of the package.
+
+\paragraph{The Mata library.} If the Mata library of \nwdynam{} does not load in your Stata (for example \texttt{r(3499)}, because it was built by a newer Stata than yours), \texttt{nwinstall, buildmata(nwdynam)} compiles it with your own Stata and installs it; save your data first, because the build clears the data and the Mata objects in memory, and restart Stata afterwards.
+
+\section{How to read this manual}
+
+Chapter~\ref{ch:model} states the model and its likelihoods. Chapter~\ref{ch:start} fits a first model. Chapter~\ref{ch:data} shows how event data are declared. Chapters~\ref{ch:options}--\ref{ch:special} are the reference for options and effects, Chapter~\ref{ch:postest} for the postestimation commands. Chapter~\ref{ch:examples} contains worked examples with output; all output in this manual comes from do-files that are part of the repository (Section~\ref{sec:howproduced}). Chapters~\ref{ch:validation}--\ref{ch:technical} document the comparison with \goldfish{}, the limits and the technical background.
+
+\section{Data sets used in this manual}\label{sec:datasets}
+
+\paragraph{Manufacturing company emails.} The examples use the metadata of the emails of a manufacturing company: 50,233 timestamped emails among the employees of a mid-sized company in 2010 (sender, receiver and time in days since 1 January 2010; no content), and a second file with the reporting hierarchy (supervisor, level and division) of 154 employees. The data are by Michalski~\cite{michalski2020} (Harvard Dataverse, doi:10.7910/DVN/6Z3CGX, released under CC0 1.0; see also Nurek and Michalski~\cite{nurek2020}). They are loaded from the web with \texttt{nwwebuse manufacturing} and \texttt{nwwebuse manufacturing\_nodes}. The core data set is a subset of the original: only emails with exactly one recipient and only employees with a known supervisor were kept. The examples use the 631 emails sent in the first five days of the log (\texttt{keep if t < 5}).
+
+\paragraph{Social Evolution.} The comparison with \goldfish{} (Chapter~\ref{ch:validation}) also uses the data set \texttt{Social\_Evolution} that ships with \goldfish{}: 439 phone calls among students of a dormitory (84 students, 54 of whom call or are called in the log)~\cite{madan2012}. The calls are in the file \texttt{manual/ex/data/socialevolution\_calls.csv} of the repository, exported from \goldfish{}.
+\todoowner{Confirm the original source and the terms of use of the Social\_Evolution data that ships with goldfish (the reference \cite{madan2012} is my assumption, not taken from the repository), and whether the 439 calls may be redistributed in manual/ex/data with the repository (RELEASING B.9: cite the source; no licence is asserted for plain facts).}

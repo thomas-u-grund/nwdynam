@@ -1,0 +1,54 @@
+\chapter{Changing covariates, composition change and opportunities}\label{ch:special}
+
+Three features need data of their own. Each follows \goldfish{} and has its own option: covariates that change over time, actors who join or leave the network, and a restriction of the candidates for every event.
+
+\section{Covariates that change over time}\label{sec:tvc}
+
+A covariate may change while the events happen, as in \goldfish{} (attribute change events linked to the nodes with \texttt{linkEvents()}). The values in the dataset are the values \emph{at the start} of the log; the changes are an event list of their own, declared with \texttt{nwset} as an event network whose events name one actor (sender and receiver are the same actor, \opt{selfloop}) and carry the new value of the covariate as the event value:
+\begin{lstlisting}
+. nwset label label2 newlevel, eventtime(tchg) selfloop name(levelchg)
+. nwdynam mail, inertia alter(level) change(level levelchg)
+\end{lstlisting}
+(\texttt{label2} is a copy of the actor variable.) \opt{change()} takes pairs of a covariate variable of the dataset and the name of its change network; several covariates change with \opt{change(floor floorchg grade gradechg)}. The variable must be used by \opt{same()}, \opt{diff()}, \opt{sim()}, \opt{ego()}, \opt{alter()}, \opt{tertius()} or \opt{egoalterint()}; every effect that reads it then sees the value that holds at the time of each event, in all sub-models (also with \opt{intercept}).
+\begin{itemize}[nosep]
+  \item Actors are matched by label; an actor of the change network that is not an actor of the fitted network stops the command with error 198. The change events need not be sorted, and a covariate is changed by one network.
+  \item The value of a change event is the new value; with \opt{increment} it is added to the value the actor has at that time (in the order of time, and of the rows of the change network for equal times), as the \texttt{increment} column of \goldfish{}. The change network needs a value variable; without it every change sets the value 1.
+  \item A change takes effect for the events \emph{after} it: an event at exactly the time of a change still sees the old value, because \goldfish{} evaluates the events of a time point before the other event lists. Changes before the first and after the last event are allowed (they matter for \opt{tertius()} and for the estimated rates).
+  \item With \opt{intercept} the observation period reaches from the first to the last event of either list, as in \goldfish{}, and a change splits the time between two events (the rates of the actors change at that moment).
+  \item Missing starting values stay an error (416). \opt{change()} works in two-mode networks (except with \opt{egoalterint()}) and together with \opt{opportunities()} (with \opt{oppframe()}); it does not apply to the covariates of \opt{netterms()}.
+\end{itemize}
+Section~\ref{sec:ex_special} gives an example (with artificial changes).
+
+\section{Composition change: actors who join or leave}\label{sec:composition}
+
+As in \goldfish{} (the node attribute \texttt{present}), actors may join or leave the network while the events happen. An actor who is \emph{absent} is not in the risk set: it cannot be a sender (in the rate sub-model it is left out of the hazard and of the normalisation), nor a receiver (in the choice sub-model it is not among the candidates), nor a member of a pair of the coordination sub-model. Its statistics are still computed, and its earlier ties still count for the degrees of the others.
+\begin{description}[style=nextline,nosep]
+  \item[\opt{present(var)}] The presence at the start of the log: a variable of the dataset with the values 1 and 0, one row per actor, matched like the covariates. The default is that everybody is present.
+  \item[\opt{compchange(net)}] An event network declared with \texttt{nwset} that holds the joins and the leaves, one actor per event (sender and receiver are the same actor), with the new presence as the event value: 1 the actor joins, 0 the actor leaves.
+\end{description}
+\begin{lstlisting}
+. nwset label label2 joined, eventtime(tjoin) selfloop name(membership)
+. nwdynam mail, inertia indeg present(member0) compchange(membership)
+\end{lstlisting}
+\begin{itemize}[nosep]
+  \item A change takes effect for the events at its time \emph{and after it}: an actor who joins at exactly the time of an event can take part in it, an actor who leaves at exactly the time of an event cannot (unlike the covariate changes). Of several changes of one actor at one time the later row wins. Changes before the first and after the last event are allowed; an actor who is absent during the whole log is simply not in any risk set.
+  \item An event whose sender or receiver is absent at its time is an error (198), as in \goldfish{}; so is a change event of a covariate for an actor who is absent at that time.
+  \item Actors are matched by label (an actor of the change network that is not an actor of the fitted network stops the command with error 198). An actor with no event of its own at all must be added to the network first (\texttt{nwaddnodes}) when it is to be in the risk sets. Times that must coincide exactly must be stored in the same way (the same variable type) in both event lists.
+  \item With \opt{submodel(rate)} and \opt{intercept} the whole waiting time that ends at an event is exposed to the actors who are present at the \emph{end} of it: the leave of an actor at the time of the event, or earlier in the waiting time, removes it from the whole waiting time; a join at the end adds it to the whole, as in \goldfish{}.
+  \item In a two-mode network the senders (mode 1) matter for the rate and the receivers (mode 2) for the choice sub-model. With \opt{opportunities()} the risk set is the intersection of the opportunities and the present actors.
+  \item \opt{present()} cannot be combined with \opt{opportunities()} (both need the data in memory in a different layout); an actor who is absent at the start can then be given a leave event before the first event of the log. Missing values and values other than 0 and 1 in \opt{present()} or in the change network stop the command with error 198. \opt{compchange()} and \opt{present()} work together with \opt{change()}.
+\end{itemize}
+The output header then says how many join and leave events there are and which variable gives the presence at the start. Section~\ref{sec:ex_special} gives an example.
+
+\section{Opportunities: restricting the candidates}\label{sec:opportunities}
+
+\opt{opportunities(evvar actvar)} restricts the candidate set of the choice sub-model for \emph{each event} to a list of available actors you supply (\goldfish{}: \texttt{opportunitiesList} of \texttt{estimationInit}, documented there for choice models only; \nwdynam{} rejects it in the other sub-models). It takes two numeric variables with \emph{one row per (event, available actor) pair}, not one row per actor: \emph{evvar} is the sequence number of the event (1 to the number of events, in the chronological order of the network) and \emph{actvar} the number of an actor (1 to the number of actors, in the actor order of the network) who was available as a candidate receiver for that event. An actor not listed for an event is excluded from the risk set of that event only; the sender is always excluded, whether listed or not. As in \goldfish{}, the realized receiver of every event must be listed as available for it (error 198 otherwise); rows with a missing value are refused (error 416).
+
+Because \opt{opportunities()} needs this event-by-actor shape, while the covariate effects need one row per actor, the opportunities data must be in a different frame when covariates are used, named by \opt{oppframe(framename)}: the covariates stay in the dataset in memory, the two variables are read from the frame. Without \opt{oppframe()} the combination stops with error 198; \opt{change()} together with \opt{opportunities()} also needs \opt{oppframe()}.
+\begin{lstlisting}
+. frame create opps
+. frame opps: use opportunities, clear
+. nwdynam mail, inertia alter(level) opportunities(evseq candid) oppframe(opps)
+. nwdynam mail, inertia opportunities(evseq candid)
+\end{lstlisting}
+Section~\ref{sec:ex_opp} builds the opportunities of the emails (the employees of the division of the sender, plus the realized receiver) and fits both forms.

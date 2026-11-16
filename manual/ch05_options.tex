@@ -1,0 +1,100 @@
+\chapter{Syntax and options}\label{ch:options}
+
+\section{Syntax}
+
+\begin{lstlisting}
+nwdynam [netname] [, submodel(choice|rate|choice_coordination) effect options
+                     window and weighted options opportunities(varlist) oppframe(name)
+                     tie(netname) netterms(terms) ignorerep(effects)
+                     change(varname netname [...]) increment
+                     present(varname) compchange(netname) intercept
+                     seed(#) level(#) sequential]
+nwdynam version
+estat ic | eventlik | eventprob | outliers | changepoints  [, ...]
+\end{lstlisting}
+\emph{netname} is the event network; without it the current network is used (\texttt{nwdynam} alone fits the default model of the current network). Typed without arguments, or with \opt{level()} only, after a fit, \texttt{nwdynam} redisplays the results; \texttt{estimates replay} works as well. The \texttt{estat} commands are described in Chapter~\ref{ch:postest}.
+
+\section{General options}
+
+\begin{description}[style=nextline,nosep]
+  \item[\opt{submodel(string)}] The sub-model: \texttt{choice} (the default), \texttt{rate} or \texttt{choice\_coordination}. A value other than these three stops the command with error 198.
+  \item[\opt{intercept}] With \texttt{submodel(rate)}: the continuous-time hazard model of Section~\ref{sec:ratemodel}, with an intercept. Error 198 with another sub-model.
+  \item[\opt{sequential}] Processes events with identical times one after another instead of jointly (Section~\ref{sec:ties}).
+  \item[\opt{level(\#)}] The confidence level of the displayed intervals (default 95).
+  \item[\opt{seed(\#)}] A random-number seed, an integer between 0 and 2{,}147{,}483{,}647, set before the estimation. The optimizer starts from fixed values and runs without random numbers wherever the Newton iterations succeed; where they do not, further starting values are drawn at random, and the coordination sub-model always uses several starts (Section~\ref{sec:technewton}). The seed makes such fits reproducible.
+\end{description}
+
+\section{Effect options and sub-models}\label{sec:defaults}
+
+Each sub-model has a fixed roster of effects. Giving \emph{no} effect option fits the default effects of the sub-model together: \opt{inertia}, \opt{recip} and \opt{indeg} for \texttt{choice}; \opt{indeg} and \opt{outdeg} for \texttt{rate}; \opt{inertia} and \opt{indeg} for \texttt{choice\_coordination}. For a two-mode network the defaults are \opt{inertia} and \opt{indeg} (choice) and \opt{outdeg} (rate). Giving one or more effect options restricts the fit to \emph{exactly} those. An effect option that does not apply to the chosen sub-model is rejected with an error message (return code 198) rather than silently ignored. The coefficients are in the fixed order of Table~\ref{tab:effects}, then the terms of \opt{netterms()}, and their names are the effect names (\texttt{inertia}, \texttt{same}, \texttt{tie\_hier}, \ldots); with \opt{intercept} the first coefficient is \texttt{Intercept}. \texttt{e(effects)} lists the effects actually fitted.
+
+Table~\ref{tab:effects} lists every effect option, the sub-models in which it is available (C choice, R rate, K choice\_coordination) and where it is defined. A window or weighted option selects its effect by itself: \opt{inertiawindow(\#)} alone fits \opt{inertia} with that window, \opt{weightedinertia} alone fits \opt{inertia} on the tie value (Sections~\ref{sec:windows} and~\ref{sec:weighted}).
+
+\begin{longtable}{@{}p{4.4cm}p{1.0cm}p{1.0cm}p{1.0cm}p{6.3cm}@{}}
+\caption{The effect options and the sub-models in which they are available.}\label{tab:effects}\\
+\toprule
+Option & C & R & K & Effect (Chapter~\ref{ch:effects})\\
+\midrule\endfirsthead
+\toprule Option & C & R & K & Effect\\\midrule\endhead
+\bottomrule\endfoot
+\multicolumn{5}{@{}l}{\emph{Structural effects}}\\
+\opt{inertia} & x & & x & the sender has sent to the candidate before\\
+\opt{recip} & x & & & the candidate has sent to the sender before\\
+\opt{indeg} & x & x & x & in-degree of the candidate (the actor in the rate model)\\
+\opt{outdeg} & x & x & & out-degree of the candidate (the actor in the rate model)\\
+\opt{trans} & x & & x & two-paths sender $\to$ third $\to$ candidate\\
+\opt{cycle} & x & & & two-paths candidate $\to$ third $\to$ sender\\
+\opt{commonsender} & x & & & a common third actor sent to both\\
+\opt{commonreceiver} & x & & & both sent to a common third actor\\
+\opt{four} & x & & x & three-paths sender $\to k\leftarrow l\to$ candidate\\
+\opt{nodetrans} & x & x & x & embeddedness of the candidate in transitive structures\\
+\addlinespace
+\multicolumn{5}{@{}l}{\emph{Covariate effects (a numeric variable of the dataset)}}\\
+\opt{same(var)} & x & & x & sender and candidate have the same value\\
+\opt{diff(var)} & x & & x & absolute difference of the values\\
+\opt{sim(var)} & x & & x & negative absolute difference\\
+\opt{ego(var)} & & x & & the value of the actor\\
+\opt{alter(var)} & x & & x & the value of the candidate\\
+\opt{tertius(var)} & x & x & x & mean value of the in-neighbours of the candidate\\
+\opt{egoalterint(v1 v2)} & x & & x & value $v_1$ of the sender times value $v_2$ of the candidate\\
+\addlinespace
+\multicolumn{5}{@{}l}{\emph{Windows (self-activating)}}\\
+\opt{inertiawindow(\#)} & x & & x & \opt{inertia} within the last \# time units\\
+\opt{recipwindow(\#)} & x & & & \opt{recip} within a window\\
+\opt{indegwindow(\#)} & & x & x & \opt{indeg} within a window\\
+\opt{outdegwindow(\#)} & & x & & \opt{outdeg} within a window\\
+\opt{tertiuswindow(\#)} & x & x & x & \opt{tertius()} on the ties of the last \# time units\\
+\addlinespace
+\multicolumn{5}{@{}l}{\emph{Weighted effects (self-activating)}}\\
+\opt{weightedinertia} & x & & x & \opt{inertia} on the tie value\\
+\opt{weightedrecip} & x & & & \opt{recip} on the tie value\\
+\opt{weightedindeg} & x & x & x & \opt{indeg} on the tie values\\
+\opt{weightedoutdeg} & x & x & & \opt{outdeg} on the tie values\\
+\addlinespace
+\multicolumn{5}{@{}l}{\emph{Other networks}}\\
+\opt{tie(net)} & x & & x & the tie exists in another network\\
+\opt{netterms(terms)} & x & & x & effects through other networks, with their own window (Chapter~\ref{ch:netterms})\\
+\opt{ignorerep(effects)} & x & & x & the named effects are 0 for pairs that already have a tie\\
+\end{longtable}
+
+\section{Options of the data features}
+
+\begin{description}[style=nextline,nosep]
+  \item[\opt{opportunities(evvar actvar)}, \opt{oppframe(name)}] Choice sub-model only. Per-event restriction of the candidate set (Section~\ref{sec:opportunities}).
+  \item[\opt{change(var net [var net \ldots])}, \opt{increment}] Covariates that change over time (Section~\ref{sec:tvc}).
+  \item[\opt{present(var)}, \opt{compchange(net)}] Actors who join or leave (Section~\ref{sec:composition}).
+\end{description}
+
+\section{Stored results}\label{sec:stored}
+
+\texttt{nwdynam} stores in \texttt{e()}:
+\begin{description}[style=nextline,nosep]
+  \item[Scalars] \texttt{e(N)} the number of events; \texttt{e(nodes)} the number of actors; \texttt{e(ntimes)} the number of distinct time points; \texttt{e(ll)} the log likelihood at the maximum; \texttt{e(ncompchange)} the number of join and leave events (only with \opt{present()} or \opt{compchange()}).
+  \item[Macros] \texttt{e(cmd)} (\texttt{nwdynam}); \texttt{e(version)} the release that produced the results; \texttt{e(title)} and \texttt{e(header)}; \texttt{e(depvar)} the name of the event network; \texttt{e(submodel)}; \texttt{e(effects)} the effects fitted, in their fixed order; \texttt{e(ties)} \texttt{none} (all times distinct), \texttt{simultaneous} or \texttt{sequential}; \texttt{e(unidentified)} the effects without a usable standard error (empty when all are identified); \texttt{e(present)} and \texttt{e(compchange)} (with composition change); \texttt{e(fitid)} and \texttt{e(estat\_cmd)}, which tie the \texttt{estat} commands to the fit in memory.
+  \item[Matrices] \texttt{e(b)} the coefficient vector (the columns are named after \texttt{e(effects)}); \texttt{e(V)} the variance--covariance matrix (the inverse of the observed information).
+\end{description}
+Section~\ref{sec:ex_ereturn} shows the output of \texttt{ereturn list}. The results of the \texttt{estat} commands are in \texttt{r()} (Chapter~\ref{ch:postest}).
+
+\section{Return codes}
+
+Besides the error codes of Stata itself, \texttt{nwdynam} stops with these return codes (the full list of refusals is in Chapter~\ref{ch:limits}): 198 an option that does not apply or has a bad value; 416 a missing value in the events or in a covariate; 3498 an event with the same sender and receiver; 2001 fewer than two events; 601 the plugin of the platform is missing; 3495 the plugin is older than the \texttt{.ado} files or cannot be loaded; 498 an \texttt{estat} command after results that do not belong to the fit in memory.

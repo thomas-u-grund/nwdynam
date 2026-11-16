@@ -1,0 +1,44 @@
+\chapter{Translation table: goldfish to nwdynam}\label{app:translation}
+
+\goldfish{} specifies a model by a formula, \nwdynam{} by options. The first rows of the table translate the data preparation; the others the effects, the sub-models and the postestimation. Without any effect option \nwdynam{} fits \opt{inertia}, \opt{recip} and \opt{indeg} for the choice model and \opt{indeg} and \opt{outdeg} for the rate model; naming any effect restricts the model to the effects named.
+
+\small
+\begin{longtable}{@{}p{6.4cm}p{9.2cm}@{}}
+\toprule
+goldfish & nwdynam\\
+\midrule\endhead
+\bottomrule\endfoot
+\texttt{defineNodes()}, \texttt{defineNetwork()}, \texttt{linkEvents()}, \texttt{defineDependentEvents()} & \texttt{nwset sender receiver, directed eventtime(t) name(net)}; isolates with \texttt{nwaddnodes}; attributes with \texttt{nwload net, xvars}\\
+\texttt{estimate(f, model = "DyNAM", subModel = "choice")} & \texttt{nwdynam net} (the default sub-model)\\
+\texttt{subModel = "rate"} & \texttt{nwdynam net, submodel(rate)}\\
+\texttt{subModel = "choice\_coordination"} & \texttt{nwdynam net, submodel(choice\_coordination)} on an undirected network\\
+\texttt{inertia}, \texttt{recip} & \opt{inertia}, \opt{recip}\\
+\texttt{indeg}, \texttt{outdeg} & \opt{indeg}, \opt{outdeg} (both sub-models)\\
+\texttt{trans}, \texttt{cycle}, \texttt{commonSender}, \texttt{commonReceiver}, \texttt{four} & \opt{trans}, \opt{cycle}, \opt{commonsender}, \opt{commonreceiver}, \opt{four}\\
+\texttt{nodeTrans} & \opt{nodetrans}\\
+\texttt{same(attr)}, \texttt{diff(attr)}, \texttt{sim(attr)} & \opt{same(var)}, \opt{diff(var)}, \opt{sim(var)}\\
+\texttt{ego(attr)} (rate), \texttt{alter(attr)} (choice) & \opt{ego(var)}, \opt{alter(var)}\\
+\texttt{egoAlterInt(attr)} & \opt{egoalterint(var1 var2)}\\
+\texttt{tertius(attr)} & \opt{tertius(var)}\\
+\texttt{tie(network)} (also a network that changes over time; \texttt{weighted}, \texttt{window}, \texttt{ignoreRep}) & \opt{tie(netname)}; through another network \opt{netterms(tie(netname) \ldots)} with \opt{window(\#)}, \opt{weighted}, \opt{ignorerep}\\
+\texttt{trans}, \texttt{cycle}, \texttt{commonSender}, \texttt{commonReceiver}, \texttt{four} through another network & \opt{netterms(trans(netname) cycle(netname) \ldots)}\\
+\texttt{mixedTrans}, \texttt{mixedCycle}, \texttt{mixedCommonSender}, \texttt{mixedCommonReceiver} & \opt{netterms(mixedtrans(net1 net2) \ldots)} and the other mixed terms\\
+\texttt{tertiusDiff(attr)} & \opt{netterms(tertiusdiff(var [net]))}\\
+\texttt{ignoreRep = TRUE} on a built-in effect & \opt{ignorerep(effects)}\\
+a window on \texttt{tertius} & \opt{tertiuswindow(\#)}\\
+\texttt{window = w} on an effect & \opt{inertiawindow(\#)}, \opt{recipwindow(\#)}, \opt{indegwindow(\#)}, \opt{outdegwindow(\#)}\\
+\texttt{weighted = TRUE} on an effect & \opt{weightedinertia}, \opt{weightedrecip}, \opt{weightedindeg}, \opt{weightedoutdeg}\\
+\texttt{weighted = TRUE, window = w} & a weighted effect with its own window, for example \opt{weightedinertia inertiawindow(\#)}\\
+\texttt{opportunitiesList} in \texttt{estimationInit} (also with attribute effects) & \opt{opportunities(evvar actvar)}, with \opt{oppframe(framename)} for covariate effects\\
+\texttt{linkEvents(nodes, changeEvents, attribute = "x")} with \texttt{replace} or \texttt{increment} columns (time-varying attributes) & the changes of \texttt{x} as an event list in which sender and receiver are the same actor and the value is the new value: \texttt{nwset id id2 value, eventtime(t) selfloop name(xchg)} (\texttt{id2} a copy of \texttt{id}), then \opt{change(x xchg)}; \opt{increment} makes the values increments\\
+\texttt{defineNodes(..., present = TRUE/FALSE)} (composition change) & \opt{present(var)}, a 0/1 variable with one row per actor (default: everybody present)\\
+\texttt{linkEvents(nodes, changeEvent = comp, attribute = "present")} & \opt{compchange(net)}, an event network made with \texttt{nwset id id2 value, eventtime(t) selfloop name(net)}; value 1 the actor joins, 0 it leaves\\
+\texttt{increment} of an event (\texttt{linkEvents()}) & a value variable: \texttt{nwset sender receiver value, directed eventtime(t)}; without it every event has the value 1\\
+a leading \texttt{1 +} in the formula (intercept, rate model) & \opt{intercept} with \opt{submodel(rate)}\\
+\texttt{logLik()}, \texttt{AIC()}, \texttt{BIC()} & \texttt{estat ic}\\
+\texttt{returnIntervalLogL = TRUE} & \texttt{estat eventlik}\\
+\texttt{returnEventProbabilities = TRUE} & \texttt{estat eventprob}\\
+\texttt{examineOutliers()} (Hampel, IQR, Top) & \texttt{estat outliers}\\
+\texttt{examineChangepoints()} (PELT, AMOC, BinSeg) & \texttt{estat changepoints}\\
+\texttt{summary()} of the estimate & the table printed by \texttt{nwdynam}; \texttt{e(b)}, \texttt{e(V)}, \texttt{e(ll)}, \texttt{e(N)}, \texttt{e(nodes)}\\
+\end{longtable}

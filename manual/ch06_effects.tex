@@ -1,0 +1,67 @@
+\chapter{Effects}\label{ch:effects}
+
+An effect is a statistic of the state of the network and of the covariates that enters the log linear predictor $\beta^{\top}s$ of a sub-model. This chapter defines the effects that are chosen by their own option; the effects of other networks (\opt{tie()} and \opt{netterms()}) are in Chapter~\ref{ch:netterms}. Table~\ref{tab:effects} says in which sub-models each effect exists.
+
+\paragraph{Notation.} In the choice and the coordination sub-model the statistic belongs to a pair: $i$ is the sender (the actor who acts) and $j$ the \emph{candidate} receiver. In the rate sub-model it belongs to a single actor $i$, the candidate sender. Let $A_{ij}=1$ if the tie from $i$ to $j$ exists at the time of the event (Chapter~\ref{ch:model}) and $0$ otherwise; $x_i$ is the value of a covariate for actor $i$. In an undirected network $A$ is symmetric. All sums run over other actors, $k$ and $l$ are third actors. The unweighted effects use $A$; the weighted effects (Section~\ref{sec:weighted}) use the value of the tie instead.
+
+\section{Structural effects}
+
+\begin{description}[style=nextline,nosep]
+  \item[\opt{inertia}] $s(i,j)=A_{ij}$: whether the sender has ever sent to the candidate (within a window, if \opt{inertiawindow()} is given). Choice and coordination.
+  \item[\opt{recip}] $s(i,j)=A_{ji}$: whether the candidate has sent to the sender before. Choice only: an undirected tie has no direction to reciprocate.
+  \item[\opt{indeg}] $s(j)=\sum_h A_{hj}$: the in-degree of the candidate, the number of distinct actors who have sent to it. In the rate sub-model it is the in-degree of the actor itself (the ``ego'' type), so that the same option has a different meaning in the choice sub-model (which receivers attract ties) and in the rate sub-model (which actors tend to act). Available in all sub-models. (As noted in Section~\ref{sec:values}, a tie with a negative value counts $-1$.)
+  \item[\opt{outdeg}] $s(j)=\sum_h A_{jh}$: the out-degree, the number of distinct actors the candidate (the actor, in the rate sub-model) has sent to. Choice and rate. Not available in the coordination sub-model, where in-degree and out-degree coincide.
+\end{description}
+
+\section{Closure effects}
+
+Each counts paths \emph{through the dependent network} that link the sender $i$, the candidate $j$ and third actors. The same effects through another network, and the mixed closures with two networks, are terms of \opt{netterms()} (Chapter~\ref{ch:netterms}).
+\begin{description}[style=nextline,nosep]
+  \item[\opt{trans}] $s(i,j)=\sum_k A_{ik}A_{kj}$: two-paths $i\to k\to j$ (transitive closure). Choice and coordination.
+  \item[\opt{cycle}] $s(i,j)=\sum_k A_{jk}A_{ki}$: two-paths $j\to k\to i$ (cyclical closure). Choice only.
+  \item[\opt{commonsender}] $s(i,j)=\sum_k A_{ki}A_{kj}$: a common third actor sent to both. Choice only.
+  \item[\opt{commonreceiver}] $s(i,j)=\sum_k A_{ik}A_{jk}$: both sent to a common third actor. Choice only.
+  \item[\opt{four}] $s(i,j)=\sum_{k\neq l}A_{ik}A_{lk}A_{lj}$: three-paths $i\to k\leftarrow l\to j$ through two distinct third actors. Choice and coordination.
+  \item[\opt{nodetrans}] $s(j)=\sum_h A_{jh}\sum_k A_{jk}A_{kh}$: the embeddedness of the candidate in transitive structures, the number of its ties that are closed by a two-path from the same actor. A property of the candidate alone, not a comparison with the sender, so that it is available, like \opt{indeg} and \opt{outdeg}, in all sub-models.
+\end{description}
+The statistics \opt{inertia}, \opt{recip}, \opt{trans}, \opt{cycle}, \opt{commonsender} and \opt{commonreceiver} compare the realized sender with a specific candidate; the rate sub-model has no candidate-receiver role (it is a hazard over which actor acts next), so that they exist only in the choice sub-model. \opt{indeg}, \opt{outdeg}, \opt{nodetrans} are properties of a single actor and are defined in both. \opt{four} needs two distinct third actors and is a statement about a sender--candidate pair.
+
+\section{Covariate effects}\label{sec:covariates}
+
+The covariates are numeric variables of the dataset in memory, one value per actor (Section~\ref{sec:attributes}); each option takes its own variable, and the variables need not be the same for different effects. They are constant over the log unless \opt{change()} is used (Section~\ref{sec:tvc}).
+\begin{description}[style=nextline,nosep]
+  \item[\opt{same(var)}] $s(i,j)=\mathbb{1}\{x_i=x_j\}$: homophily; whether sender and candidate have the same value.
+  \item[\opt{diff(var)}] $s(i,j)=|x_i-x_j|$: the absolute difference of the values (heterophily).
+  \item[\opt{sim(var)}] $s(i,j)=-|x_i-x_j|$: homophily by similarity, the negative absolute difference. It is exactly $-$\opt{diff()} on the same variable, so that \opt{diff()} and \opt{sim()} on the same variable cannot be combined (they are not identified).
+  \item[\opt{ego(var)}] $s(i)=x_i$: the value of the actor, with no comparison. Rate sub-model only.
+  \item[\opt{alter(var)}] $s(j)=x_j$: the value of the candidate receiver, with no comparison to the sender. Choice and coordination. (\opt{ego()} and \opt{alter()} are the same statistic, named after the role in the sub-model: the potential next sender in the rate model, the potential receiver in the choice model.)
+  \item[\opt{egoalterint(v1 v2)}] $s(i,j)=x^{(1)}_i\,x^{(2)}_j$: the value of the first variable of the sender times the value of the second variable of the candidate; an interaction, not a comparison. It needs exactly two numeric variables.
+  \item[\opt{tertius(var)}] $s(j)=\dfrac{1}{|N_j|}\sum_{h\in N_j}x_h$ with $N_j=\{h:A_{hj}=1\}$: the \emph{mean} covariate value of the in-neighbours of the candidate on the dependent network (everyone who has sent to it). An actor with no in-neighbours has the value 0. It is available in all sub-models (``alter type'' in the choice model, ``ego type'' in the rate model) and has a window of its own, \opt{tertiuswindow()}. The version for another network and the absolute-difference version are in Chapter~\ref{ch:netterms}.
+\end{description}
+\opt{same()}, \opt{diff()}, \opt{sim()}, \opt{ego()}, \opt{alter()} and \opt{egoalterint()} have no window or weighted version: a window is a recency filter on \emph{ties} (has this pair had a recent event?), and these effects read a covariate value, which has no most recent occurrence.
+
+\section{Windows}\label{sec:windows}
+
+By default \opt{inertia}, \opt{recip}, \opt{indeg} and \opt{outdeg} look back over the entire event history. A \emph{window} restricts one of them to the events of the last $w$ time units: \opt{inertiawindow(\#)}, \opt{recipwindow(\#)}, \opt{indegwindow(\#)}, \opt{outdegwindow(\#)}. The number $w$ is positive and in the time units of \opt{eventtime()}. An event is removed from the tie value again at its time plus $w$, and a tie exists if the summed value of the events within the window is above 0 (with positive values: if an event of the pair happened within the window). An event exactly $w$ time units before the current event still counts; the window is a hard cutoff, not a decaying weight, and a tie can expire once enough time has passed. A window option selects its own effect and sets its window; no separate \opt{inertia} is needed. The windows are independent of each other, and \opt{tertiuswindow(\#)} limits \opt{tertius()} to the ties of the last $w$ time units (it needs \opt{tertius()}).
+
+Where the windows exist: \opt{inertiawindow()} in the choice and the coordination sub-model; \opt{recipwindow()} in the choice sub-model; \opt{indegwindow()} in the rate and the coordination sub-model; \opt{outdegwindow()} in the rate sub-model; \opt{tertiuswindow()} in all three. (\opt{indeg} means something different in the choice and rate sub-models, so its window option is specific to the sub-model that has the actor as the candidate.) \opt{indegwindow()}, \opt{outdegwindow()} and \opt{tertiuswindow()} combine with \opt{intercept}; the hazard integral is then split at the expiry times. Only a \opt{change()} of the \opt{tertius()} variable together with \opt{tertiuswindow()} and \opt{intercept} is not available (Chapter~\ref{ch:limits}).
+\begin{lstlisting}
+. nwdynam mail, inertiawindow(0.5) recip indeg
+. nwdynam mail, submodel(rate) indegwindow(3) outdegwindow(5)
+\end{lstlisting}
+
+\section{Weighted effects}\label{sec:weighted}
+
+By default the tie-based effects use tie \emph{presence}. \opt{weightedinertia}, \opt{weightedrecip}, \opt{weightedindeg} and \opt{weightedoutdeg} use the \emph{value} of the tie instead: the sum of the values of all earlier events of the pair (\opt{weightedindeg}: of all ties to the actor; \opt{weightedoutdeg}: of all ties from the actor). Without event values every event has the value 1, so that the weighted effects count the earlier events. Like the windows they select their effect by themselves: \opt{weightedinertia} alone fits \opt{inertia} on the tie value. A weighted effect combined with that effect's window uses the summed value of the events within the window. \opt{weightedinertia} exists in the choice and the coordination sub-model, \opt{weightedrecip} in the choice sub-model, \opt{weightedindeg} in all three, \opt{weightedoutdeg} in the choice and the rate sub-model.
+\begin{lstlisting}
+. nwdynam mail, weightedinertia recip indeg
+. nwdynam mail, weightedinertia inertiawindow(0.5)
+\end{lstlisting}
+
+\section{The coordination sub-model}\label{sec:coordeffects}
+
+The statistics of the coordination sub-model are those of the choice sub-model (the model differs only in how the statistics are aggregated, Section~\ref{sec:coordmodel}). The effects available are \opt{inertia}, \opt{indeg}, \opt{trans}, \opt{four}, \opt{nodetrans}, \opt{same()}, \opt{diff()}, \opt{sim()}, \opt{alter()}, \opt{tertius()}, \opt{egoalterint()}, \opt{tie()} and the terms \texttt{tie}, \texttt{trans}, \texttt{four}, \texttt{mixedtrans} and \texttt{tertiusdiff} of \opt{netterms()}; also \opt{inertiawindow()}, \opt{indegwindow()}, \opt{tertiuswindow()}, \opt{weightedinertia} and \opt{weightedindeg}. Rejected are \opt{recip} and \opt{outdeg} (an undirected tie has no direction), \opt{cycle}, \opt{commonsender} and \opt{commonreceiver} (\goldfish{} registers no coordination version of them), \opt{ego()} (a rate effect), \opt{opportunities()}, \opt{recipwindow()}, \opt{outdegwindow()}, \opt{weightedrecip}, \opt{weightedoutdeg} and two-mode networks. Without effect options the default is \opt{inertia} and \opt{indeg}.
+
+\section{Two-mode networks}\label{sec:twomode}
+
+In a two-mode network every event goes from a mode-1 actor to a mode-2 actor (Section~\ref{sec:declare}). The effects available are \opt{inertia}, \opt{indeg}, \opt{alter()}, \opt{four}, \opt{egoalterint()} and \opt{tertius()} in the choice sub-model, and \opt{outdeg} and \opt{ego()} in the rate sub-model. The covariates are one value per actor of the combined actor list (mode 1 first, then mode 2): \opt{alter()} reads the value of the receiving actor (mode 2), \opt{ego()} that of the sending actor (mode 1), \opt{egoalterint()} multiplies the sender's value of the first variable by the receiver's value of the second, and \opt{tertius()} is the mean of the values of the mode-1 actors who have a tie to the candidate. In the rate sub-model the senders (mode 1) matter, in the choice sub-model the receivers (mode 2). \opt{change()} works with the two-mode effects above except \opt{egoalterint()}. \opt{recip}, \opt{outdeg} (choice), \opt{indeg} (rate), \opt{tertius()} and \opt{nodetrans} (rate), \opt{trans}, \opt{cycle}, \opt{commonreceiver}, \opt{commonsender}, \opt{nodetrans}, \opt{same()}, \opt{diff()}, \opt{sim()}, \opt{tie()}, \opt{netterms()}, \opt{opportunities()} and every windowed or weighted effect are rejected for two-mode networks: \goldfish{} itself either refuses them or returns statistics of the wrong dimension. Section~\ref{sec:ex_twomode} fits both sub-models on a two-mode network, and Chapter~\ref{ch:limits} shows the messages.

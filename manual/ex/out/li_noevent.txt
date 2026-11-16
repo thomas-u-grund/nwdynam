@@ -1,0 +1,9 @@
+. nwset, mat((0,1\1,0)) name(plain) directed
+
+. capture noisily nwdynam plain
+nwdynam requires a network declared via nwset's eventtime() option (an
+event-type temporal network) - see nwset.
+invalid syntax
+
+. display "return code: " _rc
+return code: 198

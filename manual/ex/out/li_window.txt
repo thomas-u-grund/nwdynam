@@ -1,0 +1,7 @@
+. capture noisily nwdynam mail, inertiawindow(0)
+inertiawindow() must be a positive number (in the same time units as the
+network's own eventtime()).
+invalid syntax
+
+. display "return code: " _rc
+return code: 198

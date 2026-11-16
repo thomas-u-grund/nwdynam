@@ -1,0 +1,37 @@
+. nwdynam mail, submodel(rate) intercept indeg outdeg
+------------------------------------------------------------
+Dynamic Network Actor Model - rate sub-model, with intercept (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood:   -1.4359
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+   Intercept |   .3928353   .0566414     6.94   0.000     .2818201    .5038505
+       indeg |   .0137263   .0119912     1.14   0.252    -.0097761    .0372287
+      outdeg |   .1857424   .0158219    11.74   0.000      .154732    .2167528
+------------------------------------------------------------------------------
+
+. estat eventlik, frame(evr)
+
+Log likelihood of every event (goldfish: returnIntervalLogL), submodel rate
+  Events: 631   sum:    -1.435943   mean:  -0.00228   min: -1.48e+02   max:   2.
+> 54735
+Table of the events in frame evr: event, origevent, time, sender, receiver, ll.
+
+. return list
+
+scalars:
+        r(ll_trailing) =  0
+             r(n_cens) =  0
+             r(ll_max) =  2.547346975547184
+             r(ll_min) =  -148.0840096961948
+            r(ll_mean) =  -.002275662733242
+                 r(ll) =  -1.435943184675761
+          r(ll_events) =  -1.435943184675706
+                  r(N) =  631
+
+macros:
+              r(frame) : "evr"

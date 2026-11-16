@@ -1,0 +1,6 @@
+. capture noisily nwdynam mail, intercept
+intercept only applies to submodel(rate) - see nwdynam.
+invalid syntax
+
+. display "return code: " _rc
+return code: 198

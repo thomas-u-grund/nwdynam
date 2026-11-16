@@ -1,0 +1,18 @@
+. mkmail 5
+
+. quietly nwdynam mail, inertia recip indeg
+
+. estimates store m1
+
+. quietly nwdynam mail, inertia
+
+. estimates restore m1
+(results m1 are active now)
+
+. capture noisily estat ic
+no fitted nwdynam model available for this command (the data of the fit is
+kept in memory after nwdynam and is gone after clear all, a later fit, or when
+the estimates come from estimates restore of another fit). Run nwdynam again.
+
+. display "return code: " _rc
+return code: 498

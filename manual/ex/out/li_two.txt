@@ -1,0 +1,39 @@
+. quietly nwwebuse manufacturing_nodes, nwclear
+
+. rename label receiver
+
+. gen str5 division2 = "D" + division
+
+. keep receiver division2
+
+. tempfile rdiv
+
+. quietly save `rdiv'
+
+. quietly nwwebuse manufacturing, nwclear
+
+. keep if t < 5
+(49,602 observations deleted)
+
+. quietly merge m:1 receiver using `rdiv', keep(match) nogenerate
+
+. keep sender division2 t
+
+. nwset sender division2, twomode eventtime(t) name(tm)
+file <temporary file> saved as .dta format
+
+. capture noisily nwdynam tm, trans
+trans is not available for two-mode (bipartite) networks - goldfish itself
+rejects it or computes it with the wrong dimensions there - see nwdynam.
+invalid syntax
+
+. display "return code: " _rc
+return code: 198
+
+. capture noisily nwdynam tm, inertiawindow(1)
+windowed effects are not yet verified for two-mode (bipartite) networks - see 
+nwdynam.
+invalid syntax
+
+. display "return code: " _rc
+return code: 198

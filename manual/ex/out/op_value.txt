@@ -1,0 +1,53 @@
+. * event values (artificial, to show the syntax): every email gets the value 1 
+> or 2 at random
+. quietly nwwebuse manufacturing, nwclear
+
+. keep if t < 5
+(49,602 observations deleted)
+
+. set seed 7
+
+. gen value = 1 + (runiform() < 0.3)
+
+. tabulate value
+
+      value |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          1 |        437       69.26       69.26
+          2 |        194       30.74      100.00
+------------+-----------------------------------
+      Total |        631      100.00
+
+. nwset sender receiver value, directed eventtime(t) name(valued)
+
+. nwdynam valued, inertia recip indeg
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: valued                        Actors: 102
+Events: 631                            Log likelihood: -2.19e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+      valued | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.712204   .1357223    12.62   0.000     1.446193    1.978215
+       recip |   2.658244   .1357849    19.58   0.000      2.39211    2.924377
+       indeg |   .0869861   .0085657    10.16   0.000     .0701976    .1037746
+------------------------------------------------------------------------------
+
+. nwdynam valued, weightedinertia recip indeg
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: valued                        Actors: 102
+Events: 631                            Log likelihood: -2.23e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+      valued | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   .3096642   .0346541     8.94   0.000     .2417433    .3775851
+       recip |   3.249779   .1156365    28.10   0.000     3.023136    3.476422
+       indeg |   .1078956   .0079517    13.57   0.000     .0923106    .1234806
+------------------------------------------------------------------------------

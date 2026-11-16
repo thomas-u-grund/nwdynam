@@ -1,0 +1,40 @@
+. nwwebuse manufacturing, nwclear
+(plain Stata dataset loaded - not a saved network file; build a network from
+it directly, e.g. with nwfromedge or nwgenerate)
+
+. keep if t < 5
+(49,602 observations deleted)
+
+. list in 1/5
+
+     +------------------------------+
+     | sender   receiver          t |
+     |------------------------------|
+  1. |    E39        E81   3.235255 |
+  2. |    E39        E81   3.235822 |
+  3. |   E112       E136    3.25566 |
+  4. |   E112        E60    3.25728 |
+  5. |   E112        E57   3.257963 |
+     +------------------------------+
+
+. count
+  631
+
+. display "span in days: " %5.2f t[_N] - t[1]
+span in days:  1.75
+
+. duplicates report sender receiver
+
+Duplicates in terms of sender receiver
+
+--------------------------------------
+   Copies | Observations       Surplus
+----------+---------------------------
+        1 |          235             0
+        2 |          160            80
+        3 |           75            50
+        4 |           76            57
+        5 |           55            44
+        6 |            6             5
+        8 |           24            21
+--------------------------------------

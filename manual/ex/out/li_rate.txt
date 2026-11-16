@@ -1,0 +1,8 @@
+. capture noisily nwdynam mail, submodel(rate) recip
+inertia/recip/same()/diff()/sim()/alter()/trans/cycle/commonsender/commonrecei
+> ver/four/egoalterint()/tie() are choice sub-model effects
+(submodel(choice)), not available with submodel(rate) - see nwdynam.
+invalid syntax
+
+. display "return code: " _rc
+return code: 198

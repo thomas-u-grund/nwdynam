@@ -1,0 +1,20 @@
+. nwload mail, xvars
+
+. gen long row = _n
+
+. gen label = _nwnode
+
+. quietly merge m:1 label using `actors', keep(master match) nogenerate
+
+. sort row
+
+. list label supervisor level div in 1/4
+
+     +---------------------------------+
+     | label   superv~r   level    div |
+     |---------------------------------|
+  1. |  E102        E36       2    E36 |
+  2. |  E103        E85       2    E85 |
+  3. |  E104        E86       1   E104 |
+  4. |  E105       E104       2   E104 |
+     +---------------------------------+

@@ -1,0 +1,38 @@
+\chapter{Getting started}\label{ch:start}
+
+This chapter fits a first model on a log of emails. All output was produced by \opt{manual/ex/ex01\_first.do} (Section~\ref{sec:howproduced}).
+
+\section{The version}
+
+\texttt{nwdynam version} prints the installed release, the core package and the plugin in use. It stores the release in \texttt{r(version)} and \texttt{r(date)}, the core version in \texttt{r(core)}, the plugin in \texttt{r(plugin)}, the version of \goldfish{} the results were compared with in \texttt{r(reference)}, and the license in \texttt{r(license)}. Quote the version when you report an analysis; after estimation it is in \texttt{e(version)}.
+\showlog{v_version}
+
+\section{The events}
+
+The data are the emails of Section~\ref{sec:datasets}, loaded with \texttt{nwwebuse}. Each row is one email with the sender, the receiver and the time it was sent (days since 1 January 2010). We use the 631 emails of the first five days.
+\showlog{first_data}
+The log spans 1.75 days. 235 of the sender--receiver pairs occur once, the others several times: the same person writes to the same person repeatedly, which is the pattern that the inertia effect describes. Three emails share the time stamp of an earlier email.
+
+\section{Declaring the events as a network}\label{sec:isolates}
+
+An event list is declared with \texttt{nwset} and the option \opt{eventtime()}, which names the time variable. The first two variables are the sender and the receiver. The log mentions only some of the 154 employees of the company; the others neither send nor receive an email in these five days. They still belong to the \emph{risk set}: the rate model asks why \emph{this} actor acted rather than any of the others, and the choice model why this receiver was chosen among all candidates. They are added as isolates with \texttt{nwaddnodes}, from the list of employees in the company file.
+\showlog{first_isolates}
+\showlog{first_declare}
+The network is called \texttt{mail}. After \texttt{nwset ..., eventtime()} the dataset in memory holds one row per actor; Chapter~\ref{ch:data} explains how to attach actor attributes.
+
+\section{The choice and the rate sub-model}
+
+Without options \texttt{nwdynam} fits the choice sub-model with its default effects \opt{inertia}, \opt{recip} and \opt{indeg}:
+\showlog{first_choice}
+The header names the sub-model, the network, the number of actors and of events and the log likelihood, and notes how many events share a time point with an earlier event (Section~\ref{sec:ties}). The coefficients are log odds ratios: an email goes to someone the sender wrote to before with odds $e^{1.76}\approx 5.8$ times those of someone the sender did not write to, to someone who wrote to the sender before with odds $e^{2.92}\approx 18.6$ times, and every additional distinct person who has written to a candidate raises the odds of the candidate by about 12 per cent ($e^{0.11}$).
+
+The rate sub-model describes who writes next. Its default effects are \opt{indeg} and \opt{outdeg}:
+\showlog{first_rate}
+Actors who have written to many different people have a higher rate of writing ($e^{0.30}$ per additional distinct recipient); the effect of the in-degree is small.
+
+\section{Replay and stored results}
+
+\texttt{nwdynam} without arguments redisplays the last results; only \opt{level()} may be given. \texttt{estimates replay} works as well.
+\showlog{first_replay}
+The results are stored in \texttt{e()}; Section~\ref{sec:stored} describes every item.
+\showlog{first_ereturn}

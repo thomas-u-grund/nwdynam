@@ -1,0 +1,4 @@
+. quietly estat outliers, window(50) plot name(ol)
+
+. graph export "../fig/outliers.pdf", name(ol) replace
+file ../fig/outliers.pdf saved as PDF format

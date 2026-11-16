@@ -1,0 +1,55 @@
+\chapter{Data preparation}\label{ch:data}
+
+\nwdynam{} fits the sub-models to a network that was declared as an \emph{event network} with \texttt{nwset} and its option \opt{eventtime()}. This chapter describes what such a network must contain, how actor attributes, event values and the special data features are supplied, and what the command refuses.
+
+\section{Declaring the events}\label{sec:declare}
+
+\begin{lstlisting}
+. nwset sender receiver, directed eventtime(t) name(mail)
+. nwset sender receiver value, directed eventtime(t) name(mail)
+. nwset sender receiver, undirected eventtime(t) name(contact)
+. nwset sender receiver, twomode eventtime(t) name(tm)
+\end{lstlisting}
+The dataset in memory holds one row per event. The first two variables name the sender and the receiver (strings or numbers; they become the actor labels), the optional third variable the value of the event (Section~\ref{sec:values}); \opt{eventtime(}\emph{varname}\opt{)} names the numeric time variable, in any unit and with any origin. The rows need not be sorted; \nwdynam{} orders the events by time, and rows with the same time keep the order of the event list (this order matters only with the option \opt{sequential}). The kind of network depends on the sub-model:
+\begin{itemize}[nosep]
+  \item \texttt{submodel(choice)} and \texttt{submodel(rate)} need a \emph{directed} or a \emph{two-mode} network;
+  \item \texttt{submodel(choice\_coordination)} needs an \emph{undirected} one-mode network.
+\end{itemize}
+Every event must have a time, a sender and a receiver that are actors of the network, and the sender must differ from the receiver. Events without a time, with a missing actor or with a missing value stop the command with error 416 (the message counts them; drop such rows before \texttt{nwset}); an event of an actor to itself stops it with error 3498; a log with fewer than two events stops it with error 2001. A network that was not declared with \opt{eventtime()} is refused with error 198.
+
+\section{Actors without events: the risk set}\label{sec:isolates2}
+
+The actors of the network are the actors of the event list, together with those added by \texttt{nwaddnodes}. Because every actor of the network is in the risk set at every time (unless it is absent, Section~\ref{sec:composition}), actors who do not appear in the log must be added, otherwise they are silently missing from the denominators of the likelihoods. Section~\ref{sec:isolates} shows how, with the list of all employees as the source.
+\begin{lstlisting}
+. nwaddnodes mail, nodenames(E7,E12,E13)
+\end{lstlisting}
+\texttt{nwset} (without arguments) lists the networks in memory; \texttt{nwdynam} reports the number of actors in the header (\texttt{e(nodes)}).
+
+\section{Actor attributes}\label{sec:attributes}
+
+The covariate options (\opt{same()}, \opt{diff()}, \opt{sim()}, \opt{ego()}, \opt{alter()}, \opt{tertius()}, \opt{egoalterint()}, \opt{present()}) read numeric variables of the \emph{dataset in memory} at the moment \texttt{nwdynam} is called, not the event dataset from which the network was declared. Put the actors into the data with \texttt{nwload}, which makes a dataset with one row per actor:
+\begin{lstlisting}
+. nwload mail, xvars
+\end{lstlisting}
+This dataset has the node-label variable \texttt{\_nwnode}. When it is there, \nwdynam{} matches every actor to its row \emph{by label}, whatever the sort order of the data, and every actor must have exactly one row. Without \texttt{\_nwnode} the dataset must have exactly one row per actor, in the actor order of the network. A missing value of a covariate stops the command with error 416. Attributes from another file are merged on the label; the label must be kept in \texttt{\_nwnode}, which is why the examples of this manual copy it into a variable \texttt{label} and merge on that:
+\showlog{sp_attr}
+Attributes are constant over the log unless they are declared as changing (Section~\ref{sec:tvc}). A string variable cannot be used; make a numeric one with \texttt{encode}.
+
+\section{Event values}\label{sec:values}
+
+A third variable in \texttt{nwset} gives each event a value (\texttt{nwset sender receiver value, eventtime(t)}); without it every event has the value 1. As in \goldfish{}, where the value is the \emph{increment} of the event, the value of an event is added to the tie from its sender to its receiver (on an undirected network to the tie between the two). A tie exists while its value is above 0: an event with the value 0 creates no tie, and a negative value can remove one. The unweighted effects use whether a tie exists, the weighted effects (Section~\ref{sec:weighted}) use the value of the tie. As in \goldfish{}, the unweighted \opt{indeg} and \opt{outdeg} add the \emph{sign} of each tie value, so a tie whose value is below 0 counts $-1$ (inside a window this happens when an event with a negative value outlives the event it cancelled). With only positive values the unweighted effects are the same as without values.
+
+\section{Undirected and two-mode events}
+
+\paragraph{Undirected.} The coordination sub-model needs \texttt{nwset ..., undirected eventtime()}; the pair of an event is unordered.
+
+\paragraph{Two-mode.} A two-mode (bipartite) event network has two sets of actors, the senders (mode 1) and the receivers (mode 2), and every event goes from a mode-1 actor to a mode-2 actor, never the reverse; events that violate this are refused with error 198. Declare the network with \opt{twomode}. In the example below the labels of the second mode carry a prefix, so that a division is not mistaken for an employee:
+\begin{lstlisting}
+. gen str5 division2 = "D" + division
+. nwset sender division2, twomode eventtime(t) name(tm)
+\end{lstlisting}
+The covariates of a two-mode network are one value per actor of the \emph{combined} actor list, the mode-1 actors first, then the mode-2 actors. Section~\ref{sec:twomode} lists the effects available in two-mode networks.
+
+\section{Composition change, changing covariates, opportunities}
+
+Three further features need data of their own, each declared as an event network or as a variable: covariates that change over time (option \opt{change()}), actors who join or leave (options \opt{present()} and \opt{compchange()}) and a per-event restriction of the candidates (options \opt{opportunities()} and \opt{oppframe()}). They are described in Chapter~\ref{ch:special}.

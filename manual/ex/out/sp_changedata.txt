@@ -1,0 +1,33 @@
+. * artificial change events, for illustration: ten employees, chosen at random,
+>  move one level up on day 4.2
+. set seed 2026
+
+. gen double u = runiform()
+
+. sort u
+
+. gen byte moved = _n <= 10
+
+. sort row
+
+. preserve
+
+. keep if moved
+(144 observations deleted)
+
+. gen newlevel = level - 1
+
+. gen label2 = label
+
+. gen double tchg = 4.2
+
+. nwset label label2 newlevel, eventtime(tchg) selfloop name(levelchg)
+
+. restore
+
+. nwset
+(3 networks)
+--------------------
+      mail
+      hier
+      levelchg

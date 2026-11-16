@@ -1,0 +1,34 @@
+. * two-mode events: an employee (mode 1) writes to a division (mode 2: the divi
+> sion of the receiver, labelled D plus the
+. * identifier of the head of the division, so that a division is not mistaken f
+> or an employee)
+. quietly nwwebuse manufacturing_nodes, nwclear
+
+. rename label receiver
+
+. gen str5 recdiv = "D" + division
+
+. keep receiver recdiv
+
+. tempfile rdiv
+
+. quietly save `rdiv'
+
+. quietly nwwebuse manufacturing, nwclear
+
+. keep if t < 5
+(49,602 observations deleted)
+
+. quietly merge m:1 receiver using `rdiv', keep(match) nogenerate
+
+. keep sender recdiv t
+
+. rename recdiv division
+
+. nwset sender division, twomode eventtime(t) name(tm)
+file <temporary file> saved as .dta format
+
+. nwset
+(1 networks)
+--------------------
+      tm

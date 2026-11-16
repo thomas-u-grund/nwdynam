@@ -1,0 +1,19 @@
+. estat changepoints, moment(variance) method(binseg) window(20)
+
+Change points of the log likelihood of the events, binseg method, change in the 
+> variance, minimum segment length (window) 20
+(1 real change made)
+
+  +--------------------------------------------------+
+  | event      time   sender   receiver           ll |
+  |--------------------------------------------------|
+  |   176   3.41816     E128       E166   -4.4574984 |
+  +--------------------------------------------------+
+  The change points are the events that end a regime: the log likelihood of
+  the following events belongs to the next regime.
+
+. matrix list r(cpts)
+
+r(cpts)[1,2]
+     c1   c2
+r1  176  631

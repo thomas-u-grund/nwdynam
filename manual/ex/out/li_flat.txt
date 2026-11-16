@@ -1,0 +1,20 @@
+. quietly nwwebuse manufacturing, nwclear
+
+. keep if t < 5
+(49,602 observations deleted)
+
+. nwset sender receiver, undirected eventtime(t) name(contact)
+
+. capture noisily nwdynam contact, submodel(choice_coordination) indeg
+cannot compute an improvement -- flat region encountered
+cannot compute an improvement -- flat region encountered
+cannot compute an improvement -- flat region encountered
+cannot compute an improvement -- flat region encountered
+cannot compute an improvement -- flat region encountered
+cannot compute an improvement -- flat region encountered
+cannot compute an improvement -- flat region encountered
+cannot compute an improvement -- flat region encountered
+simplex delta required
+
+. display "return code: " _rc
+return code: 111

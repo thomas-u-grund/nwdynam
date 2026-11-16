@@ -1,0 +1,35 @@
+. quietly levelsof sender, local(a) clean
+
+. quietly levelsof receiver, local(b) clean
+
+. local seen : list a | b
+
+. display "employees in the log: " `: word count `seen''
+employees in the log: 102
+
+. tempfile mail
+
+. save `mail'
+file <temporary file> saved as .dta format
+
+. nwwebuse manufacturing_nodes, nwclear
+(plain Stata dataset loaded - not a saved network file; build a network from
+it directly, e.g. with nwfromedge or nwgenerate)
+
+. quietly levelsof label, local(everyone) clean
+
+. display "employees in the company file: " `: word count `everyone''
+employees in the company file: 154
+
+. local without : list everyone - seen
+
+. display "employees without an email: " `: word count `without''
+employees without an email: 52
+
+. local miss
+
+. foreach e of local without {
+  2.     local miss `miss',`e'
+  3. }
+
+. local miss = substr("`miss'", 2, .)

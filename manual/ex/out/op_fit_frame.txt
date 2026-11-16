@@ -1,0 +1,24 @@
+. quietly use `ids', clear
+
+. frame create opps
+
+. frame opps: use `opp', clear
+(Manufacturing company emails, 2010 (Nurek and Michalski 2020; CC0))
+
+. nwdynam mail, inertia recip indeg alter(level) opportunities(evseq candid) opp
+> frame(opps)
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -1.45e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.431847    .138371    10.35   0.000     1.160644    1.703049
+       recip |   2.419106    .143249    16.89   0.000     2.138343    2.699869
+       indeg |   .1570361   .0114112    13.76   0.000     .1346705    .1794016
+       alter |  -.1316713   .0617853    -2.13   0.033    -.2527684   -.0105743
+------------------------------------------------------------------------------

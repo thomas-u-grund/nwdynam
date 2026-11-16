@@ -1,0 +1,40 @@
+. nwdynam mail, inertia recip indeg same(div)
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.29e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.712647    .140104    12.22   0.000     1.438048    1.987246
+       recip |   2.870691   .1379323    20.81   0.000     2.600349    3.141034
+       indeg |   .1142464   .0084152    13.58   0.000      .097753    .1307399
+        same |   .5954169   .1025453     5.81   0.000     .3944318    .7964019
+------------------------------------------------------------------------------
+
+. estimates store samediv
+
+. estimates table base samediv, b(%9.3f) stats(ll N)
+
+--------------------------------------
+    Variable |   base       samediv   
+-------------+------------------------
+     inertia |     1.765       1.713  
+       recip |     2.922       2.871  
+       indeg |     0.110       0.114  
+        same |                 0.595  
+-------------+------------------------
+          ll | -2307.397   -2290.415  
+           N |       631         631  
+--------------------------------------
+
+. lrtest samediv base
+
+Likelihood-ratio test
+Assumption: base nested within samediv
+
+ LR chi2(1) =  33.96
+Prob > chi2 = 0.0000

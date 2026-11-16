@@ -1,0 +1,99 @@
+. mkmail 5
+
+. nwdynam mail, inertia recip indeg
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.31e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.764847   .1422701    12.40   0.000     1.486003    2.043691
+       recip |   2.922381   .1401073    20.86   0.000     2.647776    3.196986
+       indeg |   .1096229   .0083142    13.18   0.000     .0933273    .1259185
+------------------------------------------------------------------------------
+
+. store `post' em_choice
+
+. nwdynam mail, inertia recip indeg trans
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.30e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.732437   .1417931    12.22   0.000     1.454528    2.010347
+       recip |   2.978432   .1384791    21.51   0.000     2.707018    3.249846
+       indeg |    .094776   .0091763    10.33   0.000     .0767909    .1127611
+       trans |   .5027673   .1032202     4.87   0.000     .3004595     .705075
+------------------------------------------------------------------------------
+
+. store `post' em_choice_trans
+
+. nwdynam mail, inertiawindow(0.5) recip indeg
+------------------------------------------------------------
+Dynamic Network Actor Model - choice sub-model (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.31e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+     inertia |   1.651976   .1348707    12.25   0.000     1.387634    1.916317
+       recip |   3.225304    .126903    25.42   0.000     2.976578    3.474029
+       indeg |   .1241489   .0077912    15.93   0.000     .1088784    .1394193
+------------------------------------------------------------------------------
+
+. store `post' em_choice_win
+
+. nwdynam mail, submodel(rate) indeg outdeg
+------------------------------------------------------------
+Dynamic Network Actor Model - rate sub-model, no intercept (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood: -2.99e+03
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       indeg |   .0324628   .0121141     2.68   0.007     .0087195     .056206
+      outdeg |   .2981233   .0176336    16.91   0.000     .2635621    .3326845
+------------------------------------------------------------------------------
+
+. store `post' em_rate
+
+. nwdynam mail, submodel(rate) intercept indeg outdeg
+------------------------------------------------------------
+Dynamic Network Actor Model - rate sub-model, with intercept (MLE)
+Network: mail                          Actors: 154
+Events: 631                            Log likelihood:   -1.4359
+Note: 3 events share a time point with an earlier event; events with equal
+times are simultaneous (as in goldfish).
+------------------------------------------------------------
+------------------------------------------------------------------------------
+        mail | Coefficient  Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+   Intercept |   .3928353   .0566414     6.94   0.000     .2818201    .5038505
+       indeg |   .0137263   .0119912     1.14   0.252    -.0097761    .0372287
+      outdeg |   .1857424   .0158219    11.74   0.000      .154732    .2167528
+------------------------------------------------------------------------------
+
+. store `post' em_rate_int
+
+. postclose `post'
+
+. use `res', clear
+
+. export delimited using "r/nwdynam_results.csv", replace
+(file r/nwdynam_results.csv not found)
+file r/nwdynam_results.csv saved

@@ -1,0 +1,11 @@
+. nwload mail, xvars
+
+. gen long actid = _n
+
+. gen label = _nwnode
+
+. quietly merge m:1 label using `actors', keep(master match) nogenerate
+
+. tempfile ids
+
+. quietly save `ids'

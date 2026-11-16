@@ -1,0 +1,7 @@
+. capture noisily nwdynam mail, ego(x)
+ego() is a rate sub-model effect (submodel(rate)), not available with
+submodel(choice) - see nwdynam.
+invalid syntax
+
+. display "return code: " _rc
+return code: 198

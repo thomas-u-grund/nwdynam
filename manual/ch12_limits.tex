@@ -1,0 +1,63 @@
+\chapter{Limits}\label{ch:limits}
+
+This chapter lists what \goldfish{} does and \nwdynam{} does not, the combinations of options that are refused (with the messages as \nwdynam{} prints them), and the limits of estimation. All messages in this chapter are the output of \texttt{manual/ex/ex07\_limits.do}.
+
+\section{What goldfish does that nwdynam does not}
+
+\nwdynam{} supports what \goldfish{}~\gfver{} offers for DyNAMs with the exceptions below.
+\begin{itemize}[nosep]
+  \item \texttt{ignoreRep} in the rate sub-model (\goldfish{} accepts it; its likelihood could not be reproduced).
+  \item \texttt{tertiusDiff} with time-varying attributes or in two-mode networks.
+  \item \texttt{tertius}, \texttt{indeg}, \texttt{outdeg}, \texttt{recip} and \texttt{nodeTrans} computed through another network (the closure effects, \texttt{tie} and the mixed closures are supported).
+  \item Effects of two-mode networks that \goldfish{} itself cannot compute: \nwdynam{} refuses them with a message.
+  \item With \opt{intercept} in the rate sub-model: a \opt{change()} of the \opt{tertius()} variable together with \opt{tertiuswindow()}, because \goldfish{} orders such a change and the expiry of the window in a way that \nwdynam{} does not reproduce.
+  \item Data preparation is different (instead of \goldfish{}'s objects, an event list declared with \texttt{nwset ..., eventtime()}); Appendix~\ref{app:translation}.
+\end{itemize}
+\goldfish{} has no goodness-of-fit or simulation function, and \nwdynam{} adds none.
+
+\section{Refusals}\label{sec:refusals}
+
+An effect option that does not apply to the chosen sub-model is rejected with a message and return code 198, never silently ignored. The following listings show the messages of the common refusals.
+
+\paragraph{Effects of the wrong sub-model.} \opt{recip} and the other dyadic effects belong to the choice sub-model; \opt{ego()} to the rate sub-model; \opt{intercept} to the rate sub-model; the terms of \opt{netterms()} and \opt{opportunities()} do not exist in the rate sub-model.
+\showlog{li_rate}
+\showlog{li_choice_rate}
+\showlog{li_intercept}
+\showlog{li_net_rate}
+\showlog{li_opp_rate}
+
+\paragraph{Bad values.} A window must be a positive number; the sub-model must be one of the three.
+\showlog{li_window}
+\showlog{li_sub}
+
+\paragraph{The wrong kind of network.} The coordination sub-model needs an undirected network; every sub-model needs a network declared with \opt{eventtime()}.
+\showlog{li_coord_directed}
+\showlog{li_noevent}
+
+\paragraph{Two-mode networks.} Many effects are refused in two-mode networks (Section~\ref{sec:twomode}):
+\showlogpart{li_two}{35}{48}
+
+\paragraph{Events that cannot be modeled.} An event of an actor to itself is refused when the model is fitted (the network itself is accepted by \texttt{nwset}):
+\showlog{li_selfloop}
+
+\paragraph{Other combinations that are refused} (all with return code 198; the message names the combination): \opt{present()} together with \opt{opportunities()}; \opt{opportunities()} with a covariate option without \opt{oppframe()}; \opt{change()} with \opt{opportunities()} without \opt{oppframe()}; \opt{change()} for a variable that no covariate option uses; the terms of \opt{netterms()} for two-mode networks, with \texttt{submodel(rate)}, or with \opt{change()}; an event of an absent actor; a change event of a covariate for an absent actor; \opt{increment} without \opt{change()}.
+
+\section{After the fit}\label{sec:limits_estat}
+
+The \texttt{estat} commands read the data of the fit in memory (Chapter~\ref{ch:postest}). After \texttt{estimates restore} of an earlier fit, or after \texttt{clear all}, they stop with return code 498:
+\showlog{li_restore}
+
+\section{Limits of estimation}
+
+\paragraph{The coordination sub-model.} The log likelihood of the coordination sub-model is not concave and can be flat. \nwdynam{} runs several starting values, keeps the best converged result and, as a last resort, a simplex search (Section~\ref{sec:technewton}); when none converges it stops with the message of Mata's optimizer and return code 111. On the emails taken as undirected contacts the default effects \opt{inertia} and \opt{indeg} could not be fitted together, while \opt{inertia} alone and \opt{inertia} with \opt{trans} could (Section~\ref{sec:ex_coord}):
+\showlog{li_flat}
+When this happens, drop or recode an effect, or use a different set of effects.
+
+\paragraph{Effects that are not identified.} An effect is flagged when its standard error is missing, zero or above 100: \texttt{e(unidentified)} lists them and a note under the table says so. Such an estimate must not be interpreted. Typical reasons are too few events for the effect, a perfectly predicted pattern in the data (for instance a covariate that is constant within the candidate sets of every event, as \opt{same()} when the opportunities are restricted to the sender's own division), and effects that are linear functions of each other (\opt{diff()} and \opt{sim()} of the same variable).
+
+\paragraph{Small logs.} A handful of events on very few actors has too little information to pin down the coefficients; wide confidence intervals are to be expected. The precision of a coefficient grows with the number of events.
+
+\paragraph{Size.} The number of rows of the table of \texttt{estat eventprob} is the number of events times the number of candidates and is limited by \opt{maxrows()}. The fits themselves are fast (Section~\ref{sec:speed}); the largest fit that was timed has 20,000 events among 100 actors.
+\todoowner{No maximum number of events or actors is documented in the help file or the tests; if the owner knows practical limits (memory of the frame of the fit, the size of the matrices of the actors), add them here.}
+
+\paragraph{Platforms.} Windows is not tested yet. The plugins for Linux and Windows are built by the build workflow of the repository; the benchmark of Section~\ref{sec:speed} ran on Linux.
