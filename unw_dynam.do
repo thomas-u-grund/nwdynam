@@ -251,32 +251,51 @@ real scalar dynam_rateint_accept(transmorphic S_opt, real scalar errcode) {
 */
 void dynam_rateint_newton(transmorphic f, real rowvector theta0, transmorphic a1, transmorphic a2,
 		real rowvector theta_hat, real matrix V, real scalar ll, real scalar ok) {
-	transmorphic S_opt
-	real rowvector t, tn, g, gn
-	real matrix H, Hn
-	real scalar errcode, y, yn, it, converged
+	real rowvector t, tn, g, gn, d
+	real matrix H, Hn, Hi
+	real scalar y, yn, it, k, step, dec, good
 
 	ok = 0
-	S_opt = optimize_init()
-	optimize_init_evaluator(S_opt, f)
-	optimize_init_evaluatortype(S_opt, "d2")
-	optimize_init_params(S_opt, theta0)
-	optimize_init_argument(S_opt, 1, a1)
-	optimize_init_argument(S_opt, 2, a2)
-	optimize_init_technique(S_opt, "nr")
-	optimize_init_which(S_opt, "max")
-	optimize_init_tracelevel(S_opt, "none")
-	optimize_init_conv_warning(S_opt, "off")
-	optimize_init_conv_maxiter(S_opt, 40)
-	optimize_init_conv_ptol(S_opt, 1e-13)
-	optimize_init_conv_vtol(S_opt, 1e-14)
-	optimize_init_conv_nrtol(S_opt, 1e-11)
-	errcode = _optimize(S_opt)
-	if (!dynam_rateint_accept(S_opt, errcode)) return
-	t = optimize_result_params(S_opt)
+	t = theta0
 	(*f)(2, t, a1, a2, y, g, H)
 	if (missing(y) | missing(g) | missing(H)) return
-	for (it=1; it<=5; it++) {
+	// damped Newton steps on the exact Hessian: a full step, halved until the log likelihood does not fall. The loop
+	// ends when the Newton decrement g' (-H)^-1 g is below 1e-12, or 1e-13 times the size of the log likelihood where round-off
+	// does not allow less (the log likelihood is then at its maximum to that precision);
+	// optimize()'s own "nr" technique keeps backing up at round-off level without ever meeting its tolerances, which cost
+	// up to a thousand evaluations on dense data.
+	good = 0
+	for (it = 1; it <= 100; it++) {
+		Hi = invsym(-H)
+		if (min(diagonal(Hi)) <= 0) return
+		d = g * Hi
+		dec = d * g'
+		if (dec < max((1e-12, 1e-13 * abs(y)))) {
+			good = 1
+			break
+		}
+		step = 1
+		for (k = 1; k <= 30; k++) {
+			tn = t + step * d
+			(*f)(2, tn, a1, a2, yn, gn, Hn)
+			if (!missing(yn) & !missing(gn) & !missing(Hn)) {
+				if (yn >= y) break
+			}
+			step = step / 2
+		}
+		if (k > 30) {
+			// no step raises the log likelihood: only round-off is left when the decrement is already tiny
+			good = (dec < 1e-8)
+			break
+		}
+		t = tn
+		y = yn
+		g = gn
+		H = Hn
+	}
+	if (!good) return
+	// bring the gradient to round-off level: steps are taken while they reduce its norm
+	for (it = 1; it <= 5; it++) {
 		tn = t + g * invsym(-H)
 		(*f)(2, tn, a1, a2, yn, gn, Hn)
 		if (missing(yn) | missing(gn) | missing(Hn)) break
