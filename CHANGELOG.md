@@ -3,6 +3,21 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] - 2026-11-16
+
+### Added
+- **More combinations, as in goldfish.** Windowed rate effects with `intercept` (`indegwindow()`, `outdegwindow()`); a window on `tertius` (new option `tertiuswindow(#)`) in the choice, rate, rate-with-intercept and coordination models; `inertiawindow()`, `indegwindow()`, `weightedinertia` and `weightedindeg` in `choice_coordination`; in two-mode networks the effects `alter()`, `egoalterint()`, `tertius()` and `four` in the choice model and `ego()` in the rate model; `opportunities()` together with the attribute effects (`same`, `diff`, `sim`, `alter`, `tertius`, `egoalterint`) through the new option `oppframe(framename)`; `change()` in two-mode networks and together with `opportunities()`. What goldfish itself refuses stays refused, with a message.
+- **Effects on other networks.** `netterms()`: `tie`, `trans`, `cycle`, `commonsender`, `commonreceiver` and `four` through another network, each with its own `window()`, `weighted` and `ignorerep`; the mixed closures `mixedtrans`, `mixedcycle`, `mixedcommonsender` and `mixedcommonreceiver` with the fitted network and an exogenous one, or with two exogenous ones; `tertiusdiff(var [net])`; `tie(netname)` accepts a network that changes over time; `ignorerep(effects)` for the built-in choice and choice_coordination effects.
+- **Postestimation, as in goldfish.** `estat ic` (log likelihood, log likelihood per event, AIC, BIC), `estat eventlik` and `estat eventprob` (goldfish's `returnIntervalLogL` and `returnEventProbabilities`), `estat outliers` (Hampel, IQR, Top; goldfish's `examineOutliers`) and `estat changepoints` (PELT, AMOC and binary segmentation for mean and variance; goldfish's `examineChangepoints`). They run in the compiled plugin. The change point methods are a port of the R package changepoint 2.3 (GPL) and are credited in NOTICE. For the rate model with intercept the right-censored intervals that goldfish counts are reported (`llcens`, `r(ll_trailing)`, `r(n_cens)`) and AIC and BIC use goldfish's record count.
+- After a fit its data stays in the frame `__nwdynam_fit`; the results carry `e(fitid)` and `e(estat_cmd)`, and `estat` stops with return code 498 when the results do not belong to the fit in memory.
+- Estimates, standard errors and log likelihoods agree with goldfish 1.6.12 to 1e-6 on about 700 random and fixed event logs (coordination: 5e-4 and 10% for the standard errors, which are numerical in both programs); the postestimation values agree on 90 logs (per-event values to 1e-13, outlier and change point indices exactly). Plugin protocol 5: an older plugin is refused (r(3495)).
+
+### Changed
+- `opportunities()` is read as a string option; its error codes are unchanged.
+- Fits that do not use the new features are not slower.
+
+Tested on macOS with Stata 17 BE, Stata 18 BE and StataNow 19.5 MP (full test suite and the extended tests). Windows and Linux: not yet tested for this version; the plugins are built by the build workflow, and until they are rebuilt those platforms stop with return code 3495.
+
 ## [1.7.0] - 2026-11-16
 
 ### Added
