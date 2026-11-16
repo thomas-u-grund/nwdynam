@@ -85,8 +85,9 @@ program nwdynam, eclass
 			error 103
 		}
 		if "`oppframe'" == "" {
-			capture unab opportunities : `opportunities'
-			if !_rc confirm numeric variable `opportunities'
+			unab opportunities : `opportunities'
+			capture confirm numeric variable `opportunities'
+			if _rc error 109
 		}
 		else {
 			capture frame `oppframe': confirm numeric variable `opportunities'
