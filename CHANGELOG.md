@@ -12,7 +12,7 @@ project uses [Semantic Versioning](https://semver.org/).
 ### Changed
 - The plugin protocol is 3: plugin binaries of 1.5.1 and earlier are recognised as too old (r(3495)). Until the build workflow has rebuilt the Linux and Windows plugins those platforms stop with r(3495). Fits without `change()` give the same results as before to round-off and are not slower.
 
-Tested on: TO BE FILLED
+Tested on macOS with Stata 17 BE, Stata 18 BE and StataNow 19.5 MP (the full test suite; the goldfish cross-checks including 42 random logs with changes). Windows and Linux: not yet tested; the plugins are built by the build workflow, and until they are rebuilt those platforms stop with return code 3495.
 
 ## [1.5.1] - 2026-11-16
 
