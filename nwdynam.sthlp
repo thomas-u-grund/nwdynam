@@ -577,8 +577,8 @@ without it every change sets the value 1. Missing values of the starting values 
 and, like the covariate options, does not apply to two-mode networks.
 
 {pstd}
-{bf:Verified} against the R package {cmd:goldfish} (CRAN, {cmd:stocnet/goldfish}) fit on its own bundled
-{cmd:Social_Evolution} dataset (84 actors, 439 phone-call events): both implementations reach the same
+{bf:Verified} against the R package {cmd:goldfish} (CRAN, {cmd:stocnet/goldfish}) fit on real and random
+event logs: both implementations reach the same
 log-likelihood surface for every sub-model, structural subset, attribute effect and windowed configuration
 tested, with matching coefficients to within 1e-2. The two-mode support, {opt opportunities()},
 {opt submodel(choice_coordination)} with its effects, {opt tie()}, {opt intercept} and the weighted effects were

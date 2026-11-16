@@ -7,9 +7,6 @@ def read(f):
     return {(r["model"], r["term"].lower()): r for r in csv.DictReader(open(os.path.join(here, "ex", "r", f)))}
 g = read("goldfish_results.csv"); s = read("nwdynam_results.csv")
 labels = {
- "soc_choice": ("Social Evolution", "choice: inertia, recip, indeg"),
- "soc_rate": ("Social Evolution", "rate: indeg, outdeg"),
- "soc_rate_int": ("Social Evolution", "rate with intercept: indeg, outdeg"),
  "em_choice": ("Emails", "choice: inertia, recip, indeg"),
  "em_choice_trans": ("Emails", "choice: inertia, recip, indeg, trans"),
  "em_choice_win": ("Emails", "choice: inertia (window 0.5), recip, indeg"),
