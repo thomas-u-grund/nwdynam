@@ -353,10 +353,9 @@ program nwdynam, eclass
 		// already needs the FULL n x n statistic matrix for every
 		// effect, so `S_tie' is literally `tiemat' itself) complete this
 		// engine's own currently-wired effect set. `tertiusDiff'/
-		// `mixedTrans' remain real-goldfish-eligible but not yet wired -
-		// a real, disclosed gap, not a blanket restriction.
+		// `mixedTrans' are terms of netterms().
 		if "`recip'`outdeg'`cycle'`commonsender'`commonreceiver'`ego'" != "" {
-			di as error "{p 0 0 2}recip/outdeg/cycle/commonsender/commonreceiver/ego() are not available with submodel(choice_coordination) - only inertia/indeg/same()/diff()/sim()/alter()/nodetrans/trans/tertius()/four/egoalterint()/tie() are wired for this sub-model so far (a real, disclosed gap for tertiusDiff/mixedTrans) - see {help nwdynam}.{p_end}"
+			di as error "{p 0 0 2}recip/outdeg/cycle/commonsender/commonreceiver/ego() are not available with submodel(choice_coordination) - only inertia/indeg/same()/diff()/sim()/alter()/nodetrans/trans/tertius()/four/egoalterint()/tie() are wired for this sub-model so far (tertiusdiff and mixedtrans are terms of netterms()) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		local __nwdynam_effnames "inertia indeg same diff sim alter nodetrans trans tertius four egoalterint tie"
@@ -685,7 +684,7 @@ program nwdynam, eclass
 	// ignorerep(): effects whose statistic is set to 0 for the pairs that already have a tie in the dependent network (goldfish: ignoreRep = TRUE)
 	if "`ignorerep'" != "" {
 		if "`submodel'" == "rate" {
-			di as error "{p 0 0 2}ignorerep() is available for submodel(choice) and submodel(choice_coordination); goldfish's rate sub-model does not accept ignoreRep.{p_end}"
+			di as error "{p 0 0 2}ignorerep() is available for submodel(choice) and submodel(choice_coordination); the rate sub-model is not available for ignorerep().{p_end}"
 			error 198
 		}
 		foreach __nwdynam_w of local ignorerep {
@@ -1030,11 +1029,10 @@ program nwdynam, eclass
 	// {help _nwsyntax}'s own `other()' prefix mechanism so its own
 	// locals (`__nwdynam_tienet_netobj' etc.) never clash with the
 	// primary network's own already-resolved locals. Genuinely
-	// dynamically-evolving cross-network effects (where the SECOND
-	// network is itself event-declared and changes over time, matching
-	// goldfish's own full generality) remain a real, disclosed follow-on
-	// - this v1 only supports a STATIC exogenous network, verified
-	// directly against real goldfish on exactly that case (see
+	// dynamically-evolving cross-network effects (an event-declared
+	// SECOND network) are converted to a netterms() tie term earlier;
+	// this block handles the STATIC network, verified
+	// directly against real goldfish (see
 	// unw_dynam.do's own header comment above the `tie_i' construction
 	// for the exact formula and dev/dynam_unit18_tie_crosscheck.R/.do
 	// for the real-goldfish verification). Valid for BOTH
@@ -1054,7 +1052,7 @@ program nwdynam, eclass
 		}
 		_nwsyntax `tie', other(__nwdynam_tienet_) max(1)
 		if "`__nwdynam_tienet_istemporal'" == "true" {
-			di as error "{p 0 0 2}tie(`tie') is an event-type (eventtime()-declared) network - tie() in this release only supports a STATIC exogenous network (a real, disclosed v1 scope limit; genuinely dynamically-evolving cross-network effects are not yet implemented) - see {help nwdynam}.{p_end}"
+			di as error "{p 0 0 2}tie(`tie') is an event-type (eventtime()-declared) network - tie() only supports a STATIC exogenous network (a real, disclosed v1 scope limit; genuinely dynamically-evolving cross-network effects are not yet implemented) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if `__nwdynam_tienet_nodes' != `nodes' {

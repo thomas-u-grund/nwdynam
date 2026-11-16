@@ -476,9 +476,8 @@ recency FILTER ON TIES (has this dyad had a recent event?), but these six effect
 covariate value, which has no "most recent occurrence" to filter on in the first place. {opt inertia}, {opt recip}, {opt indeg}, and
 {opt outdeg} are windowable because each is genuinely tie-based (their own value depends on the
 event history), which these six are not. {opt tertius()} DOES read the event history (it is a
-mean over the candidate's own in-neighbors), so it is windowable in {cmd:goldfish}'s own table -
-not yet wired here, a real, disclosed scope limit matching choice's own already-unwindowed
-{opt indeg}.
+mean over the candidate's own in-neighbors), so it is windowable in {cmd:goldfish}'s own table
+({opt tertiuswindow()}).
 
 {pstd}
 Covariate options ({opt same()}, {opt diff()}, {opt sim()}, {opt ego()}, {opt alter()},
