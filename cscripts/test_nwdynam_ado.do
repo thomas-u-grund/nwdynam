@@ -695,18 +695,18 @@ assert _rc == 198
 di as text "  correctly rejected commonsender (rc=" _rc ")"
 
 di as text "{hline 60}"
-di as text "Test: opportunities()/weightedindeg/window options rejected under"
+di as text "Test: opportunities() rejected, weightedindeg/indegwindow() accepted under"
 di as text "choice_coordination"
 di as text "{hline 60}"
 capture noisily nwdynam coordsmall, submodel(choice_coordination) opportunities(floor floor)
 assert _rc == 198
 di as text "  correctly rejected opportunities() (rc=" _rc ")"
 capture noisily nwdynam coordsmall, submodel(choice_coordination) weightedindeg
-assert _rc == 198
-di as text "  correctly rejected weightedindeg (rc=" _rc ")"
+assert _rc == 0
+di as text "  weightedindeg is accepted (rc=" _rc ")"
 capture noisily nwdynam coordsmall, submodel(choice_coordination) indegwindow(3)
-assert _rc == 198
-di as text "  correctly rejected indegwindow() (rc=" _rc ")"
+assert _rc == 0
+di as text "  indegwindow() is accepted (rc=" _rc ")"
 
 di as text "{hline 60}"
 di as text "Test: tie() (cross-network effects, v1 scope, 2026-09-02) - goldfish's"
@@ -779,17 +779,12 @@ capture noisily nwdynam coordsmall, submodel(choice_coordination) intercept
 assert _rc == 198
 di as text "  correctly rejected (rc=" _rc ")"
 
-di as text "Test: intercept rejected combined with indegwindow()/outdegwindow()"
-di as text "(a real, disclosed architectural gap - see nwdynam.ado's own"
-di as text "intercept validation block for the full account - NOT merely"
-di as text "unverified: goldfish's own window() mechanism needs synthetic"
-di as text "mid-interval expiry events this engine does not yet inject)"
+di as text "Test: intercept combined with indegwindow()/outdegwindow() runs (checked against goldfish in test_nwdynam_combinations.do)"
 capture noisily nwdynam tiesmall, submodel(rate) intercept indegwindow(3)
-assert _rc == 198
-di as text "  correctly rejected indegwindow() (rc=" _rc ")"
+assert _rc == 0
 capture noisily nwdynam tiesmall, submodel(rate) intercept outdegwindow(3)
-assert _rc == 198
-di as text "  correctly rejected outdegwindow() (rc=" _rc ")"
+assert _rc == 0
+di as text "  accepted indegwindow() and outdegwindow() with intercept"
 
 di as text "{hline 60}"
 di as text "Test: intercept + weightedindeg/weightedoutdeg (batch 18, 2026-09-02) -"

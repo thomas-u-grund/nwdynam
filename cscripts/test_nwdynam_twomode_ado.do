@@ -127,8 +127,8 @@ assert _rc == 198
 di as text "  correctly rejected weightedinertia (rc=" _rc ")"
 
 di as text "{hline 60}"
-di as text "Test: same()/diff()/sim()/alter()/ego()/egoalterint()/tertius() are ALL"
-di as text "rejected for two-mode - a real limitation found during verification"
+di as text "Test: same()/diff()/sim() and rate-model tertius() are rejected for two-mode;"
+di as text "alter()/ego()/egoalterint() run - a real limitation found during verification"
 di as text "(goldfish's own internal two-mode representation applies its self-tie"
 di as text "convention by raw row/column index, not real actor identity - see"
 di as text "unw_dynam.do's own header comment), not silently shipped unverified"
@@ -152,17 +152,18 @@ capture noisily nwdynam afftest, diff(shared)
 assert _rc == 198
 di as text "  correctly rejected diff() for two-mode (rc=" _rc ")"
 
+* alter(), egoalterint() and (rate) ego() work for two-mode networks (checked against goldfish in test_nwdynam_combinations.do)
 capture noisily nwdynam afftest, alter(shared)
-assert _rc == 198
-di as text "  correctly rejected alter() for two-mode (rc=" _rc ")"
+assert _rc == 0
+di as text "  alter() runs for two-mode (rc=" _rc ")"
 
 capture noisily nwdynam afftest, egoalterint(shared shared)
-assert _rc == 198
-di as text "  correctly rejected egoalterint() for two-mode (rc=" _rc ")"
+assert _rc == 0
+di as text "  egoalterint() runs for two-mode (rc=" _rc ")"
 
 capture noisily nwdynam afftest, submodel(rate) ego(shared)
-assert _rc == 198
-di as text "  correctly rejected ego() for two-mode (rc=" _rc ")"
+assert _rc == 0
+di as text "  ego() runs for two-mode (rc=" _rc ")"
 
 capture noisily nwdynam afftest, submodel(rate) tertius(shared)
 assert _rc == 198
