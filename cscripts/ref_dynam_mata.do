@@ -489,7 +489,7 @@ real scalar dynam_rate_loglik_unit1(real rowvector theta, pointer(class DynamSta
 	scope limit (goldfish's own table shows `window` IS valid on these
 	effects; matching the already-disclosed unwindowed status of
 	choice's own `indeg`, not silently extended to match). Verified
-	against real goldfish on a real event log - see
+	against real goldfish on Social_Evolution - see
 	dev/dynam_unit9_closure_crosscheck.R/.do, including a genuine
 	multi-effect model (`inertia + recip + trans + cycle + commonSender
 	+ commonReceiver` together) matching to within 0.01 on every
@@ -553,7 +553,7 @@ real scalar dynam_rate_loglik_unit1(real rowvector theta, pointer(class DynamSta
 	dataset - isolates are imputed as 0, full stop, matching this
 	engine's own pre-existing sentinel convention for "nothing here yet"
 	elsewhere in the file. Implemented as verified, not as documented.
-	Re-verified against real goldfish on a real event log after the fix
+	Re-verified against real goldfish on Social_Evolution after the fix
 	- see dev/dynam_unit10_tertius_egoalterint_crosscheck.R/.do -
 	matching to within 0.01 on every coefficient, including `tertius`
 	under BOTH sub-models and a genuine 3-effect combined choice model

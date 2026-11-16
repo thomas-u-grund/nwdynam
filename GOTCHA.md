@@ -17,7 +17,7 @@ the new one and gives r(3021) or other class errors; the message tells the user 
 
 ## Tied event times are simultaneous (goldfish), not sequential
 
-Before 1.1.0 events with the same time were processed one after another in input order (after the `ordfix` commit: order by time, then row), which gave -652.83 / inertia 5.00 on a log of 439 events with times rounded up to multiples of 20
+Before 1.1.0 events with the same time were processed one after another in input order (after the `ordfix` commit: order by time, then row), which gave -652.83 / inertia 5.00 on `socialevolution` with `ceil(t/20)`
 while goldfish gives -1595.33 / 3.54. goldfish evaluates all events of a time point at the state before that point (permuting tied rows
 does not change its fit; checked 2026-10-25). `DynamState.gfirst` holds the first row of each group and `dynam_group_end()` returns it at the
 last event of a group; every likelihood loop updates its tie/lastcontact/tiecount matrices only there. A new loop must do the same, or ties
@@ -28,7 +28,7 @@ nwrem (relevent) still reads ties sequentially. A test that calls a Mata evaluat
 ## Attaching a covariate to an `eventtime()`-declared network needs `_nwnode`, not a fresh merge
 
 After `nwset sender receiver, eventtime(t) name(netname)` declares an event network (found while
-building an example dataset, 2026-09-12), the dataset left in memory is **not**
+building the `socialevolution` example dataset, 2026-09-12), the dataset left in memory is **not**
 the original sender/receiver/t rows anymore — it's one row per actor who appears in at least one
 event, with columns `_nwnode` (the actor's own label) and `_nwinclude`. A `merge 1:1 label using
 covariates.dta` fails outright (`variable label not found`) because there is no `label` variable to
@@ -113,7 +113,7 @@ by hand "fixes" it for that session only, which hid the bug in every manual test
 
 ## Events with the same time are sorted with the row number as second key (fixed 2026-10-25)
 
-`DynamState::init()` sorted the events by time with `order(time, 1)`, which breaks ties by the random-number state: with tied event times the tie matrix evolved in a different order and the log likelihood changed from run to run (a log of 439 events with time/20 rounded up: -644 to -683 over six seeds). The key is now (time, row number of the network's event list), the order goldfish uses when the times are made distinct in that order. Test: `cscripts/test_nwdynam_ordfix.do`. Note: goldfish treats events with an identical time as simultaneous (its log likelihood on the tied data is -1595.3, not -652.8), which nwdynam does not do; the two agree only for distinct times.
+`DynamState::init()` sorted the events by time with `order(time, 1)`, which breaks ties by the random-number state: with tied event times the tie matrix evolved in a different order and the log likelihood changed from run to run (socialevolution with time/20 rounded up: -644 to -683 over six seeds). The key is now (time, row number of the network's event list), the order goldfish uses when the times are made distinct in that order. Test: `cscripts/test_nwdynam_ordfix.do`. Note: goldfish treats events with an identical time as simultaneous (its log likelihood on the tied data is -1595.3, not -652.8), which nwdynam does not do; the two agree only for distinct times.
 
 ## A `/*` inside a `*` comment line opens a block comment (found 2026-10-26)
 

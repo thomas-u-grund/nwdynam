@@ -13,7 +13,7 @@ pdf: tables
 	pdflatex -interaction=nonstopmode nwdynam_manual.tex
 	pdflatex -interaction=nonstopmode nwdynam_manual.tex
 
-# the numerical comparison with goldfish of chapter 11: Stata writes the event log, R fits the models, Stata fits them, python builds the table
+# the numerical comparison with goldfish of chapter 11: Stata writes the two event logs, R fits the models, Stata fits them, python builds the table
 compare:
 	NWCORE=$(NWCORE) ./run_examples.sh ex90_export_for_r
 	cd ex/r && Rscript compare.R

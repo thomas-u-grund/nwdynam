@@ -1,4 +1,4 @@
-# goldfish side of the comparison of chapter 11: fits the models on the event log with goldfish and writes
+# goldfish side of the comparison of chapter 11: fits the models on the two event logs with goldfish and writes
 # ex/r/goldfish_results.csv (model, term, estimate, se, loglik). Run from manual/ex/r. Needs R with goldfish 1.6.12.
 suppressMessages(library(goldfish))
 fit <- function(tag, ev, actors, effects, sub) {
@@ -14,7 +14,11 @@ fit <- function(tag, ev, actors, effects, sub) {
   data.frame(model = tag, term = names(coef(m)), estimate = as.numeric(coef(m)), se = as.numeric(s$standardErrors), loglik = as.numeric(s$logLikelihood))
 }
 em <- read.csv("emails.csv"); ea <- read.csv("email_actors.csv")$label
+so <- read.csv("socevo.csv"); sa <- as.character(1:84)
 res <- rbind(
+  fit("soc_choice", so, sa, "inertia(net) + recip(net) + indeg(net)", "choice"),
+  fit("soc_rate", so, sa, "indeg(net) + outdeg(net)", "rate"),
+  fit("soc_rate_int", so, sa, "1 + indeg(net) + outdeg(net)", "rate"),
   fit("em_choice", em, ea, "inertia(net) + recip(net) + indeg(net)", "choice"),
   fit("em_choice_trans", em, ea, "inertia(net) + recip(net) + indeg(net) + trans(net)", "choice"),
   fit("em_choice_win", em, ea, "inertia(net, window = 0.5) + recip(net) + indeg(net)", "choice"),
