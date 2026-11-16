@@ -252,3 +252,14 @@ about 15 minutes; test `cscripts/test_nwdynam_combinations.do`).
 - `ignorerep` in the rate model: goldfish accepts it but no hypothesis reproduced its likelihood, so it is refused.
 - Refused because goldfish does not offer them: cycle/commonsender/commonreceiver/mixed cycle and common effects in choice_coordination; `weighted` on closures.
 - Plugin protocol stays 5: the term block is appended to the blob (blob[40] = its length); the Mata glue passes it in the external `__nwdynam_xblob`.
+
+## Postestimation: the fit frame, goldfish's record count, ties in Top
+
+* A fit keeps its data in the frame `__nwdynam_fit` (the plugin blob in v1, plus `ord` and `nm`; characteristics `bloblen`, `model`, `fitid`) instead of closing it; `e(fitid)` ties the estimates to it, `estat` stops with r(498) otherwise. Fits do no extra work. The next fit replaces the frame; `clear all` removes it.
+* `estat` only reaches `nwdynam_estat` when `e(estat_cmd)` is set; without it Stata runs its own `estat ic`.
+* The new plugin codes 30 (per-event values) and 40 (outliers, change points) write their output behind the blob in v1 and leave the blob and codes 20/99 unchanged: no protocol bump. A plugin without them stops with r(3495).
+* Rate with intercept: goldfish's `nEvents`, `intervalLogL` and `eventProbabilities` also hold the right-censored intervals (`orderEvents == 2`) that covariate changes and window expiries create; AIC and BIC use that count. `examineOutliers` / `examineChangepoints` subset to the events. Composition changes do not split periods. The "probability" returned for this model is `lp_j - timespan * sum(rates)`, not a probability.
+* Per-event values are only comparable to goldfish at the same coefficients: tests repost goldfish's `e(b)` before `estat` (the fit agrees only to about 1e-7).
+* `examineOutliers` default Hampel window is `N/2 - 1` (the loop `(w+1):(N-w)` then tests only the middle event(s); an even N with 2w+1 > N errors). `method(top)` ranks by `order(x)`; exact ties in the log likelihood (events with identical state) are broken by rounding noise, so goldfish may name another event.
+* `changepoint`: minseglen defaults to the largest run of equal times; the variance cost needs minseglen >= 2 and N >= 4; BinSeg errors when Q = 5 > N/minseglen + 1; the penalty is MBIC, `3 log n`. The list of change points always ends with n; goldfish removes entries with equal times (`!duplicated(time[cpt], fromLast = TRUE)`).
+* Mata: one-line brace bodies (`if (x) { a; b }`, `} else { ... }` on one line) gave "illegal arglist" in this file; use multi-line blocks. `st_numscalar()` of a missing scalar aborts; test with `_stata("confirm scalar ...", 1)`.

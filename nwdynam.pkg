@@ -10,6 +10,8 @@ f nwdynam.ado
 f _nwdynam_libcheck.ado
 f nwdynam_version.ado
 f nwdynam.sthlp
+f nwdynam_estat.ado
+f nwdynam_estat.sthlp
 f lib/lnwdynam.mlib
 f lib/plugins/macos/dynam_sim_macos.plugin
 f lib/plugins/windows/dynam_sim_windows.plugin

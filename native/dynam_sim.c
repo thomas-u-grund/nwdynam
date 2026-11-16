@@ -21,6 +21,20 @@
 	  code 20 = evaluate; code 99 = report the protocol number (row 1 of variable 2). Version 1 plugins (nwdynam 1.4.0
 	  and earlier) know the codes 1, 2, 3 only and fail on 99, which is how the Mata glue recognises a plugin that is too old.
 
+	Codes 30 and 40 do not change the blob or the codes above.
+	  code 30 = per-event results after a fit (goldfish's returnIntervalLogL and returnEventProbabilities):
+	  "30 <L> <flags> <P> <theta...> [<nrec>]". flags bit 1 = write the rows (else only count the records; with bit 1 the last token is
+	  the record count of the counting call), bit 2 = write the probabilities too. Output: variable 2 rows 1..4 = log likelihood,
+	  number of records, number of dependent events, values per probability block; the rows are written to variable 1 BEHIND the blob
+	  (row L + 1 on): the log likelihood of every record (nrec rows), then the event number of every record (1-based position in the
+	  time-sorted list; 0 = a right-censored interval of the rate model with intercept, which goldfish also lists), then the time at
+	  the end of the record, then the probabilities (blocks of n values per event; for choice_coordination n(n-1)/2 values of the
+	  pairs a < b; a missing value = not in the risk set; rate model with intercept: the linear predictor minus the exposure,
+	  goldfish's value there).
+	  code 40 = series tools on the per-event log likelihood (goldfish's examineOutliers and examineChangepoints, the latter after
+	  the R package 'changepoint'): "40 <L> <nd> <kind> <method> <moment> <minseglen> <parameter> <window>"; variable 1 behind the
+	  blob: the series (nd rows), the times (nd rows), then the result indices; variable 2 row 1 = number of indices, row 2 = error code.
+
 	Blob (doubles; L = total length):
 	  [0] protocol  [1] model (1 choice, 2 rate, 3 rate with intercept, 4 coordination)  [2] n  [3] N  [4] n1 (mode-1
 	  actors of a two-mode network, 0 = one-mode)  [5] M (number of effect slots)  [6] opportunities given  [7] tie() given
@@ -140,6 +154,18 @@ typedef struct {
 	double *nt, *tnum;
 	int sym;
 } State;
+
+/* optional per-event output (code 30); NULL = a fit, which therefore does no extra work */
+typedef struct {
+	int write;                         /* 0 = only count the records */
+	nwint nrec;                        /* records seen */
+	nwint cap;                         /* rows allocated for the records */
+	double *ll, *typ, *tim;            /* record rows */
+	double *pr;                        /* probability blocks or NULL */
+	nwint pstride;                     /* values per block */
+} PredOut;
+static PredOut *g_po = NULL;
+static double g_lastS = 0.0;           /* rate model with intercept: sum of the hazards of the last exposure term */
 
 static double sgn(double x) { return (double)((x > 0.0) - (x < 0.0)); }
 
@@ -921,6 +947,15 @@ static int eval_softmax(const Spec *sp, const double *theta, int todo, double *l
 		lrsum = mx + log(sumP);
 		L += lp[choice ? r : s] - lrsum;
 		for (j = 0; j < n; j++) Pr[j] /= sumP;
+		if (g_po) {
+			if (g_po->write && g_po->nrec < g_po->cap) {
+				g_po->ll[g_po->nrec] = lp[choice ? r : s] - lrsum;
+				g_po->typ[g_po->nrec] = (double)(i + 1);
+				g_po->tim[g_po->nrec] = sp->ev[5 * i + 2];
+				if (g_po->pr) for (j = 0; j < n; j++) g_po->pr[(size_t)i * (size_t)n + (size_t)j] = (lp[j] > -1e299) ? Pr[j] : SV_missval;
+			}
+			g_po->nrec++;
+		}
 		for (k = 0; k < P; k++) {
 			const double *x = X + (size_t)k * (size_t)n;
 			double a = 0.0;
@@ -984,6 +1019,7 @@ static int rateint_exposure(const Spec *sp, const double *theta, int todo, const
 			if (todo >= 2) for (l = k; l < Pt; l++) Sxx[k * Pt + l] += xk * X[(size_t)l * (size_t)n + j];
 		}
 	}
+	g_lastS = S;
 	*L -= w * S;
 	for (k = 0; k < Pt; k++) g[k] -= w * Sx[k];
 	if (todo >= 2) for (k = 0; k < Pt; k++) for (l = k; l < Pt; l++) {
@@ -992,6 +1028,17 @@ static int rateint_exposure(const Spec *sp, const double *theta, int todo, const
 		if (l != k) H[l * Pt + k] += h;
 	}
 	return 0;
+}
+
+/* a right-censored interval of the rate model with intercept (goldfish lists it as an event of its own) */
+static void cens_record(double t, double w) {
+	if (!g_po) return;
+	if (g_po->write && g_po->nrec < g_po->cap) {
+		g_po->ll[g_po->nrec] = -w * g_lastS;
+		g_po->typ[g_po->nrec] = 0.0;
+		g_po->tim[g_po->nrec] = t;
+	}
+	g_po->nrec++;
 }
 
 static int eval_rateint(const Spec *sp, const double *theta, int todo, double *ll, double *g, double *H, int *overflow) {
@@ -1036,6 +1083,7 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 					if (tb > t0) {
 						apply_pres(sp, &st, tb);
 						if (rateint_exposure(sp, theta, todo, X, tb - t0, &L, g, H, Sx, Sxx, st.pres)) { *overflow = 1; goto done; }
+						cens_record(tb, tb - t0);
 						t0 = tb;
 					}
 					expire_upto(sp, &st, gs, tb);
@@ -1054,8 +1102,24 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 		if (lps > 700.0) { *overflow = 1; goto done; }
 		L += lps;
 		for (k = 0; k < Pt; k++) g[k] += X[(size_t)k * (size_t)n + s];
+		g_lastS = 0.0;
 		if (w != 0.0) {
 			if (rateint_exposure(sp, theta, todo, X, w, &L, g, H, Sx, Sxx, st.pres)) { *overflow = 1; goto done; }
+		}
+		if (g_po) {
+			if (g_po->write && g_po->nrec < g_po->cap) {
+				nwint jj, nrisk = (sp->n1 > 0 ? sp->n1 : sp->n);
+				g_po->ll[g_po->nrec] = lps - w * g_lastS;
+				g_po->typ[g_po->nrec] = (double)(i + 1);
+				g_po->tim[g_po->nrec] = tcur;
+				if (g_po->pr) for (jj = 0; jj < n; jj++) {
+					double lpj = 0.0;
+					if (jj >= nrisk || (st.pres && !st.pres[jj])) { g_po->pr[(size_t)i * (size_t)n + (size_t)jj] = SV_missval; continue; }
+					for (k = 0; k < Pt; k++) lpj += theta[k] * X[(size_t)k * (size_t)n + jj];
+					g_po->pr[(size_t)i * (size_t)n + (size_t)jj] = lpj - w * g_lastS;
+				}
+			}
+			g_po->nrec++;
 		}
 		tprev = tcur;
 		if (sp->ev[5 * i + 4] != 0.0) {
@@ -1077,6 +1141,7 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 			if (tb > t0) {
 				apply_pres(sp, &st, tb);
 				if (rateint_exposure(sp, theta, todo, X, tb - t0, &L, g, H, Sx, Sxx, st.pres)) { *overflow = 1; goto done; }
+				cens_record(tb, tb - t0);
 				t0 = tb;
 			}
 			expire_upto(sp, &st, gs, tb);
@@ -1198,6 +1263,19 @@ static int eval_coord(const Spec *sp, const double *theta, int todo, double *ll,
 		Z = tot / 2.0;
 		for (a = 0; a < n; a++) { double rs = 0.0; for (b = 0; b < n; b++) { Pn[a * n + b] /= Z; rs += Pn[a * n + b]; } rowPn[a] = rs; }
 		L += log(Pn[s * n + r]);
+		if (g_po) {
+			if (g_po->write && g_po->nrec < g_po->cap) {
+				g_po->ll[g_po->nrec] = log(Pn[s * n + r]);
+				g_po->typ[g_po->nrec] = (double)(i + 1);
+				g_po->tim[g_po->nrec] = sp->ev[5 * i + 2];
+				if (g_po->pr) {
+					size_t pos = (size_t)i * (size_t)g_po->pstride;
+					for (a = 0; a < n; a++) for (b = a + 1; b < n; b++)
+						g_po->pr[pos++] = (!st.pres || (st.pres[a] && st.pres[b])) ? Pn[a * n + b] : SV_missval;
+				}
+			}
+			g_po->nrec++;
+		}
 		for (q = 0; q < P; q++) {
 			int e = sp->eff[q];
 			double T1 = 0.0, T2 = 0.0;
@@ -1346,12 +1424,316 @@ static int spec_read(Spec *sp, nwint L) {
 }
 
 /* ------------------------------------------------------------------
+   Series tools (code 40): the outlier rules of goldfish's examineOutliers (Hampel, IQR, Top) and the change point methods
+   of goldfish's examineChangepoints, which calls cpt.mean() / cpt.var() of the R package 'changepoint' (Killick, Haynes,
+   Eckley, Fearnhead, Lee; GPL, usable under GPL-3). The change point code below is a port of that package's C and R
+   sources (version 2.3): PELT (PELT_one_func_minseglen.c), binary segmentation (BinSeg_one_func_minseglen.c),
+   at most one change (single.norm.R), the cost functions (cost_general_functions.c) and the penalty (penalty_decision.R),
+   all with the package's default penalty MBIC and test statistic Normal. Only what examineChangepoints can reach is ported.
+   ------------------------------------------------------------------ */
+#define SER_PI 3.141592653589793238462643383279502884
+
+static int dcmp(const void *a, const void *b) {
+	double x = *(const double *)a, y = *(const double *)b;
+	return (x > y) - (x < y);
+}
+
+/* R's median() of a vector (the buffer is sorted) */
+static double med_sorted(double *v, nwint m) {
+	qsort(v, (size_t)m, sizeof(double), dcmp);
+	if (m % 2 == 1) return v[m / 2];
+	return (v[m / 2 - 1] + v[m / 2]) / 2.0;
+}
+
+/* R's quantile(type = 7) of a SORTED vector */
+static double quant7(const double *v, nwint m, double p) {
+	double index = 1.0 + (double)(m > 1 ? m - 1 : 0) * p, lo = floor(index), hi = ceil(index), qs;
+	qs = v[(nwint)lo - 1];
+	if (index > lo && v[(nwint)hi - 1] != qs) {
+		double h = index - lo;
+		qs = (1.0 - h) * qs + h * v[(nwint)hi - 1];
+	}
+	return qs;
+}
+
+typedef double (*CptCost)(double, double, double, int);
+static double cost_mean_mbic(double x, double x2, double x3, int n) { (void)x3; return x2 - (x * x) / n + log((double)n); }
+static double cost_var_mbic(double x, double x2, double x3, int n) {
+	(void)x; (void)x2;
+	if (x3 <= 0) x3 = 0.00000000001;
+	return n * (log(2 * SER_PI) + log(x3 / n) + 1) + log((double)n);
+}
+
+/* PELT (changepoint's PELTC): returns the change points (including n) sorted in cp, their number in *ncp */
+static int cpt_pelt(const double *s1, const double *s2, const double *s3, int n, double pen, int minseglen, CptCost cf, int *cp, int *ncp) {
+	double *lastchangelike = (double *)calloc((size_t)n + 1, sizeof(double)), *tmplike = (double *)calloc((size_t)n + 1, sizeof(double));
+	int *lastchangecpts = (int *)calloc((size_t)n + 1, sizeof(int)), *checklist = (int *)calloc((size_t)n + 1, sizeof(int));
+	int nchecklist, tstar, i, j, whichout, nchecktmp, last, k = 0;
+	double minout;
+	if (!lastchangelike || !tmplike || !lastchangecpts || !checklist) { free(lastchangelike); free(tmplike); free(lastchangecpts); free(checklist); return 909; }
+	lastchangelike[0] = -pen;
+	for (j = minseglen; j < 2 * minseglen; j++) lastchangelike[j] = cf(s1[j], s2[j], s3[j], j);
+	nchecklist = 2;
+	checklist[0] = 0;
+	checklist[1] = minseglen;
+	for (tstar = 2 * minseglen; tstar < n + 1; tstar++) {
+		if (lastchangelike[tstar] == 0) {
+			for (i = 0; i < nchecklist; i++)
+				tmplike[i] = lastchangelike[checklist[i]] + cf(s1[tstar] - s1[checklist[i]], s2[tstar] - s2[checklist[i]], s3[tstar] - s3[checklist[i]], tstar - checklist[i]) + pen;
+			minout = tmplike[0]; whichout = 0;
+			for (i = 1; i < nchecklist; i++) if (tmplike[i] < minout) { minout = tmplike[i]; whichout = i; }
+			lastchangelike[tstar] = minout;
+			lastchangecpts[tstar] = checklist[whichout];
+			nchecktmp = 0;
+			for (i = 0; i < nchecklist; i++) if (tmplike[i] <= (lastchangelike[tstar] + pen)) checklist[nchecktmp++] = checklist[i];
+			nchecklist = nchecktmp;
+		}
+		checklist[nchecklist] = tstar - (minseglen - 1);
+		nchecklist++;
+	}
+	last = n;
+	while (last != 0) { cp[k++] = last; last = lastchangecpts[last]; }
+	/* ascending */
+	for (i = 0; i < k / 2; i++) { int t = cp[i]; cp[i] = cp[k - 1 - i]; cp[k - 1 - i] = t; }
+	*ncp = k;
+	free(lastchangelike); free(tmplike); free(lastchangecpts); free(checklist);
+	return 0;
+}
+
+/* binary segmentation (changepoint's binseg, Q = maximal number of change points); change points (including n) in cp */
+static int cpt_binseg(const double *s1, const double *s2, const double *s3, int n, double pen, int minseglen, int Q, CptCost cf, int *cp, int *ncp) {
+	double *lambda = (double *)malloc(((size_t)n + 1) * sizeof(double)), *likeout = (double *)calloc((size_t)Q + 1, sizeof(double));
+	int *tau = (int *)calloc((size_t)Q + 3, sizeof(int)), *cptsout = (int *)calloc((size_t)Q + 1, sizeof(int));
+	double oldmax = 1.7E+308, nullc, maxout;
+	int q, p, i, j, whichout, st, end, op, stop, k, a, b;
+	if (!lambda || !likeout || !tau || !cptsout) { free(lambda); free(likeout); free(tau); free(cptsout); return 909; }
+	for (i = 0; i < n; i++) lambda[i] = -INFINITY;
+	tau[0] = 0; tau[1] = n;
+	for (q = 0; q < Q; q++) {
+		for (p = 0; p < n; p++) lambda[p] = 0;
+		i = 1; st = tau[0] + 1; end = tau[1];
+		nullc = (-0.5) * cf(s1[end] - s1[st - 1], s2[end] - s2[st - 1], s3[end] - s3[st - 1], end - st + 1);
+		for (j = 2; j < (n - 2); j++) {
+			if (j == end) {
+				st = end + 1; i = i + 1; end = tau[i];
+				nullc = (-0.5) * cf(s1[end] - s1[st - 1], s2[end] - s2[st - 1], s3[end] - s3[st - 1], end - st + 1);
+			}
+			else if (((j - st) >= minseglen) && ((end - j) >= minseglen)) {
+				lambda[j] = ((-0.5) * cf(s1[j] - s1[st - 1], s2[j] - s2[st - 1], s3[j] - s3[st - 1], j - st + 1)) +
+					((-0.5) * cf(s1[end] - s1[j], s2[end] - s2[j], s3[end] - s3[j], end - j)) - nullc;
+			}
+		}
+		maxout = lambda[0]; whichout = 0;
+		for (i = 1; i < n; i++) if (lambda[i] > maxout) { maxout = lambda[i]; whichout = i; }
+		cptsout[q] = whichout;
+		likeout[q] = (oldmax <= maxout) ? oldmax : maxout;
+		oldmax = likeout[q];
+		tau[q + 2] = whichout;
+		/* order_vec(tau, q + 3): bubble sort */
+		for (a = 0; a < q + 3; a++) for (b = 1; b < (q + 3 - a); b++) if (tau[b - 1] > tau[b]) { int t = tau[b - 1]; tau[b - 1] = tau[b]; tau[b] = t; }
+	}
+	stop = 0; op = 0;
+	while (stop == 0 && op < Q) { if ((2 * likeout[op]) >= pen) op++; else stop = 1; }
+	for (k = 0; k < op; k++) cp[k] = cptsout[k];
+	for (a = 1; a < op; a++) { int v = cp[a]; b = a - 1; while (b >= 0 && cp[b] > v) { cp[b + 1] = cp[b]; b--; } cp[b + 1] = v; }
+	cp[op] = n;
+	*ncp = op + 1;
+	free(lambda); free(likeout); free(tau); free(cptsout);
+	return 0;
+}
+
+/* at most one change (changepoint's single.mean.norm / single.var.norm with penalty MBIC); mean = 1, variance = 2.
+   x = the data, mu = its mean (variance). Returns the change point (n = none). */
+static int cpt_amoc(const double *x, int n, int moment, int minseglen, int *cp, int *ncp) {
+	double *y = (double *)calloc((size_t)n + 1, sizeof(double)), *y2 = (double *)calloc((size_t)n + 1, sizeof(double));
+	double nullc, tmin = 0.0, taulike, pen = 3.0 * log((double)n), alt, teststat, mu = 0.0;
+	int t, found = 0, tau = 0, ntau = n - minseglen + 1 - minseglen + 1;
+	if (!y || !y2) { free(y); free(y2); return 909; }
+	if (moment == 2) { for (t = 0; t < n; t++) mu += x[t]; mu /= (double)n; }
+	for (t = 0; t < n; t++) {
+		if (moment == 1) { y[t + 1] = y[t] + x[t]; y2[t + 1] = y2[t] + x[t] * x[t]; }
+		else y[t + 1] = y[t] + (x[t] - mu) * (x[t] - mu);
+	}
+	/* (cumsum is a running sum in R; the same order) */
+	if (moment == 1) nullc = y2[n] - y[n] * y[n] / n;
+	else nullc = n * log(y[n] / n);
+	for (t = 0; t < ntau; t++) {
+		int ts = minseglen + t;
+		double v;
+		if (moment == 1) v = y2[ts] - y[ts] * y[ts] / ts + (y2[n] - y2[ts]) - ((y[n] - y[ts]) * (y[n] - y[ts])) / (n - ts);
+		else {
+			double s1 = y[ts] / ts, sn = (y[n] - y[ts]) / (n - ts);
+			if (s1 <= 0) s1 = 1e-10;
+			if (sn <= 0) sn = 1e-10;
+			v = ts * log(s1) + (n - ts) * log(sn);
+		}
+		if (isnan(v)) continue;
+		if (!found || v < tmin) { tmin = v; found = 1; tau = ts; }
+	}
+	free(y); free(y2);
+	taulike = tmin;
+	alt = taulike + log((double)tau) + log((double)(n - tau + 1));
+	if (!found || !isfinite(alt)) teststat = nullc; else teststat = nullc - alt;
+	if (found && teststat >= pen) { cp[0] = tau; cp[1] = n; *ncp = (tau == n) ? 1 : 2; }
+	else { cp[0] = n; *ncp = 1; }
+	return 0;
+}
+
+/* examineOutliers: kind 1 Hampel, 2 IQR, 3 Top; returns the (truncated) indices of the outliers in out. err: 1 window not usable,
+   2 parameter not usable */
+static int ser_outliers(const double *x, nwint n, int kind, double par, double window, int hasw, nwint *out, nwint *nout, int *err) {
+	nwint k, m = 0;
+	double *buf = (double *)malloc(((size_t)n + 1) * sizeof(double));
+	*err = 0;
+	if (!buf) return 909;
+	if (kind == 3) {
+		/* order(x)[1:parameter] (stable) */
+		nwint *idx = (nwint *)malloc(((size_t)n + 1) * sizeof(nwint)), cnt;
+		nwint a, b;
+		if (!idx) { free(buf); return 909; }
+		cnt = (par < 1.0) ? 1 : (nwint)floor(par);
+		if (cnt > n) { *err = 2; free(idx); free(buf); return 0; }
+		for (k = 0; k < n; k++) idx[k] = k;
+		/* stable insertion of the cnt smallest: partial selection sort with first-index tie rule */
+		for (a = 0; a < cnt; a++) {
+			nwint best = a;
+			for (b = a + 1; b < n; b++) if (x[idx[b]] < x[idx[best]] || (x[idx[b]] == x[idx[best]] && idx[b] < idx[best])) best = b;
+			{ nwint t = idx[a]; idx[a] = idx[best]; idx[best] = t; }
+			/* keep the remaining elements in their original relative order is not needed: ties are resolved by index */
+		}
+		for (a = 0; a < cnt; a++) out[m++] = idx[a] + 1;
+		free(idx);
+	}
+	else if (kind == 2) {
+		double med, q1, q3, iqr, lim;
+		memcpy(buf, x, (size_t)n * sizeof(double));
+		med = med_sorted(buf, n);   /* buf is sorted now */
+		q1 = quant7(buf, n, 0.25); q3 = quant7(buf, n, 0.75);
+		iqr = q3 - q1;
+		lim = med - (par / 2.0) * iqr;
+		for (k = 0; k < n; k++) if (x[k] < lim) out[m++] = k + 1;
+	}
+	else {
+		double w = hasw ? window : ((double)n / 2.0) - 1.0, from = w + 1.0, to = (double)n - w, L = 1.4826, i;
+		nwint nseq, q;
+		if (w < 0.0 || from > to + 1e-10) { *err = 1; free(buf); return 0; }
+		nseq = (nwint)floor(to - from + 1e-10) + 1;
+		for (q = 0; q < nseq; q++) {
+			double lo, hi, x0, S0;
+			nwint cnt = 0, t, nt;
+			i = from + (double)q;
+			lo = i - w; hi = i + w;
+			nt = (nwint)floor(hi - lo + 1e-10) + 1;
+			for (t = 0; t < nt; t++) {
+				nwint ix = (nwint)(lo + (double)t);
+				if (ix >= 1 && ix <= n) buf[cnt++] = x[ix - 1];
+				else if (ix > n) { *err = 1; free(buf); return 0; }
+			}
+			x0 = med_sorted(buf, cnt);
+			/* buf is sorted: recompute the absolute deviations from a fresh copy of the segment */
+			for (t = 0, cnt = 0; t < nt; t++) {
+				nwint ix = (nwint)(lo + (double)t);
+				if (ix >= 1 && ix <= n) buf[cnt++] = fabs(x[ix - 1] - x0);
+			}
+			S0 = L * med_sorted(buf, cnt);
+			{
+				nwint xi = (nwint)i;
+				if (xi >= 1 && xi <= n && fabs(x[xi - 1] - x0) > par * S0) out[m++] = xi;
+			}
+		}
+	}
+	*nout = m;
+	free(buf);
+	return 0;
+}
+
+/* examineChangepoints: moment 1 mean, 2 variance; method 1 PELT, 2 AMOC, 3 BinSeg; minseglen as in goldfish's window.
+   The result is goldfish's cpt.pts after its de-duplication on the event times (the last of events at one time stays).
+   err: 1 minseglen too large for the data, 2 too few observations, 3 Q too large */
+static int ser_changepoints(const double *x, const double *tim, int n, int method, int moment, int minseglen, int *out, int *nout, int *err) {
+	double *s1 = NULL, *s2 = NULL, *s3 = NULL, mu = 0.0, pen;
+	int *cp = (int *)calloc((size_t)n + 3, sizeof(int)), ncp = 0, i, rc = 0, Q = 5;
+	CptCost cf = (moment == 1) ? cost_mean_mbic : cost_var_mbic;
+	*err = 0;
+	if (!cp) return 909;
+	if (moment == 2 && minseglen < 2) minseglen = 2;
+	if (minseglen < 1) minseglen = 1;
+	if (n < 2 || (moment == 2 && n < 4)) { *err = 2; free(cp); return 0; }
+	if (n < 2 * minseglen) { *err = 1; free(cp); return 0; }
+	if (method == 3 && Q > ((double)n / minseglen) + 1) { *err = 3; free(cp); return 0; }
+	if (method == 3 && Q > n) { *err = 3; free(cp); return 0; }
+	if (method == 2) {
+		rc = cpt_amoc(x, n, moment, minseglen, cp, &ncp);
+	}
+	else {
+		s1 = (double *)calloc((size_t)n + 1, sizeof(double)); s2 = (double *)calloc((size_t)n + 1, sizeof(double)); s3 = (double *)calloc((size_t)n + 1, sizeof(double));
+		if (!s1 || !s2 || !s3) { free(s1); free(s2); free(s3); free(cp); return 909; }
+		for (i = 0; i < n; i++) mu += x[i];
+		mu /= (double)n;
+		for (i = 0; i < n; i++) { s1[i + 1] = s1[i] + x[i]; s2[i + 1] = s2[i] + x[i] * x[i]; s3[i + 1] = s3[i] + (x[i] - mu) * (x[i] - mu); }
+		pen = 3.0 * log((double)n);
+		if (method == 1) rc = cpt_pelt(s1, s2, s3, n, pen, minseglen, cf, cp, &ncp);
+		else rc = cpt_binseg(s1, s2, s3, n, pen, minseglen, Q, cf, cp, &ncp);
+		free(s1); free(s2); free(s3);
+	}
+	if (rc == 0) {
+		/* goldfish: if the event times of the change points repeat, keep the last of each time */
+		int k = 0, j, dup = 0;
+		for (i = 0; i < ncp && !dup; i++) for (j = i + 1; j < ncp; j++) if (cp[i] >= 1 && cp[j] >= 1 && tim[cp[i] - 1] == tim[cp[j] - 1]) { dup = 1; break; }
+		for (i = 0; i < ncp; i++) {
+			int keep = 1;
+			if (dup && cp[i] >= 1) for (j = i + 1; j < ncp; j++) if (cp[j] >= 1 && tim[cp[i] - 1] == tim[cp[j] - 1]) { keep = 0; break; }
+			if (keep) out[k++] = cp[i];
+		}
+		*nout = k;
+	}
+	free(cp);
+	return rc;
+}
+
+
+/* ------------------------------------------------------------------
    Plugin entry point
    ------------------------------------------------------------------ */
+/* code 40: series tools; tok = the first token after the code */
+static int series_call(char *tok) {
+	nwint L, nd, k, nout = 0, *oi = NULL;
+	int kind, method, moment, minseglen, err = 0, rc = 0, *ci = NULL, cn = 0;
+	double par, window, *x = NULL, *tim = NULL;
+	L = (nwint)atof(tok);
+	nd = (nwint)atof(strtok(NULL, " \t"));
+	kind = (int)atof(strtok(NULL, " \t"));
+	method = (int)atof(strtok(NULL, " \t"));
+	moment = (int)atof(strtok(NULL, " \t"));
+	minseglen = (int)atof(strtok(NULL, " \t"));
+	par = atof(strtok(NULL, " \t"));
+	window = atof(strtok(NULL, " \t"));
+	if (nd < 1) { SF_vstore(2, 1, 0.0); SF_vstore(2, 2, 2.0); return 0; }
+	x = (double *)malloc((size_t)nd * sizeof(double));
+	tim = (double *)malloc((size_t)nd * sizeof(double));
+	oi = (nwint *)malloc(((size_t)nd + 1) * sizeof(nwint));
+	ci = (int *)malloc(((size_t)nd + 3) * sizeof(int));
+	if (!x || !tim || !oi || !ci) { free(x); free(tim); free(oi); free(ci); return 909; }
+	for (k = 0; k < nd; k++) { ST_double v; SF_vdata(1, (ST_int)(L + 1 + k), &v); x[k] = v; SF_vdata(1, (ST_int)(L + 1 + nd + k), &v); tim[k] = v; }
+	if (kind >= 1 && kind <= 3) {
+		rc = ser_outliers(x, nd, kind, par, window, window >= 0.0, oi, &nout, &err);
+		if (rc == 0 && err == 0) for (k = 0; k < nout; k++) SF_vstore(1, (ST_int)(L + 1 + 2 * nd + k), (ST_double)oi[k]);
+	}
+	else {
+		rc = ser_changepoints(x, tim, (int)nd, method, moment, minseglen, ci, &cn, &err);
+		nout = cn;
+		if (rc == 0 && err == 0) for (k = 0; k < nout; k++) SF_vstore(1, (ST_int)(L + 1 + 2 * nd + k), (ST_double)ci[k]);
+	}
+	if (rc == 0) { SF_vstore(2, 1, err ? 0.0 : (ST_double)nout); SF_vstore(2, 2, (ST_double)err); }
+	free(x); free(tim); free(oi); free(ci);
+	return rc;
+}
+
 STDLL stata_call(int argc, char *argv[]) {
 	char *argbuf, *tok;
-	int code, todo, Pt, k, rc = 0, overflow = 0;
-	nwint L;
+	int code, todo, Pt, k, rc = 0, overflow = 0, postflags = 0;
+	PredOut po;
+	nwint L, nrecmax = 0;
 	double *theta = NULL, *g = NULL, *H = NULL, ll = 0.0;
 	Spec sp;
 
@@ -1366,25 +1748,49 @@ STDLL stata_call(int argc, char *argv[]) {
 		SF_vstore(2, 1, (ST_double)DYNAM_PROTOCOL);
 		return 0;
 	}
-	if (code != 20) {
+	if (code == 40) {
+		char *t1 = strtok(NULL, " \t");
+		int rc40 = t1 ? series_call(t1) : 198;
+		free(argbuf);
+		return rc40;
+	}
+	if (code != 20 && code != 30) {
 		free(argbuf);
 		SF_error("dynam_sim: unknown algorithm code (plugin and package versions do not match)\n");
 		return 198;
 	}
 	L = (nwint)atof(strtok(NULL, " \t"));
 	todo = (int)atof(strtok(NULL, " \t"));
+	if (code == 30) { postflags = todo; todo = 0; }
 	Pt = (int)atof(strtok(NULL, " \t"));
 	theta = (double *)malloc((size_t)(Pt > 0 ? Pt : 1) * sizeof(double));
 	g = (double *)malloc((size_t)(Pt > 0 ? Pt : 1) * sizeof(double));
 	H = (double *)malloc((size_t)(Pt > 0 ? Pt : 1) * (size_t)(Pt > 0 ? Pt : 1) * sizeof(double));
 	if (!theta || !g || !H) { free(argbuf); free(theta); free(g); free(H); return 909; }
 	for (k = 0; k < Pt; k++) theta[k] = atof(strtok(NULL, " \t"));
+	if (code == 30 && (postflags & 1)) { char *tc = strtok(NULL, " \t"); nrecmax = tc ? (nwint)atof(tc) : 0; }
 	free(argbuf);
 
 	rc = spec_read(&sp, L);
 	if (rc == 0) {
 		int expectP = sp.P + (sp.model == M_RATEINT ? 1 : 0);
 		if (expectP != Pt) { SF_error("dynam_sim: parameter count does not match the model\n"); rc = 198; }
+	}
+	if (rc == 0 && code == 30) {
+		memset(&po, 0, sizeof(po));
+		po.write = (postflags & 1) != 0;
+		po.cap = nrecmax;
+		po.pstride = (sp.model == M_COORD) ? sp.n * (sp.n - 1) / 2 : sp.n;
+		if (po.write) {
+			nwint i2;
+			po.ll = (double *)malloc((size_t)nrecmax * sizeof(double));
+			po.typ = (double *)malloc((size_t)nrecmax * sizeof(double));
+			po.tim = (double *)malloc((size_t)nrecmax * sizeof(double));
+			if (postflags & 2) po.pr = (double *)malloc((size_t)sp.N * (size_t)po.pstride * sizeof(double));
+			if (!po.ll || !po.typ || !po.tim || ((postflags & 2) && !po.pr)) rc = 909;
+			(void)i2;
+		}
+		g_po = (rc == 0) ? &po : NULL;
 	}
 	if (rc == 0) {
 		switch (sp.model) {
@@ -1402,6 +1808,31 @@ STDLL stata_call(int argc, char *argv[]) {
 			SF_error("dynam_sim: unknown model\n");
 			rc = 198;
 		}
+	}
+	if (code == 30) {
+		g_po = NULL;
+		if (rc == 0 && !overflow) {
+			nwint i2;
+			SF_vstore(2, 2, (ST_double)po.nrec);
+			SF_vstore(2, 3, (ST_double)sp.N);
+			SF_vstore(2, 4, (ST_double)po.pstride);
+			if (po.write) {
+				for (i2 = 0; i2 < po.nrec; i2++) {
+					SF_vstore(1, (ST_int)(L + 1 + i2), po.ll[i2]);
+					SF_vstore(1, (ST_int)(L + 1 + po.nrec + i2), po.typ[i2]);
+					SF_vstore(1, (ST_int)(L + 1 + 2 * po.nrec + i2), po.tim[i2]);
+				}
+				if (po.pr) {
+					size_t tot = (size_t)sp.N * (size_t)po.pstride, q2;
+					for (q2 = 0; q2 < tot; q2++) SF_vstore(1, (ST_int)(L + 1 + 3 * po.nrec + q2), po.pr[q2]);
+				}
+			}
+		}
+		free(po.ll); free(po.typ); free(po.tim); free(po.pr);
+		if (rc == 0) SF_vstore(2, 1, overflow ? SV_missval : ll);
+		free(sp.blob);
+		free(theta); free(g); free(H);
+		return rc;
 	}
 	if (rc == 0) {
 		SF_vstore(2, 1, overflow ? SV_missval : ll);

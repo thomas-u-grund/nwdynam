@@ -56,6 +56,14 @@ capture mata: mata drop dynam_xt_labels()
 capture mata: mata drop dynam_xlayer()
 capture mata: mata drop dynam_xblob()
 capture mata: mata drop dynam_nx()
+capture mata: mata drop dynam_fit_meta()
+capture mata: mata drop dynam_post_run()
+capture mata: mata drop dynam_post_ic()
+capture mata: mata drop dynam_post_table()
+capture mata: mata drop dynam_post_prob()
+capture mata: mata drop dynam_post_series()
+capture mata: mata drop dynam_post_plugin()
+capture mata: mata drop dynam_fit_id()
 
 mata:
 mata set matastrict off
@@ -487,6 +495,7 @@ void dynam_rateint_newton(transmorphic f, real rowvector theta0, transmorphic a1
 */
 class DynamNat {
 	real scalar L        // length of the blob
+	real scalar model    // 1 choice, 2 rate, 3 rate with intercept, 4 coordination
 	real scalar Pt       // number of parameters
 	real scalar isopen
 	string scalar origframe
@@ -496,6 +505,7 @@ class DynamNat {
 
 	void open()
 	void close()
+	void keep()
 	void setup()
 }
 
@@ -544,6 +554,21 @@ void DynamNat::close() {
 }
 
 /*
+	keep(): the fit succeeded; the frame with the blob stays as __nwdynam_fit (one fit at a time) for estat; bloblen and the model are
+	written into the frame as characteristics
+*/
+void DynamNat::keep() {
+	if (isopen) {
+		st_global("_dta[bloblen]", strofreal(L, "%18.0f"))
+		st_global("_dta[model]", strofreal(model))
+		st_framecurrent(origframe)
+		stata("capture frame drop __nwdynam_fit")
+		stata("frame rename __nwdynam_native __nwdynam_fit")
+		isopen = 0
+	}
+}
+
+/*
 	setup(): model 1 choice, 2 rate, 3 rate with intercept, 4 coordination. active = 0/1 vector of the effect slots,
 	covmat = 7 x n covariate rows, win5 = windows (inertia, recip, indeg, outdeg, tertius), wgt4 = weighted flags (inertia, recip, indeg, outdeg), n1 = mode-1
 	actors (0 = one-mode), oppmat (nevents x n or 0 x 0), tiemat (n x n or 0 x 0).
@@ -558,6 +583,7 @@ void DynamNat::setup(real scalar model, pointer(class DynamState scalar) scalar 
 	pointer scalar px
 
 	if (cols(win5) == 4) win5 = (win5, 1e300)   // the window of tertius is optional
+	this.model = model
 	nev = (*pS).nevents
 	M = cols(active)
 	hasopp = (rows(oppmat) > 0)
@@ -778,7 +804,7 @@ void DynamChoiceFitMulti(real matrix eventmat, real scalar n, real rowvector act
 	NT.setup(1, &S, activevec, covmat, (windowinertia, windowrecip, 1e300, 1e300, windowtertius),
 		(weightedinertia, weightedrecip, weightedindeg, weightedoutdeg), n1, oppmat, tiemat)
 	dynam_nat_optimize(&NT, 0, ., theta_hat, V, ll)
-	NT.close()
+	NT.keep()
 	st_matrix(bname, theta_hat)
 	st_matrix(vname, V)
 	st_numscalar(llname, ll)
@@ -804,7 +830,7 @@ void DynamRateFitMulti(real matrix eventmat, real scalar n, real rowvector activ
 	NT.setup(2, &S, activevec, covmat, (1e300, 1e300, windowindeg, windowoutdeg, windowtertius),
 		(0, 0, weightedindeg, weightedoutdeg), n1, J(0, 0, 0), J(0, 0, 0))
 	dynam_nat_optimize(&NT, 0, ., theta_hat, V, ll)
-	NT.close()
+	NT.keep()
 	st_matrix(bname, theta_hat)
 	st_matrix(vname, V)
 	st_numscalar(llname, ll)
@@ -836,7 +862,7 @@ void DynamRateInterceptFitMulti(real matrix eventmat, real scalar n, real rowvec
 	NT.setup(3, &S, activevec, covmat, (1e300, 1e300, windowindeg, windowoutdeg, windowtertius),
 		(0, 0, weightedindeg, weightedoutdeg), n1, J(0, 0, 0), J(0, 0, 0))
 	dynam_nat_optimize(&NT, 2, theta0, theta_hat, V, ll)
-	NT.close()
+	NT.keep()
 	st_matrix(bname, theta_hat)
 	st_matrix(vname, V)
 	st_numscalar(llname, ll)
@@ -874,7 +900,7 @@ void DynamCoordFitMulti(real matrix eventmat, real scalar n, real rowvector acti
 	NT.setup(4, &S, activevec, covmat, (windowinertia, 1e300, windowindeg, 1e300, windowtertius), (weightedinertia, 0, weightedindeg, 0), 0, J(0, 0, 0), tiemat)
 	// not concave (product of two softmax probabilities): every start is run, the best converged result is kept
 	dynam_nat_optimize(&NT, 1, ., theta_hat, V, ll)
-	NT.close()
+	NT.keep()
 	st_matrix(bname, theta_hat)
 	st_matrix(vname, V)
 	st_numscalar(llname, ll)
@@ -1135,6 +1161,258 @@ real scalar dynam_nx() {
 	px = findexternal("__nwdynam_xblob")
 	if (px == NULL) return(0)
 	return((*px)[2])
+}
+
+end
+
+/*
+	AFTER THE FIT (estat). The frame __nwdynam_fit (the data blob of the last fit, kept by DynamNat::keep()) plus the per-actor labels
+	(variable nm) and the position of every sorted event in the network's event list (variable ord) are all that estat needs; the
+	plugin (codes 30 and 40) walks the blob again at the estimated theta and writes its rows into variable v1 BEHIND the blob (row
+	bloblen + 1 on). Nothing of this changes a fit.
+*/
+mata:
+
+// dynam_fit_meta(): called by nwdynam.ado after a successful fit; returns the id of the fit (also kept in the frame)
+string scalar dynam_fit_meta(string vector names, real matrix rawevents) {
+	string scalar orig, id
+	real colvector ord
+	real scalar nn, cnt, junk
+
+	orig = st_framecurrent()
+	st_framecurrent("__nwdynam_fit")
+	ord = order((rawevents[., 3], (1::rows(rawevents))), (1, 2))
+	nn = max((st_nobs(), rows(ord), rows(vec(names))))
+	if (nn > st_nobs()) st_addobs(nn - st_nobs())
+	junk = st_addvar("double", "ord")
+	st_store((1::rows(ord)), "ord", ord)
+	junk = st_addvar("strL", "nm")
+	names = vec(names)
+	st_sstore((1::rows(names)), "nm", names)
+	cnt = 0
+	if (_stata("confirm scalar __nwdynam_fitcount", 1) == 0) cnt = st_numscalar("__nwdynam_fitcount")
+	cnt = cnt + 1
+	st_numscalar("__nwdynam_fitcount", cnt)
+	id = strofreal(floor(clock(c("current_date") + " " + c("current_time"), "DMYhms")), "%20.0f") + "-" + strofreal(cnt)
+	st_global("_dta[fitid]", id)
+	st_framecurrent(orig)
+	return(id)
+}
+
+// the id of the kept fit ("" when there is none)
+string scalar dynam_fit_id() {
+	string scalar orig, id
+	orig = st_framecurrent()
+	st_framecurrent("__nwdynam_fit")
+	id = st_global("_dta[fitid]")
+	st_framecurrent(orig)
+	return(id)
+}
+
+void dynam_post_plugin(string scalar argstr) {
+	string scalar p, q
+	real scalar rc
+	p = DynamNativePluginPath()
+	q = char(34)
+	stata("capture program drop dynamnative")
+	stata("capture program dynamnative, plugin using(" + q + p + q + ")")
+	rc = _stata("plugin call dynamnative v1 v2, " + q + argstr + q, 1)
+	if (rc != 0) {
+		errprintf("{p 0 0 2}nwdynam: the installed plugin cannot do this (it is too old for this version of nwdynam, or the fit was lost). Reinstall the package with {bf:net install nwdynam, replace} and fit the model again.{p_end}\n")
+		exit(3495)
+	}
+}
+
+/*
+	dynam_post_run(mode, maxvals): mode 0 = count the records only, 1 = per-event log likelihoods, 2 = also the probabilities.
+	Returns the number of records (= dependent events, plus the right-censored intervals of the rate model with intercept, as
+	goldfish counts them). The caller has changed to no particular frame; the frame is restored.
+*/
+real scalar dynam_post_run(real scalar mode, real scalar maxvals) {
+	string scalar orig, argstr
+	real scalar L, nrec, pstride, N, Pt, k, tot
+	real rowvector theta
+	real colvector res
+
+	orig = st_framecurrent()
+	st_framecurrent("__nwdynam_fit")
+	theta = st_matrix("e(b)")
+	Pt = cols(theta)
+	L = strtoreal(st_global("_dta[bloblen]"))
+	argstr = " " + strofreal(Pt)
+	for (k = 1; k <= Pt; k++) argstr = argstr + " " + strofreal(theta[k], "%25.17g")
+	dynam_post_plugin("30 " + strofreal(L, "%18.0f") + " 0" + argstr)
+	res = st_data((1::4), 2)
+	if (missing(res[1])) {
+		st_framecurrent(orig)
+		errprintf("{p 0 0 2}nwdynam: the log likelihood cannot be evaluated at the estimates (overflow).{p_end}\n")
+		exit(498)
+	}
+	nrec = res[2]; N = res[3]; pstride = res[4]
+	st_local("__nwdynam_ll", strofreal(res[1], "%25.17g"))
+	if (mode > 0) {
+		tot = L + 3 * nrec + (mode == 2 ? N * pstride : 0)
+		if (mode == 2 & N * pstride > maxvals) {
+			st_framecurrent(orig)
+			errprintf("{p 0 0 2}nwdynam: the table of the probabilities would have %s rows (events times candidates), more than the limit of %s; use option {bf:maxrows()} to raise it.{p_end}\n", strofreal(N * pstride, "%15.0fc"), strofreal(maxvals, "%15.0fc"))
+			exit(1000)
+		}
+		if (tot > st_nobs()) st_addobs(tot - st_nobs())
+		dynam_post_plugin("30 " + strofreal(L, "%18.0f") + (mode == 2 ? " 3" : " 1") + argstr + " " + strofreal(nrec, "%18.0f"))
+	}
+	st_framecurrent(orig)
+	return(nrec)
+}
+
+// the event table (sorted event number, position in the network's event list, time, sender, receiver, ll, [llcens]) in frame outframe
+void dynam_post_table(string scalar outframe, real scalar nrec) {
+	string scalar orig
+	real scalar L, N, n, k, r, pend, junk, hasc, trail
+	real colvector ll, typ, tim, ord, ev, sd, rv, evt, llev, llc, lt
+	string colvector nm
+	real matrix E
+
+	orig = st_framecurrent()
+	st_framecurrent("__nwdynam_fit")
+	L = strtoreal(st_global("_dta[bloblen]"))
+	N = st_numscalar("e(N)"); n = st_numscalar("e(nodes)")
+	ll = st_data(((L + 1)::(L + nrec)), 1)
+	typ = st_data(((L + nrec + 1)::(L + 2 * nrec)), 1)
+	tim = st_data(((L + 2 * nrec + 1)::(L + 3 * nrec)), 1)
+	ord = st_data((1::N), "ord")
+	nm = st_sdata((1::n), "nm")
+	E = colshape(st_data(((41 + 1)::(41 + 5 * N)), 1)', 5)
+	llev = J(N, 1, .); llc = J(N, 1, 0); lt = J(N, 1, .)
+	pend = 0; hasc = 0
+	for (r = 1; r <= nrec; r++) {
+		if (typ[r] > 0) {
+			llev[typ[r]] = ll[r]
+			llc[typ[r]] = pend
+			lt[typ[r]] = tim[r]
+			pend = 0
+			continue
+		}
+		pend = pend + ll[r]
+		hasc = 1
+	}
+	trail = pend
+	st_framecurrent(outframe)
+	st_addobs(N)
+	junk = st_addvar("double", "event");  st_store((1::N), "event", (1::N))
+	junk = st_addvar("double", "origevent"); st_store((1::N), "origevent", ord)
+	junk = st_addvar("double", "time"); st_store((1::N), "time", E[., 3])
+	junk = st_addvar("strL", "sender"); st_sstore((1::N), "sender", nm[E[., 1]])
+	junk = st_addvar("strL", "receiver"); st_sstore((1::N), "receiver", nm[E[., 2]])
+	junk = st_addvar("double", "ll"); st_store((1::N), "ll", llev)
+	if (hasc) {
+		junk = st_addvar("double", "llcens")
+		st_store((1::N), "llcens", llc)
+	}
+	st_framecurrent(orig)
+	st_local("__nwdynam_hascens", strofreal(hasc))
+	st_local("__nwdynam_lltrail", strofreal(trail, "%25.17g"))
+	st_local("__nwdynam_ncens", strofreal(nrec - N))
+}
+
+// the probabilities (goldfish: eventProbabilities) as a long table in frame outframe
+void dynam_post_prob(string scalar outframe, real scalar nrec) {
+	string scalar orig
+	real scalar L, N, n, ps, a, b, junk, model, k, start
+	real colvector pr, evt, ia, ib, keep, obs, ord, rcv, snd, tm
+	string colvector nm
+	real matrix E
+
+	orig = st_framecurrent()
+	st_framecurrent("__nwdynam_fit")
+	L = strtoreal(st_global("_dta[bloblen]"))
+	model = strtoreal(st_global("_dta[model]"))
+	N = st_numscalar("e(N)"); n = st_numscalar("e(nodes)")
+	nm = st_sdata((1::n), "nm")
+	E = colshape(st_data(((41 + 1)::(41 + 5 * N)), 1)', 5)
+	ps = (model == 4 ? n * (n - 1) / 2 : n)
+	start = L + 3 * nrec
+	pr = st_data(((start + 1)::(start + N * ps)), 1)
+	evt = (1::N) # J(ps, 1, 1)
+	if (model == 4) {
+		ia = J(ps, 1, .); ib = J(ps, 1, .)
+		k = 0
+		for (a = 1; a <= n; a++) for (b = a + 1; b <= n; b++) {
+			k++
+			ia[k] = a
+			ib[k] = b
+		}
+		ia = J(N, 1, 1) # ia; ib = J(N, 1, 1) # ib
+		obs = ((ia :== E[evt, 1]) :& (ib :== E[evt, 2])) :| ((ia :== E[evt, 2]) :& (ib :== E[evt, 1]))
+	}
+	else {
+		ia = J(N, 1, 1) # (1::n)
+		obs = (ia :== E[evt, (model == 1 ? 2 : 1)])
+	}
+	keep = selectindex(pr :< .)
+	st_framecurrent(outframe)
+	st_addobs(rows(keep))
+	junk = st_addvar("double", "event"); st_store((1::rows(keep)), "event", evt[keep])
+	junk = st_addvar("double", "time"); st_store((1::rows(keep)), "time", E[evt[keep], 3])
+	if (model == 4) {
+		junk = st_addvar("strL", "actor1"); st_sstore((1::rows(keep)), "actor1", nm[ia[keep]])
+		junk = st_addvar("strL", "actor2"); st_sstore((1::rows(keep)), "actor2", nm[ib[keep]])
+		junk = st_addvar("double", "actor1id"); st_store((1::rows(keep)), "actor1id", ia[keep])
+		junk = st_addvar("double", "actor2id"); st_store((1::rows(keep)), "actor2id", ib[keep])
+	}
+	else {
+		junk = st_addvar("strL", "actor"); st_sstore((1::rows(keep)), "actor", nm[ia[keep]])
+		junk = st_addvar("double", "actorid"); st_store((1::rows(keep)), "actorid", ia[keep])
+	}
+	junk = st_addvar("byte", "observed"); st_store((1::rows(keep)), "observed", obs[keep])
+	junk = st_addvar("double", (model == 3 ? "lnrate" : "p")); st_store((1::rows(keep)), (model == 3 ? "lnrate" : "p"), pr[keep])
+	st_framecurrent(orig)
+}
+
+// series tools on the variable ll (dependent events in the order of the table frame tabframe); kind 1 Hampel, 2 IQR, 3 Top,
+// 4 change points (method 1 PELT, 2 AMOC, 3 BinSeg; moment 1 mean, 2 variance). Adds variable flag to the table frame.
+// returns the error code of the plugin (0 = ok); the indices are returned in the variable flag (1 = flagged) of tabframe
+real scalar dynam_post_series(string scalar tabframe, real scalar kind, real scalar method, real scalar moment, real scalar minseglen, real scalar par, real scalar window) {
+	string scalar orig
+	real scalar L, nd, junk, err, cnt
+	real colvector x, tm, idx, flag
+	real matrix tab
+
+	orig = st_framecurrent()
+	st_framecurrent(tabframe)
+	x = st_data(., "ll"); tm = st_data(., "time")
+	nd = rows(x)
+	if (kind == 4 & window < 0) {
+		// goldfish's default: the largest number of events at one time point
+		window = 1; cnt = 1
+		for (junk = 2; junk <= nd; junk++) {
+			cnt = (tm[junk] == tm[junk - 1] ? cnt + 1 : 1)
+			if (cnt > window) window = cnt
+		}
+		minseglen = window
+		st_local("__nwdynam_window", strofreal(window))
+	}
+	st_framecurrent("__nwdynam_fit")
+	L = strtoreal(st_global("_dta[bloblen]"))
+	if (L + 3 * nd > st_nobs()) st_addobs(L + 3 * nd - st_nobs())
+	st_store(((L + 1)::(L + nd)), 1, x)
+	st_store(((L + nd + 1)::(L + 2 * nd)), 1, tm)
+	dynam_post_plugin("40 " + strofreal(L, "%18.0f") + " " + strofreal(nd) + " " + strofreal(kind) + " " + strofreal(method) + " " + strofreal(moment) + " " + strofreal(minseglen) + " " + strofreal(par, "%25.17g") + " " + strofreal(window, "%25.17g"))
+	cnt = st_data(1, 2); err = st_data(2, 2)
+	idx = J(0, 1, .)
+	if (err == 0 & cnt > 0) idx = st_data(((L + 2 * nd + 1)::(L + 2 * nd + cnt)), 1)
+	if (rows(idx) > 0) idx = select(idx, idx :>= 1)
+	if (rows(idx) > 1 & kind != 4) idx = sort(idx, 1)
+	cnt = rows(idx)
+	st_framecurrent(tabframe)
+	flag = J(nd, 1, 0)
+	if (rows(idx) > 0) flag[idx] = J(rows(idx), 1, 1)
+	junk = st_addvar("byte", "flag")
+	st_store(., "flag", flag)
+	st_framecurrent(orig)
+	if (err == 0 & cnt > 0) st_matrix("__nwdynam_idx", idx')
+	else st_matrix("__nwdynam_idx", J(1, 1, .))
+	st_local("__nwdynam_nidx", strofreal(err == 0 ? cnt : 0))
+	return(err)
 }
 
 end

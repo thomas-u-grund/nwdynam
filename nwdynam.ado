@@ -1134,6 +1134,9 @@ program nwdynam, eclass
 		capture scalar drop __nwdynam_ll
 		exit `__nwdynam_rc'
 	}
+	// the fit's data stays in frame __nwdynam_fit for estat; add the actor labels and the event order to it (nothing of this is part of the estimation)
+	capture noisily mata: st_local("__nwdynam_fitid", dynam_fit_meta(`netobj'->get_nodenames(), `__nwdynam_events'))
+	if _rc local __nwdynam_fitid ""
 	mata: mata drop `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_oppmat' `__nwdynam_tiemat' `__nwdynam_chg'
 
 	tempname b V
@@ -1162,6 +1165,8 @@ program nwdynam, eclass
 		ereturn local present "`present'"
 		ereturn local compchange "`compchange'"
 	}
+	ereturn local fitid "`__nwdynam_fitid'"
+	ereturn local estat_cmd "nwdynam_estat"
 	ereturn local ties = cond(`__nwdynam_ntimes' < `nevents', cond("`sequential'" != "", "sequential", "simultaneous"), "none")
 
 	ereturn local header "`__nwdynam_hdr'"

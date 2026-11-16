@@ -11,9 +11,13 @@ nwdynam is Copyright (C) 2026 Thomas U. Grund and is distributed under the GNU G
   https://cran.r-project.org/package=goldfish
   Reference: Stadtfeld, C. and Block, P. (2017). Interactions, actors, and time: Dynamic network actor models for relational events. Sociological Science 4, 318-352. doi:10.15195/v4.a14
 
+* **changepoint** (R package, version compared: 2.3). Authors: Rebecca Killick, Kaylea Haynes, Idris Eckley, Paul Fearnhead, Jamie Lee (with Harjit Hullait and Robin Long). License: GPL (the version is not stated in the package; R reads it as GPL-2 or GPL-3, so it can be used in a GPL-3 package). The PELT, AMOC and binary segmentation methods of `estat changepoints` (mean and variance of normal data, minimum segment length, modified BIC penalty) are a port of its C code and of the penalty and cost functions, into `native/dynam_sim.c`, so that `estat changepoints` gives the same change points as goldfish's `examineChangepoints`.
+  https://cran.r-project.org/package=changepoint
+  Reference: Killick, R. and Eckley, I. A. (2014). changepoint: An R package for changepoint analysis. Journal of Statistical Software 58(3), 1-19.
+
 ## Validation
 
-Coefficients and log-likelihoods were compared with `goldfish` (version 1.6.12) on the bundled Social_Evolution data and on small hand-traceable examples; the cross-check scripts are in `dev/` (`dev/dynam_unit*_crosscheck.R` and the matching `.do` files) and the regression tests in `cscripts/test_nwdynam_*.do`. The native plugin is certified against the Mata reference implementation to floating-point round-off.
+Coefficients and log-likelihoods were compared with `goldfish` (version 1.6.12) on the bundled Social_Evolution data and on small hand-traceable examples; the cross-check scripts are in `dev/` (`dev/dynam_unit*_crosscheck.R` and the matching `.do` files) and the regression tests in `cscripts/test_nwdynam_*.do`. The postestimation commands (`estat ic`, `eventlik`, `eventprob`, `outliers`, `changepoints`) were compared with goldfish's `logLik`, `AIC`, `BIC`, `returnIntervalLogL`, `returnEventProbabilities`, `examineOutliers` and `examineChangepoints` on 90 random event logs (`dev/dynam_post_crosscheck.R`, data in `dev/post/`, test `cscripts/test_nwdynam_postestimation.do`): per-event log likelihoods and probabilities agree to 1e-13, outlier indices and change points exactly. The native plugin is certified against the Mata reference implementation to floating-point round-off.
 
 ## AI assistance
 

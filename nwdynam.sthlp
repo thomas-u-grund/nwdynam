@@ -618,6 +618,16 @@ then be given a leave event before the first event of the log. Missing values an
 or in the change network stop the command with error 198. {opt compchange()} and {opt present()} work together with
 {opt change()}.
 
+{marker estat}{...}
+{pstd}
+{bf:Postestimation.} After {cmd:nwdynam}, {cmd:estat ic} reports the log likelihood, the log likelihood per event, AIC and BIC;
+{cmd:estat eventlik} and {cmd:estat eventprob} give the log likelihood and the model probabilities of every event;
+{cmd:estat outliers} flags events with an unusually low log likelihood; {cmd:estat changepoints} looks for regime changes in the
+log likelihood over the event sequence. They offer what goldfish offers after estimation ({cmd:logLik}, {cmd:AIC}, {cmd:BIC},
+{cmd:returnIntervalLogL}, {cmd:returnEventProbabilities}, {cmd:examineOutliers}, {cmd:examineChangepoints}), with the same definitions and
+defaults, and everything is computed natively. See {help nwdynam_estat}. The change point methods (PELT, AMOC, binary segmentation) follow
+the R package {it:changepoint} (Killick, Haynes, Eckley, Fearnhead and Lee; GPL).
+
 {marker native}{...}
 {pstd}
 Every fit runs in the compiled plugin of the package ({cmd:dynam_sim}): the log likelihood, the gradient and
@@ -776,6 +786,8 @@ elapsed time between events, not just their order (combining {opt intercept} wit
 {synopt:{bf:e(ties)}}{bf:none} (all times distinct), {bf:simultaneous} or {bf:sequential} (option){p_end}
 {synopt:{bf:e(unidentified)}}effects without a usable standard error (missing, zero or above 100); empty when all are identified{p_end}
 {synopt:{bf:e(header)}}heading of the results table{p_end}
+{synopt:{bf:e(fitid)}}identifier of the fit whose data {cmd:estat} reads{p_end}
+{synopt:{bf:e(estat_cmd)}}{bf:nwdynam_estat}{p_end}
 
 {p2col 5 20 24 2: Matrices}{p_end}
 {synopt:{bf:e(b)}}coefficient vector (columns named per {bf:e(effects)}; with {opt intercept} the first is {bf:Intercept}){p_end}
@@ -798,7 +810,7 @@ produced the results is in {cmd:e(version)}; quote it when reporting an analysis
 
 {title:Also see}
 
-{p 4 14 2}Help: {help nwset}, {help nwattime}, {help nwrem}, {help nwergm}, {help nwsaom}{p_end}
+{p 4 14 2}Help: {help nwdynam_estat}, {help nwset}, {help nwattime}, {help nwrem}, {help nwergm}, {help nwsaom}{p_end}
 
 {pstd}
 The C source of the plugin comes with the package: {cmd:net get nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/main)}
