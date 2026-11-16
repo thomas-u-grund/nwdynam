@@ -50,7 +50,7 @@ program runcase
 			mata: mata drop __exm __exd __exi
 			restore
 			preserve
-			nwset, mat(__exmat) name(`nm') `dr'
+			nwset, mat(__exmat) name(`nm') `dr' selfloop
 			restore
 		}
 	}

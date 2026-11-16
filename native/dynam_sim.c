@@ -580,7 +580,7 @@ static void xt_tdiff(const Spec *sp, State *st, XTState *x, const XTermSpec *ts,
 	for (k = 0; k < n; k++) if (V[k * n + r] > 0.0 && !(newval != 1 && k == s)) { sum += at[k]; cnt++; }
 	if (newval == 1) { sum += at[s]; cnt++; }
 	val = cnt > 0 ? sum / (double)cnt : NAN;
-	if (isnan(val)) { st->err = 1; return; }   /* goldfish: the receiver has no in-neighbour left; its update then fails ("subscript out of bounds") */
+	if (isnan(val) && ts->win < NOWIN) { st->err = 1; return; }   /* goldfish: with a window, a receiver without in-neighbour left makes its update fail ("subscript out of bounds") */
 	if (!isImpute && isnan(val)) isImpute = 1;
 	x->cv[r] = val;
 	x->impute = isImpute;

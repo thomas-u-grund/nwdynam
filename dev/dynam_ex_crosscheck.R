@@ -2,7 +2,8 @@
 # Usage: Rscript dev/dynam_ex_crosscheck.R <output directory> [sections, e.g. a b c d e f g]
 # Sections: a = tie() of exogenous networks (static, changing, weighted, windowed, ignoreRep), b = trans/cycle/commonSender/commonReceiver
 # through exogenous networks, c = mixed closures, d = tertiusDiff, e = ignoreRep on the effects of the dependent network,
-# f = choice_coordination (tie, trans, mixedTrans, tertiusDiff, ignoreRep), g = hand-made edge cases.
+# f = choice_coordination (tie, trans, four, mixedTrans, tertiusDiff, ignoreRep), g = edge cases of the exogenous networks (few actors, undirected,
+# self-ties in a static network).
 # For every case it writes events_<case>.csv (time, sender, receiver, increment), nodes_<case>.csv (label, x, y, g), exo_<case>_<name>.csv (the
 # exogenous networks: changing = time, sender, receiver, increment; static = sender, receiver, value), results_<sec>.csv (case, term, estimate, se;
 # the last row of a case is "ll") and cases_<sec>.csv (case, sub, options of nwdynam, kind, exogenous networks, tolerances).
@@ -40,6 +41,7 @@ mkcase <- function(seed, n = 8, N = 60, kind = "one", weights = FALSE, inttime =
       dens <- if (is.null(sp$density)) 0.3 else sp$density
       M <- matrix(0, n, n)
       for (i in 1:n) for (j in 1:n) if (i != j && runif(1) < dens) M[i, j] <- if (wt) sample(1:3, 1) else 1
+      if (isTRUE(sp$diag)) for (i in 1:n) if (runif(1) < 0.5) M[i, i] <- 1
       if (!dir) { M[lower.tri(M)] <- t(M)[lower.tri(M)] }
       ex[[nm]] <- list(type = "stat", directed = dir, M = M)
     } else {
@@ -144,7 +146,8 @@ randspecs <- function(sec, pieces, nrand, seed0, sub, mkargs, maxeff = 3, idoff 
 one <- function(sec, id, seed, sub, mk, form, opts) list(sec = sec, id = id, seed = seed, sub = sub, mk = mk, form = form, opts = opts)
 EXO <- list(x1 = list(type = "dyn", directed = TRUE, nev = 45), x2 = list(type = "stat", directed = TRUE), x3 = list(type = "dyn", directed = TRUE, weighted = TRUE, nev = 45),
             x4 = list(type = "stat", directed = TRUE, weighted = TRUE))
-exo_for <- function(k, names) EXO[names]
+EXG <- list(x5 = list(type = "dyn", directed = TRUE, nev = 8), x6 = list(type = "dyn", directed = FALSE, nev = 40), x7 = list(type = "stat", directed = FALSE),
+            x8 = list(type = "stat", directed = TRUE, diag = TRUE))
 
 specs <- list()
 # ================= a: tie() of exogenous networks =================
@@ -265,6 +268,18 @@ if ("f" %in% secs) {
   sf2 <- randspecs("f", c(bf, pf), 40, 61, "choice_coordination", function(k) list(kind = "und", n = sample(6:9, 1), N = sample(40:70, 1), exo = EXOU, weights = (k %% 4 == 0),
          inttime = (k %% 5 == 0), ties = (k %% 3 != 0)), maxeff = 2, idoff = 10)
   specs <- c(specs, sf, sf2)
+}
+# ================= g: edge cases of the exogenous networks =================
+if ("g" %in% secs) {
+  pg <- list(list("tie(%X)", "tie(%X)"), list("trans(%X)", "trans(%X)"), list("cycle(%X)", "cycle(%X)"), list("commonSender(%X)", "commonsender(%X)"),
+             list("commonReceiver(%X)", "commonreceiver(%X)"), list("four(%X)", "four(%X)"), list("mixedTrans(list(net, %X), netUpdate = 1)", "mixedtrans(net %X)"),
+             list("mixedCommonSender(list(%X, net), netUpdate = 2)", "mixedcommonsender(%X net)"), list("tertiusDiff(%X, nd$x)", "tertiusdiff(x %X)"))
+  k <- 0
+  for (X in names(EXG)) for (pp in pg) {
+    k <- k + 1
+    specs[[length(specs) + 1]] <- list(sec = "g", id = sprintf("g%02d", k), seed = 700 + k, sub = "choice", mk = list(n = 7, N = 45, exo = EXG[X], inttime = (k %% 4 == 0), ties = (k %% 3 != 0)),
+      form = paste0("inertia(net) + ", gsub("%X", X, pp[[1]], fixed = TRUE)), opts = paste0("inertia netterms(", gsub("%X", X, pp[[2]], fixed = TRUE), ")"))
+  }
 }
 for (sp in specs) runspec(sp)
 for (sec in secs) {

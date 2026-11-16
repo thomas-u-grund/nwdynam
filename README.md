@@ -79,6 +79,15 @@ two-mode, together with time-varying covariates). See `help nwdynam`. The R scri
 
 Windowed rate effects (`indegwindow()`, `outdegwindow()`) work together with `intercept`; `tertiuswindow()` puts a window on `tertius()`; `choice_coordination` accepts `inertiawindow()`, `indegwindow()`, `weightedinertia` and `weightedindeg`; two-mode networks accept `alter()`, `ego()`, `egoalterint()`, `tertius()` and `four`; `opportunities()` can be used with covariate effects when its variables are in another frame (`oppframe()`); `change()` works in two-mode networks and with `opportunities()`. These agree with goldfish 1.6.12 on 306 random event logs (`dev/dynam_win_crosscheck.R`, data in `dev/win/`); see `help nwdynam` for what is not available.
 
+## Effects on other networks
+
+`netterms()` adds the effects of goldfish that read other networks, with their own window: `tie`, `trans`, `cycle`, `commonsender`, `commonreceiver`, `four`, the mixed closures `mixedtrans`, `mixedcycle`, `mixedcommonsender`, `mixedcommonreceiver` (two networks, each the fitted network, an ordinary network or a network that changes over time with its events), and `tertiusdiff`. Options per term: `window(#)`, `weighted` (`tie`), `ignorerep`; `ignorerep(effects)` does the same for the built-in effects. `tie(netname)` also accepts a network that changes over time.
+
+    nwdynam net, inertia netterms(tie(advice, weighted window(30)) mixedtrans(net advice) tertiusdiff(age))
+    nwdynam net, inertia trans ignorerep(trans)
+
+Estimates, standard errors and log likelihoods agree with goldfish 1.6.12 to 1e-6 on about 300 random event logs (`dev/dynam_ex_crosscheck.R`, data in `dev/ex/`, test `cscripts/test_nwdynam_exogenous.do`); see `help nwdynam` for what is not available.
+
 ## Native plugin
 
 The package ships a native Stata plugin (dynam_sim.c) for macOS (universal), Linux and Windows (built by the GitHub Actions workflow `.github/workflows/build-plugins.yml`; the macOS build can be reproduced with `make -C native macos`). The Windows plugin passes the full test suite (Stata 19 MP, 9 November 2026); the Linux plugin has not been tested on a Linux machine. Every fit needs the plugin; a platform without one stops with r(601) (see the help file). The C source is part of the package (`net get nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/main)` copies it into the current directory, with `dynam_native_readme.txt` explaining the build) and is in `native/` of this repository. If the shipped plugin does not work on your computer (missing for the platform, older than the `.ado` files, does not load), `nwinstall, buildplugin(nwdynam)` compiles it there (macOS and Linux; needs a C compiler and `make`; restart Stata afterwards). Plugin code 11/12 (simultaneous events) needs a plugin built from this version; the Linux and Windows binaries are rebuilt by the workflow.

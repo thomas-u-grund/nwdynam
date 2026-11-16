@@ -241,3 +241,14 @@ about 15 minutes; test `cscripts/test_nwdynam_combinations.do`).
   and (rate) indeg, tertius, nodeTrans are refused by goldfish. Actor labels sort as text: `A10` comes before `A2`, so an `opportunities()` actor index differs from the
   generator index when there are 10 or more actors (the cross-check uses at most 9).
 - `opportunities()` takes one row per event and available actor, the covariates one row per actor: `oppframe(name)` reads the two variables from a frame.
+
+
+## Effects on other networks: what goldfish does (netterms, ignorerep)
+
+- Statistics are literal translations of goldfish's update functions: `d = sign(new) - sign(old)`, s and r skipped, caches start at 0 for windowed terms but keep the start matrix. Self-ties in a static network count as in goldfish (`nwset, mat() selfloop` in tests; without `selfloop` nwset drops the diagonal).
+- Order at equal times: dependent events are evaluated first, then exogenous events; creations before expiries; network 1 before network 2.
+- `four` recomputes the paths from the network after the change (goldfish `update_DyNAM_choice_four`).
+- tertiusDiff: goldfish stops with an error ("subscript out of bounds", "cannot update") when a windowed term leaves a receiver without in-neighbour; nwdynam stops too (only for windowed terms; without a window goldfish copes with removals). goldfish's matrix-wide mean imputation of NaN in `getIterationStepState` is not implemented. Not available: time-varying attributes, two-mode.
+- `ignorerep` in the rate model: goldfish accepts it but no hypothesis reproduced its likelihood, so it is refused.
+- Refused because goldfish does not offer them: cycle/commonsender/commonreceiver/mixed cycle and common effects in choice_coordination; `weighted` on closures.
+- Plugin protocol stays 5: the term block is appended to the blob (blob[40] = its length); the Mata glue passes it in the external `__nwdynam_xblob`.
