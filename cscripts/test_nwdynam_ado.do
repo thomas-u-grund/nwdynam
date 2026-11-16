@@ -751,10 +751,12 @@ capture noisily nwdynam tiesmall, submodel(choice) tie(tiny4)
 assert _rc == 198
 di as text "  correctly rejected (rc=" _rc ")"
 
-di as text "Test: tie() with an event-type (temporal) network rejected"
-capture noisily nwdynam tiesmall, submodel(choice) tie(tiesmall)
-assert _rc == 198
-di as text "  correctly rejected (rc=" _rc ")"
+di as text "Test: tie() with an event-type (temporal) network is accepted (the network itself: the same as inertia)"
+quietly nwdynam tiesmall, submodel(choice) inertia
+matrix __ti = e(b)
+quietly nwdynam tiesmall, submodel(choice) tie(tiesmall)
+assert reldif(el(e(b), 1, 1), el(__ti, 1, 1)) < 1e-6
+di as text "PASS: tie() of an event network"
 
 di as text "{hline 60}"
 di as text "Test: intercept (WITH-INTERCEPT rate sub-model, batch 17, 2026-09-02) -"

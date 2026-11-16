@@ -199,7 +199,7 @@ quietly expand 2
 xt_err 198 nwdynam w40, diff(x)
 restore
 xt_err 482 nwdynam w40, tie(nosuchnet)
-xt_err 198 nwdynam w40, tie(w40)
+xt_err 198 nwdynam w40, tie(w40) netterms(tie(w40))
 xt_err 198 nwdynam w40, tie(five)
 
 * ---------------------------------------------------------------------------------------------------------------------
