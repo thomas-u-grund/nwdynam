@@ -558,7 +558,18 @@ void DynamNat::close() {
 	written into the frame as characteristics
 */
 void DynamNat::keep() {
+	string scalar cur
+	real scalar oc
 	if (isopen) {
+		cur = st_framecurrent()
+		oc = 0
+		if (st_frameexists("__nwdynam_fit")) {
+			st_framecurrent("__nwdynam_fit")
+			oc = strtoreal(st_global("_dta[fitcnt]"))
+			if (missing(oc)) oc = 0
+			st_framecurrent(cur)
+		}
+		st_global("_dta[fitcnt]", strofreal(oc + 1, "%12.0f"))
 		st_global("_dta[bloblen]", strofreal(L, "%18.0f"))
 		st_global("_dta[model]", strofreal(model))
 		st_framecurrent(origframe)
@@ -1177,22 +1188,20 @@ mata:
 string scalar dynam_fit_meta(string vector names, real matrix rawevents) {
 	string scalar orig, id
 	real colvector ord
-	real scalar nn, cnt, junk
+	real scalar nn, junk, cnt
+	string colvector nmv
 
 	orig = st_framecurrent()
 	st_framecurrent("__nwdynam_fit")
+	nmv = vec(names)
 	ord = order((rawevents[., 3], (1::rows(rawevents))), (1, 2))
-	nn = max((st_nobs(), rows(ord), rows(vec(names))))
+	nn = max((st_nobs(), rows(ord), rows(nmv)))
 	if (nn > st_nobs()) st_addobs(nn - st_nobs())
 	junk = st_addvar("double", "ord")
 	st_store((1::rows(ord)), "ord", ord)
 	junk = st_addvar("strL", "nm")
-	names = vec(names)
-	st_sstore((1::rows(names)), "nm", names)
-	cnt = 0
-	if (_stata("confirm scalar __nwdynam_fitcount", 1) == 0) cnt = st_numscalar("__nwdynam_fitcount")
-	cnt = cnt + 1
-	st_numscalar("__nwdynam_fitcount", cnt)
+	st_sstore((1::rows(nmv)), "nm", nmv)
+	cnt = strtoreal(st_global("_dta[fitcnt]"))
 	id = strofreal(floor(clock(c("current_date") + " " + c("current_time"), "DMYhms")), "%20.0f") + "-" + strofreal(cnt)
 	st_global("_dta[fitid]", id)
 	st_framecurrent(orig)

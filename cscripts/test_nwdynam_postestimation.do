@@ -58,6 +58,8 @@ capture estat eventprob, frame(pr6x) maxrows(10)
 assert _rc != 0
 capture estat foo
 assert _rc == 321
+quietly estat vce
+assert rowsof(r(V)) == colsof(e(b))
 capture estat outliers, method(xyz)
 assert _rc == 198
 capture estat outliers, window(-1)

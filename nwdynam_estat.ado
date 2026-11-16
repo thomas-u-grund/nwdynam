@@ -42,8 +42,8 @@ program define nwdynam_estat, rclass
 		return add
 	}
 	else {
-		di as err "estat `subcmd' not allowed after nwdynam"
-		exit 321
+		// estat vce, estat summarize ... : Stata's defaults; anything else is refused with r(321)
+		estat_default `0'
 	}
 end
 
