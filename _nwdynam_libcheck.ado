@@ -1,4 +1,4 @@
-*! version 1.5.0  15nov2026 _nwdynam_libcheck - make the nwdynam Mata library visible
+*! version 1.5.1  16nov2026 _nwdynam_libcheck - make the nwdynam Mata library visible
 * Copyright (C) 2026 Thomas U. Grund
 * This file is part of nwdynam (GPL-3, see the file LICENSE).
 * Stata indexes the Mata libraries (.mlib) once, early in a session. A library installed by net install can be missing from that

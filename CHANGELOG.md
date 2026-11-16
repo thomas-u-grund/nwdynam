@@ -3,10 +3,12 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.5.1] - 2026-11-16
 
 ### Faster
 - Dense data (thousands of events among few actors): rate fits with `intercept` and choice fits with effects such as `trans` no longer spend up to a thousand likelihood evaluations after the maximum was already reached. `submodel(rate) intercept` on 5,000 events among 50 actors takes 0.02 s (was 2.4 s), `inertia trans` on 5,000 events among 100 actors 0.03 s (was 3.7 s). The estimates are the same to round-off.
+
+Tested on macOS with Stata 17 BE, Stata 18 BE and StataNow 19.5 MP (the full test suite and, under Stata 17, the goldfish cross-checks). Windows and Linux: not yet tested; the plugins are those of 1.5.0.
 
 ## [1.5.0] - 2026-11-15
 
