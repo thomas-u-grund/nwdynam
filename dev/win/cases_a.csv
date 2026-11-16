@@ -1,0 +1,38 @@
+"id","sub","opts","kind","chg","opp","inc","tolb","tolse"
+"a01","rate","indegwindow(6) intercept","one","",0,0,1e-06,1e-06
+"a02","rate","outdegwindow(6) intercept","one","",0,0,1e-06,1e-06
+"a03","rate","indegwindow(5) outdegwindow(4) intercept","one","",0,0,1e-06,1e-06
+"a04","rate","indegwindow(6) weightedindeg ego(x) intercept","one","",0,0,1e-06,1e-06
+"a05","rate","outdegwindow(3) weightedoutdeg intercept","one","",0,0,1e-06,1e-06
+"a11","rate","indegwindow(2) outdegwindow(9) intercept","one","",0,0,1e-06,1e-06
+"a12","rate","indegwindow(9) ego(x) intercept","one","",0,0,1e-06,1e-06
+"a13","rate","indegwindow(4.5) outdegwindow(4.5) intercept","one","",0,0,1e-06,1e-06
+"a14","rate","indegwindow(4.5) outdegwindow(3) intercept","one","",0,1,1e-06,1e-06
+"a15","rate","indegwindow(2) outdegwindow(6) ego(y) intercept","one","",0,0,1e-06,1e-06
+"a16","rate","outdegwindow(3) ego(x) intercept","one","",0,0,1e-06,1e-06
+"a17","rate","indegwindow(6) ego(x) intercept","one","x",0,0,1e-06,1e-06
+"a18","rate","indegwindow(6) outdegwindow(4.5) ego(x) intercept","one","",0,0,1e-06,1e-06
+"a19","rate","ego(x) intercept","one","",0,0,1e-06,1e-06
+"a20","rate","outdegwindow(4.5) ego(x) intercept","one","x",0,1,1e-06,1e-06
+"a21","rate","outdegwindow(6) intercept","one","",0,0,1e-06,1e-06
+"a22","rate","ego(x) intercept","one","",0,0,1e-06,1e-06
+"a23","rate","outdegwindow(4.5) intercept","one","",0,0,1e-06,1e-06
+"a24","rate","outdegwindow(2) intercept","one","",0,0,1e-06,1e-06
+"a25","rate","indegwindow(2) outdegwindow(4.5) ego(x) intercept","one","",0,0,1e-06,1e-06
+"a26","rate","indegwindow(9) outdegwindow(9) ego(y) intercept","one","",0,1,1e-06,1e-06
+"a27","rate","outdegwindow(9) intercept","one","",0,0,1e-06,1e-06
+"a28","rate","outdegwindow(4.5) intercept","one","",0,0,1e-06,1e-06
+"a29","rate","indegwindow(3) intercept","one","",0,0,1e-06,1e-06
+"a30","rate","indegwindow(9) outdegwindow(3) intercept","one","",0,0,1e-06,1e-06
+"a31","rate","indegwindow(2) intercept","one","",0,0,1e-06,1e-06
+"a32","rate","indegwindow(4.5) outdegwindow(2) ego(y) intercept","one","",0,1,1e-06,1e-06
+"a33","rate","outdegwindow(6) ego(x) intercept","one","",0,0,1e-06,1e-06
+"a34","rate","ego(y) intercept","one","",0,0,1e-06,1e-06
+"a35","rate","outdegwindow(4.5) intercept","one","",0,0,1e-06,1e-06
+"a36","rate","indegwindow(9) intercept","one","",0,0,1e-06,1e-06
+"a37","rate","indegwindow(6) intercept","one","",0,0,1e-06,1e-06
+"a38","rate","ego(y) intercept","one","",0,1,1e-06,1e-06
+"a39","rate","indegwindow(6) outdegwindow(4.5) ego(y) intercept","one","",0,0,1e-06,1e-06
+"a40","rate","ego(y) intercept","one","",0,0,1e-06,1e-06
+"a61","rate","outdegwindow(1) ego(x) intercept","one","x",0,0,1e-06,1e-06
+"a62","rate","indegwindow(1.25) weightedindeg outdegwindow(2.5) ego(y) intercept","one","y",0,0,1e-06,1e-06

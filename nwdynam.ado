@@ -22,9 +22,9 @@ program nwdynam, eclass
 			exit
 		}
 	}
-	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(string) RECIPWINDOW(string) INDEGWINDOW(string) OUTDEGWINDOW(string) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) CHange(string) INCREMENT PResent(varname numeric) COMPchange(string) INTERCEPT SEED(string) SEQUENTIAL Level(cilevel)]
+	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(string) RECIPWINDOW(string) INDEGWINDOW(string) OUTDEGWINDOW(string) TERTIUSWINDOW(string) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) CHange(string) INCREMENT PResent(varname numeric) COMPchange(string) INTERCEPT SEED(string) SEQUENTIAL Level(cilevel)]
 	// window options: a positive number when given (internally -1 = not given)
-	foreach __nwdynam_w in inertiawindow recipwindow indegwindow outdegwindow {
+	foreach __nwdynam_w in inertiawindow recipwindow indegwindow outdegwindow tertiuswindow {
 		if `"``__nwdynam_w''"' != "" {
 			capture confirm number ``__nwdynam_w''
 			if _rc | real(`"``__nwdynam_w''"') <= 0 {
@@ -440,8 +440,8 @@ program nwdynam, eclass
 	local __nwdynam_windowinertia = 1e300
 	local __nwdynam_windowrecip = 1e300
 	if `inertiawindow' != -1 {
-		if "`submodel'" != "choice" {
-			di as error "{p 0 0 2}inertiawindow() only applies to the choice sub-model's inertia effect - see {help nwdynam}.{p_end}"
+		if "`submodel'" == "rate" {
+			di as error "{p 0 0 2}inertiawindow() only applies to the inertia effect of the choice and choice_coordination sub-models - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if `inertiawindow' <= 0 {
@@ -481,8 +481,8 @@ program nwdynam, eclass
 	local __nwdynam_windowindeg = 1e300
 	local __nwdynam_windowoutdeg = 1e300
 	if `indegwindow' != -1 {
-		if "`submodel'" != "rate" {
-			di as error "{p 0 0 2}indegwindow() only applies to the rate sub-model's indeg effect - see {help nwdynam}.{p_end}"
+		if "`submodel'" == "choice" {
+			di as error "{p 0 0 2}indegwindow() only applies to the indeg effect of the rate and choice_coordination sub-models - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		if `indegwindow' <= 0 {
@@ -505,6 +505,20 @@ program nwdynam, eclass
 		local outdeg "outdeg"
 	}
 
+	// tertiuswindow(#): window of the tertius() effect (all sub-models): only the ties of the last # time units count
+	local __nwdynam_windowtertius = 1e300
+	if `tertiuswindow' != -1 {
+		if "`tertius'" == "" {
+			di as error "{p 0 0 2}tertiuswindow() needs tertius(): it is the window of that effect.{p_end}"
+			error 198
+		}
+		if `tertiuswindow' <= 0 {
+			di as error "{p 0 0 2}tertiuswindow() must be a positive number (in the same time units as the network's own eventtime()).{p_end}"
+			error 198
+		}
+		local __nwdynam_windowtertius = `tertiuswindow'
+	}
+
 	// weightedinertia/weightedrecip/weightedindeg/weightedoutdeg (added
 	// 2026-09-02, "expansion batch 8" - user: "work your way through
 	// the list"): goldfish's own `weighted=TRUE' argument on
@@ -522,8 +536,8 @@ program nwdynam, eclass
 	local __nwdynam_weightedindeg = 0
 	local __nwdynam_weightedoutdeg = 0
 	if "`weightedinertia'" != "" {
-		if "`submodel'" != "choice" {
-			di as error "{p 0 0 2}weightedinertia only applies to the choice sub-model's inertia effect - see {help nwdynam}.{p_end}"
+		if "`submodel'" == "rate" {
+			di as error "{p 0 0 2}weightedinertia only applies to the inertia effect of the choice and choice_coordination sub-models - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		local __nwdynam_weightedinertia = 1
@@ -538,10 +552,6 @@ program nwdynam, eclass
 		local recip "recip"
 	}
 	if "`weightedindeg'" != "" {
-		if "`submodel'" == "choice_coordination" {
-			di as error "{p 0 0 2}weightedindeg is not yet supported for submodel(choice_coordination) - a real, disclosed v1 gap - see {help nwdynam}.{p_end}"
-			error 198
-		}
 		local __nwdynam_weightedindeg = 1
 		local indeg "indeg"
 	}
@@ -603,10 +613,6 @@ program nwdynam, eclass
 	if "`intercept'" != "" {
 		if "`submodel'" != "rate" {
 			di as error "intercept only applies to submodel(rate) - see {help nwdynam}."
-			error 198
-		}
-		if `__nwdynam_windowindeg' < 1e300 | `__nwdynam_windowoutdeg' < 1e300 {
-			di as error "{p 0 0 2}intercept is not yet verified together with indegwindow()/outdegwindow() - a real, disclosed architectural gap (goldfish's own window() mechanism needs synthetic mid-interval expiry events this engine does not yet inject) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 	}
@@ -960,25 +966,25 @@ program nwdynam, eclass
 	local __nwdynam_frame = c(frame)
 	capture noisily {
 		if "`submodel'" == "choice" {
-			mata: DynamChoiceFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_same', `__nwdynam_diff', `__nwdynam_sim', `__nwdynam_alter', `__nwdynam_tertius', `__nwdynam_egoalterint1', `__nwdynam_egoalterint2', `__nwdynam_windowinertia', `__nwdynam_windowrecip', `__nwdynam_weightedinertia', `__nwdynam_weightedrecip', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_oppmat', `__nwdynam_tiemat', `__nwdynam_chg', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
+			mata: DynamChoiceFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_same', `__nwdynam_diff', `__nwdynam_sim', `__nwdynam_alter', `__nwdynam_tertius', `__nwdynam_egoalterint1', `__nwdynam_egoalterint2', `__nwdynam_windowinertia', `__nwdynam_windowrecip', `__nwdynam_windowtertius', `__nwdynam_weightedinertia', `__nwdynam_weightedrecip', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_oppmat', `__nwdynam_tiemat', `__nwdynam_chg', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
 			local __nwdynam_title "Dynamic Network Actor Model, choice sub-model (conditional logit, MLE)"
 			local __nwdynam_hdr "Dynamic Network Actor Model - choice sub-model (MLE)"
 		}
 		else if "`submodel'" == "rate" {
 			if "`intercept'" != "" {
-				mata: DynamRateInterceptFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_ego', `__nwdynam_tertius', `__nwdynam_windowindeg', `__nwdynam_windowoutdeg', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_chg', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
+				mata: DynamRateInterceptFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_ego', `__nwdynam_tertius', `__nwdynam_windowindeg', `__nwdynam_windowoutdeg', `__nwdynam_windowtertius', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_chg', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
 				local __nwdynam_collabs "Intercept`__nwdynam_collabs'"
 				local __nwdynam_title "Dynamic Network Actor Model, rate sub-model, WITH intercept (continuous-time competing-risks hazard, MLE)"
 				local __nwdynam_hdr "Dynamic Network Actor Model - rate sub-model, with intercept (MLE)"
 			}
 			else {
-				mata: DynamRateFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_ego', `__nwdynam_tertius', `__nwdynam_windowindeg', `__nwdynam_windowoutdeg', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_chg', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
+				mata: DynamRateFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_ego', `__nwdynam_tertius', `__nwdynam_windowindeg', `__nwdynam_windowoutdeg', `__nwdynam_windowtertius', `__nwdynam_weightedindeg', `__nwdynam_weightedoutdeg', `__nwdynam_n1', `__nwdynam_chg', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
 				local __nwdynam_title "Dynamic Network Actor Model, rate sub-model, no intercept (ordinal partial likelihood, MLE)"
 				local __nwdynam_hdr "Dynamic Network Actor Model - rate sub-model, no intercept (MLE)"
 			}
 		}
 		else {
-			mata: DynamCoordFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_same', `__nwdynam_diff', `__nwdynam_sim', `__nwdynam_alter', `__nwdynam_tertius', `__nwdynam_egoalterint1', `__nwdynam_egoalterint2', `__nwdynam_tiemat', `__nwdynam_chg', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
+			mata: DynamCoordFitMulti(`__nwdynam_events', `nodes', (`__nwdynam_active'), `__nwdynam_same', `__nwdynam_diff', `__nwdynam_sim', `__nwdynam_alter', `__nwdynam_tertius', `__nwdynam_egoalterint1', `__nwdynam_egoalterint2', `__nwdynam_windowinertia', `__nwdynam_windowindeg', `__nwdynam_windowtertius', `__nwdynam_weightedinertia', `__nwdynam_weightedindeg', `__nwdynam_tiemat', `__nwdynam_chg', "__nwdynam_b", "__nwdynam_V", "__nwdynam_ll")
 			local __nwdynam_title "Dynamic Network Actor Model, choice_coordination sub-model (multinomial-multinomial, MLE)"
 			local __nwdynam_hdr "Dynamic Network Actor Model - choice_coordination sub-model (MLE)"
 		}

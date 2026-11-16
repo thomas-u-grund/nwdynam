@@ -492,7 +492,7 @@ class DynamNat {
 	void setup()
 }
 
-real scalar DYNAM_PROTOCOL_NEEDED() return(4)
+real scalar DYNAM_PROTOCOL_NEEDED() return(5)
 
 void DynamNat::open() {
 	string scalar p, fname, q
@@ -538,16 +538,17 @@ void DynamNat::close() {
 
 /*
 	setup(): model 1 choice, 2 rate, 3 rate with intercept, 4 coordination. active = 0/1 vector of the effect slots,
-	covmat = 7 x n covariate rows, win4/wgt4 = windows and weighted flags (inertia, recip, indeg, outdeg), n1 = mode-1
+	covmat = 7 x n covariate rows, win5 = windows (inertia, recip, indeg, outdeg, tertius), wgt4 = weighted flags (inertia, recip, indeg, outdeg), n1 = mode-1
 	actors (0 = one-mode), oppmat (nevents x n or 0 x 0), tiemat (n x n or 0 x 0).
 */
 void DynamNat::setup(real scalar model, pointer(class DynamState scalar) scalar pS, real rowvector active,
-		real matrix covmat, real rowvector win4, real rowvector wgt4, real scalar n1, real matrix oppmat, real matrix tiemat) {
+		real matrix covmat, real rowvector win5, real rowvector wgt4, real scalar n1, real matrix oppmat, real matrix tiemat) {
 	real scalar nev, hasopp, hastie, M, nres, nchg, ncomp, hasinit
 	real colvector gend, blob, pv
 	real rowvector hdr
 	real matrix cvc, pc, pin
 
+	if (cols(win5) == 4) win5 = (win5, 1e300)   // the window of tertius is optional
 	nev = (*pS).nevents
 	M = cols(active)
 	hasopp = (rows(oppmat) > 0)
@@ -563,7 +564,7 @@ void DynamNat::setup(real scalar model, pointer(class DynamState scalar) scalar 
 	nchg = rows(cvc)
 	ncomp = rows(pc)
 	hasinit = (rows(pin) > 0)
-	hdr = (DYNAM_PROTOCOL_NEEDED(), model, (*pS).n, nev, n1, M, hasopp, hastie, win4, wgt4, active, J(1, 20 - M, 0), nchg, ncomp, hasinit, 0)
+	hdr = (DYNAM_PROTOCOL_NEEDED(), model, (*pS).n, nev, n1, M, hasopp, hastie, win5[1..4], wgt4, active, J(1, 20 - M, 0), nchg, ncomp, hasinit, win5[5])
 	blob = hdr' \ vec(((*pS).events, gend)')
 	if (nchg > 0) blob = blob \ vec(cvc')
 	if (ncomp > 0) blob = blob \ vec(pc')
@@ -740,7 +741,7 @@ void dynam_nat_optimize(pointer(class DynamNat scalar) scalar pN, real scalar mo
 void DynamChoiceFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
 		real rowvector samevec, real rowvector diffvec, real rowvector simvec, real rowvector altervec,
 		real rowvector tertiusvec, real rowvector egoalterint1vec, real rowvector egoalterint2vec,
-		real scalar windowinertia, real scalar windowrecip,
+		real scalar windowinertia, real scalar windowrecip, real scalar windowtertius,
 		real scalar weightedinertia, real scalar weightedrecip, real scalar weightedindeg, real scalar weightedoutdeg,
 		real scalar n1, real matrix oppmat, real matrix tiemat, real matrix chgmat,
 		string scalar bname, string scalar vname, string scalar llname) {
@@ -757,7 +758,7 @@ void DynamChoiceFitMulti(real matrix eventmat, real scalar n, real rowvector act
 	NT = DynamNat()
 	NT.chg = chgmat
 	NT.open()
-	NT.setup(1, &S, activevec, covmat, (windowinertia, windowrecip, 1e300, 1e300),
+	NT.setup(1, &S, activevec, covmat, (windowinertia, windowrecip, 1e300, 1e300, windowtertius),
 		(weightedinertia, weightedrecip, weightedindeg, weightedoutdeg), n1, oppmat, tiemat)
 	dynam_nat_optimize(&NT, 0, ., theta_hat, V, ll)
 	NT.close()
@@ -767,7 +768,7 @@ void DynamChoiceFitMulti(real matrix eventmat, real scalar n, real rowvector act
 }
 
 void DynamRateFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
-		real rowvector egovec, real rowvector tertiusvec, real scalar windowindeg, real scalar windowoutdeg,
+		real rowvector egovec, real rowvector tertiusvec, real scalar windowindeg, real scalar windowoutdeg, real scalar windowtertius,
 		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1, real matrix chgmat,
 		string scalar bname, string scalar vname, string scalar llname) {
 	class DynamState scalar S
@@ -783,7 +784,7 @@ void DynamRateFitMulti(real matrix eventmat, real scalar n, real rowvector activ
 	NT = DynamNat()
 	NT.chg = chgmat
 	NT.open()
-	NT.setup(2, &S, activevec, covmat, (1e300, 1e300, windowindeg, windowoutdeg),
+	NT.setup(2, &S, activevec, covmat, (1e300, 1e300, windowindeg, windowoutdeg, windowtertius),
 		(0, 0, weightedindeg, weightedoutdeg), n1, J(0, 0, 0), J(0, 0, 0))
 	dynam_nat_optimize(&NT, 0, ., theta_hat, V, ll)
 	NT.close()
@@ -794,7 +795,7 @@ void DynamRateFitMulti(real matrix eventmat, real scalar n, real rowvector activ
 
 void DynamRateInterceptFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
 		real rowvector egovec, real rowvector tertiusvec,
-		real scalar windowindeg, real scalar windowoutdeg,
+		real scalar windowindeg, real scalar windowoutdeg, real scalar windowtertius,
 		real scalar weightedindeg, real scalar weightedoutdeg, real scalar n1, real matrix chgmat,
 		string scalar bname, string scalar vname, string scalar llname) {
 	class DynamState scalar S
@@ -815,7 +816,7 @@ void DynamRateInterceptFitMulti(real matrix eventmat, real scalar n, real rowvec
 	NT = DynamNat()
 	NT.chg = chgmat
 	NT.open()
-	NT.setup(3, &S, activevec, covmat, (1e300, 1e300, windowindeg, windowoutdeg),
+	NT.setup(3, &S, activevec, covmat, (1e300, 1e300, windowindeg, windowoutdeg, windowtertius),
 		(0, 0, weightedindeg, weightedoutdeg), n1, J(0, 0, 0), J(0, 0, 0))
 	dynam_nat_optimize(&NT, 2, theta0, theta_hat, V, ll)
 	NT.close()
@@ -827,16 +828,17 @@ void DynamRateInterceptFitMulti(real matrix eventmat, real scalar n, real rowvec
 // the three-effect choice model and the two-effect rate model without options (kept as short forms)
 void DynamFitUnit1(real matrix eventmat, real scalar n, string scalar bname, string scalar vname, string scalar llname) {
 	DynamChoiceFitMulti(eventmat, n, (1, 1, 1, J(1, 14, 0)), J(1, n, 0), J(1, n, 0), J(1, n, 0), J(1, n, 0), J(1, n, 0), J(1, n, 0), J(1, n, 0),
-		1e300, 1e300, 0, 0, 0, 0, 0, J(0, 0, 0), J(0, 0, 0), J(0, 4, 0), bname, vname, llname)
+		1e300, 1e300, 1e300, 0, 0, 0, 0, 0, J(0, 0, 0), J(0, 0, 0), J(0, 4, 0), bname, vname, llname)
 }
 
 void DynamFitRateUnit1(real matrix eventmat, real scalar n, string scalar bname, string scalar vname, string scalar llname) {
-	DynamRateFitMulti(eventmat, n, (1, 1, 0, 0, 0), J(1, n, 0), J(1, n, 0), 1e300, 1e300, 0, 0, 0, J(0, 4, 0), bname, vname, llname)
+	DynamRateFitMulti(eventmat, n, (1, 1, 0, 0, 0), J(1, n, 0), J(1, n, 0), 1e300, 1e300, 1e300, 0, 0, 0, J(0, 4, 0), bname, vname, llname)
 }
 
 void DynamCoordFitMulti(real matrix eventmat, real scalar n, real rowvector activevec,
 		real rowvector samevec, real rowvector diffvec, real rowvector simvec, real rowvector altervec,
 		real rowvector tertiusvec, real rowvector egoalterint1vec, real rowvector egoalterint2vec,
+		real scalar windowinertia, real scalar windowindeg, real scalar windowtertius, real scalar weightedinertia, real scalar weightedindeg,
 		real matrix tiemat, real matrix chgmat,
 		string scalar bname, string scalar vname, string scalar llname) {
 	class DynamState scalar S
@@ -852,7 +854,7 @@ void DynamCoordFitMulti(real matrix eventmat, real scalar n, real rowvector acti
 	NT = DynamNat()
 	NT.chg = chgmat
 	NT.open()
-	NT.setup(4, &S, activevec, covmat, (1e300, 1e300, 1e300, 1e300), (0, 0, 0, 0), 0, J(0, 0, 0), tiemat)
+	NT.setup(4, &S, activevec, covmat, (windowinertia, 1e300, windowindeg, 1e300, windowtertius), (weightedinertia, 0, weightedindeg, 0), 0, J(0, 0, 0), tiemat)
 	// not concave (product of two softmax probabilities): every start is run, the best converged result is kept
 	dynam_nat_optimize(&NT, 1, ., theta_hat, V, ll)
 	NT.close()

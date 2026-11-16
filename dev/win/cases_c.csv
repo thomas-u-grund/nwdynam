@@ -1,0 +1,90 @@
+"id","sub","opts","kind","chg","opp","inc","tolb","tolse"
+"c01","choice_coordination","inertiawindow(8)","und","",0,0,0.0005,0.1
+"c02","choice_coordination","weightedinertia","und","",0,0,0.0005,0.1
+"c03","choice_coordination","indegwindow(8)","und","",0,0,0.0005,0.1
+"c04","choice_coordination","weightedindeg","und","",0,0,0.0005,0.1
+"c11","choice_coordination","indegwindow(3) sim(x) trans","und","",0,0,0.0005,0.1
+"c12","choice_coordination","inertiawindow(9) indegwindow(6) same(g)","und","",0,0,0.0005,0.1
+"c13","choice_coordination","inertiawindow(4.5) indegwindow(3) trans","und","",0,0,0.0005,0.1
+"c14","choice_coordination","weightedinertia weightedindeg","und","",0,0,0.0005,0.1
+"c15","choice_coordination","weightedinertia indegwindow(3) same(g)","und","",0,0,0.0005,0.1
+"c16","choice_coordination","inertiawindow(3) indegwindow(9) weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c17","choice_coordination","inertiawindow(6) weightedinertia alter(x) tertius(x)","und","",0,0,0.0005,0.1
+"c18","choice_coordination","inertiawindow(4.5) indegwindow(3) same(g)","und","",0,0,0.0005,0.1
+"c19","choice_coordination","inertiawindow(4.5) indegwindow(4.5) same(g)","und","",0,0,0.0005,0.1
+"c20","choice_coordination","inertiawindow(2) indegwindow(4.5) same(g)","und","",0,0,0.0005,0.1
+"c21","choice_coordination","weightedindeg same(g) tertius(y)","und","",0,0,0.0005,0.1
+"c22","choice_coordination","weightedinertia indegwindow(6) same(g)","und","",0,0,0.0005,0.1
+"c23","choice_coordination","alter(y)","und","",0,0,0.0005,0.1
+"c24","choice_coordination","inertiawindow(2) weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c25","choice_coordination","weightedinertia same(g) alter(y)","und","",0,0,0.0005,0.1
+"c26","choice_coordination","inertiawindow(3) weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c27","choice_coordination","weightedindeg inertiawindow(2) weightedinertia sim(y)","und","",0,0,0.0005,0.1
+"c28","choice_coordination","indegwindow(3) sim(x) tertius(y)","und","",0,0,0.0005,0.1
+"c29","choice_coordination","indegwindow(2) sim(x) trans","und","",0,0,0.0005,0.1
+"c30","choice_coordination","inertiawindow(4.5) indegwindow(4.5) sim(y)","und","",0,0,0.0005,0.1
+"c31","choice_coordination","inertiawindow(4.5) weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c32","choice_coordination","inertiawindow(6) indegwindow(2) sim(y)","und","",0,0,0.0005,0.1
+"c33","choice_coordination","inertiawindow(3) weightedindeg","und","",0,0,0.0005,0.1
+"c34","choice_coordination","inertiawindow(4.5) weightedindeg sim(y)","und","",0,0,0.0005,0.1
+"c35","choice_coordination","inertiawindow(6) sim(x)","und","",0,0,0.0005,0.1
+"c36","choice_coordination","indegwindow(2) weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c37","choice_coordination","indegwindow(2) inertiawindow(2) weightedinertia same(g)","und","",0,0,0.0005,0.1
+"c38","choice_coordination","indegwindow(4.5) same(g) sim(x)","und","",0,0,0.0005,0.1
+"c39","choice_coordination","indegwindow(3) inertiawindow(2) weightedinertia same(g)","und","",0,0,0.0005,0.1
+"c40","choice_coordination","weightedinertia indegwindow(6) same(g)","und","",0,0,0.0005,0.1
+"c41","choice_coordination","inertiawindow(2) indegwindow(2) sim(y)","und","",0,0,0.0005,0.1
+"c42","choice_coordination","indegwindow(2) inertiawindow(2) weightedinertia alter(y)","und","",0,0,0.0005,0.1
+"c43","choice_coordination","inertiawindow(6) indegwindow(4.5) sim(x)","und","",0,0,0.0005,0.1
+"c44","choice_coordination","inertiawindow(4.5) weightedinertia same(g)","und","",0,0,0.0005,0.1
+"c45","choice_coordination","weightedinertia indegwindow(9) sim(y)","und","",0,0,0.0005,0.1
+"c46","choice_coordination","indegwindow(9) sim(x) tertius(x)","und","",0,0,0.0005,0.1
+"c47","choice_coordination","inertiawindow(2) indegwindow(2) sim(y)","und","",0,0,0.0005,0.1
+"c48","choice_coordination","inertiawindow(2) weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c49","choice_coordination","inertiawindow(3) indegwindow(2) weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c50","choice_coordination","weightedinertia weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c61","choice_coordination","inertiawindow(6) indegwindow(4.5)","und","",0,0,0.0005,0.1
+"c62","choice_coordination","inertiawindow(6) indeg","und","",0,0,0.0005,0.1
+"c63","choice_coordination","inertia indegwindow(4.5)","und","",0,0,0.0005,0.1
+"c64","choice_coordination","inertiawindow(6) sim(x)","und","",0,0,0.0005,0.1
+"c65","choice_coordination","indegwindow(4.5) sim(x)","und","",0,0,0.0005,0.1
+"c101","choice_coordination","inertiawindow(9) weightedindeg","und","",0,0,0.0005,0.1
+"c102","choice_coordination","weightedinertia weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c103","choice_coordination","inertiawindow(6) alter(x)","und","",0,0,0.0005,0.1
+"c104","choice_coordination","inertiawindow(3) same(g) alter(x)","und","",0,0,0.0005,0.1
+"c105","choice_coordination","weightedinertia indegwindow(3) same(g)","und","",0,0,0.0005,0.1
+"c106","choice_coordination","weightedinertia indegwindow(3) sim(x)","und","",0,0,0.0005,0.1
+"c107","choice_coordination","inertiawindow(4.5) indegwindow(6) sim(y)","und","",0,0,0.0005,0.1
+"c108","choice_coordination","inertiawindow(3) indegwindow(3)","und","",0,0,0.0005,0.1
+"c109","choice_coordination","inertiawindow(2) indegwindow(4.5) tertius(y)","und","",0,0,0.0005,0.1
+"c110","choice_coordination","inertiawindow(4.5) alter(x) tertius(x)","und","",0,0,0.0005,0.1
+"c111","choice_coordination","inertiawindow(2) weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c112","choice_coordination","weightedinertia weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c113","choice_coordination","inertiawindow(3) indegwindow(3) weightedindeg tertius(x)","und","",0,0,0.0005,0.1
+"c114","choice_coordination","inertiawindow(3) indegwindow(6) weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c115","choice_coordination","indegwindow(9) sim(x)","und","",0,0,0.0005,0.1
+"c116","choice_coordination","weightedinertia alter(y) trans","und","",0,0,0.0005,0.1
+"c117","choice_coordination","inertiawindow(2) indegwindow(2) weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c118","choice_coordination","weightedinertia indegwindow(9) tertius(x)","und","",0,0,0.0005,0.1
+"c119","choice_coordination","weightedinertia indegwindow(3) same(g)","und","",0,0,0.0005,0.1
+"c120","choice_coordination","inertiawindow(2) indegwindow(6) sim(y)","und","",0,0,0.0005,0.1
+"c121","choice_coordination","inertiawindow(3) tertius(x)","und","",0,0,0.0005,0.1
+"c122","choice_coordination","inertiawindow(6) same(g) alter(x)","und","",0,0,0.0005,0.1
+"c123","choice_coordination","inertiawindow(6) indegwindow(2) same(g)","und","",0,0,0.0005,0.1
+"c124","choice_coordination","inertiawindow(9) weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c125","choice_coordination","inertiawindow(4.5) indegwindow(6) same(g)","und","",0,0,0.0005,0.1
+"c126","choice_coordination","inertiawindow(6) indegwindow(9) sim(x)","und","",0,0,0.0005,0.1
+"c127","choice_coordination","weightedinertia weightedindeg same(g)","und","",0,0,0.0005,0.1
+"c128","choice_coordination","weightedindeg inertiawindow(3) weightedinertia sim(x)","und","",0,0,0.0005,0.1
+"c129","choice_coordination","weightedinertia trans tertius(x)","und","",0,0,0.0005,0.1
+"c130","choice_coordination","inertiawindow(6) indegwindow(4.5) alter(x)","und","",0,0,0.0005,0.1
+"c131","choice_coordination","weightedinertia indegwindow(9) same(g)","und","",0,0,0.0005,0.1
+"c132","choice_coordination","inertiawindow(2) weightedinertia same(g) sim(x)","und","",0,0,0.0005,0.1
+"c133","choice_coordination","weightedinertia weightedindeg sim(x)","und","",0,0,0.0005,0.1
+"c134","choice_coordination","weightedinertia","und","",0,0,0.0005,0.1
+"c135","choice_coordination","weightedinertia indegwindow(6) sim(y)","und","",0,0,0.0005,0.1
+"c136","choice_coordination","inertiawindow(9) indegwindow(6) sim(y)","und","",0,0,0.0005,0.1
+"c137","choice_coordination","inertiawindow(3) indegwindow(9) same(g)","und","",0,0,0.0005,0.1
+"c138","choice_coordination","weightedinertia indegwindow(9) same(g)","und","",0,0,0.0005,0.1
+"c139","choice_coordination","weightedinertia indegwindow(3) same(g)","und","",0,0,0.0005,0.1
+"c140","choice_coordination","weightedinertia indegwindow(2) weightedindeg same(g)","und","",0,0,0.0005,0.1

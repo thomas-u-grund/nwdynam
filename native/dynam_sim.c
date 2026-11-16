@@ -28,7 +28,7 @@
 	  [12..15] weighted flags inertia, recip, indeg, outdeg
 	  [16..35] active flags of the effect slots (choice 17, rate 5, coordination 12)
 	  [36] C (number of change events of covariates)  [37] Cp (number of composition changes)  [38] initial presence given
-	  [39] reserved
+	  [39] window of tertius (>= 1e300 = none)
 	  then events: N rows of (sender, receiver, time, value, last-of-group flag), sorted by time (the caller sorts)
 	  of n values (same, diff, sim, alter/ego, tertius, egoalterint1, egoalterint2): the values at the start of the log,
 	  then the N x n opportunity matrix (only when [6] = 1), then the n x n matrix of tie() (only when [7] = 1).
@@ -60,7 +60,7 @@
 
 typedef int64_t nwint;
 
-#define DYNAM_PROTOCOL 4
+#define DYNAM_PROTOCOL 5
 #define NOWIN 1e300
 #define HDR 40
 #define M_CHOICE 1
@@ -72,7 +72,7 @@ typedef struct {
 	int model;
 	nwint n, N, n1;
 	int M, hasopp, hastie;
-	double win[4], wgt[4];
+	double win[5], wgt[4];      /* windows: inertia, recip, indeg, outdeg, tertius */
 	double act[20];
 	double *ev;        /* N x 5 */
 	double *cov[7];    /* each n (values at the start) */
@@ -93,9 +93,10 @@ typedef struct {
 	char *Ab;                          /* tv > 0 */
 	double *inS, *outS, *inV, *outV;   /* column / row sums of sign(tv) and of tv */
 	double *inA, *outA;                /* column / row counts of Ab */
-	double *W[4];                      /* windowed tie values (slot 0 inertia, 1 recip, 2 indeg, 3 outdeg) */
+	double *W[5];                      /* windowed tie values (slot 0 inertia, 1 recip, 2 indeg, 3 outdeg, 4 tertius) */
+	double *tcache, *tstat;            /* windowed tertius: goldfish's cache (mean attribute of the in-neighbours, NaN = none) and statistic */
 	double *wInS, *wInV, *wOutS, *wOutV;
-	nwint ptr[4];
+	nwint ptr[5];
 	double *cv[7];                     /* the covariates as they are now (changed by the change events) */
 	double *cvbuf;
 	nwint cpos;                        /* next change event */
@@ -112,7 +113,8 @@ static void state_free(State *st) {
 	int q;
 	free(st->tv); free(st->Ab); free(st->inS); free(st->outS); free(st->inV); free(st->outV);
 	free(st->inA); free(st->outA);
-	for (q = 0; q < 4; q++) free(st->W[q]);
+	for (q = 0; q < 5; q++) free(st->W[q]);
+	free(st->tcache); free(st->tstat);
 	free(st->wInS); free(st->wInV); free(st->wOutS); free(st->wOutV);
 	free(st->AA); free(st->AtA); free(st->AAt); free(st->nt); free(st->tnum); free(st->cvbuf); free(st->pres);
 	memset(st, 0, sizeof(State));
@@ -146,36 +148,41 @@ static int state_init(const Spec *sp, State *st) {
 		if (!st->pres) return 909;
 		for (a = 0; a < n; a++) st->pres[a] = (char)(sp->pinit ? (sp->pinit[a] != 0.0) : 1);
 	}
-	for (q = 0; q < 4; q++) {
-		int use = (ch && q < 2) || (ra && q >= 2);
+	for (q = 0; q < 5; q++) {
+		int use = (ch && q < 2) || (ra && q >= 2 && q < 4) || (co && (q == 0 || q == 2));
+		if (q == 4) use = (ch && has_eff(sp, 16)) || (ra && has_eff(sp, 5)) || (co && has_eff(sp, 9));
 		if (use && sp->win[q] < NOWIN) {
 			st->W[q] = (double *)calloc(nn, sizeof(double));
 			if (!st->W[q]) return 909;
 		}
 	}
-	if (ra && sp->win[2] < NOWIN) { st->wInS = (double *)calloc(un, sizeof(double)); st->wInV = (double *)calloc(un, sizeof(double)); if (!st->wInS || !st->wInV) return 909; }
+	if (st->W[4]) {
+		st->tcache = (double *)calloc(un, sizeof(double)); st->tstat = (double *)calloc(un, sizeof(double));
+		if (!st->tcache || !st->tstat) return 909;
+	}
+	if ((ra || co) && sp->win[2] < NOWIN) { st->wInS = (double *)calloc(un, sizeof(double)); st->wInV = (double *)calloc(un, sizeof(double)); if (!st->wInS || !st->wInV) return 909; }
 	if (ra && sp->win[3] < NOWIN) { st->wOutS = (double *)calloc(un, sizeof(double)); st->wOutV = (double *)calloc(un, sizeof(double)); if (!st->wOutS || !st->wOutV) return 909; }
 	if (ch) {
 		if (has_eff(sp, 9) || has_eff(sp, 10)) st->AA = (int32_t *)calloc(nn, sizeof(int32_t));
 		if (has_eff(sp, 11) || has_eff(sp, 13)) st->AtA = (int32_t *)calloc(nn, sizeof(int32_t));
 		if (has_eff(sp, 12)) st->AAt = (int32_t *)calloc(nn, sizeof(int32_t));
 		if (has_eff(sp, 14)) st->nt = (double *)calloc(un, sizeof(double));
-		if (has_eff(sp, 16)) st->tnum = (double *)calloc(un, sizeof(double));
+		if (has_eff(sp, 16) && !st->W[4]) st->tnum = (double *)calloc(un, sizeof(double));
 		if (((has_eff(sp, 9) || has_eff(sp, 10)) && !st->AA) || ((has_eff(sp, 11) || has_eff(sp, 13)) && !st->AtA) ||
-			(has_eff(sp, 12) && !st->AAt) || (has_eff(sp, 14) && !st->nt) || (has_eff(sp, 16) && !st->tnum)) return 909;
+			(has_eff(sp, 12) && !st->AAt) || (has_eff(sp, 14) && !st->nt) || (has_eff(sp, 16) && !st->W[4] && !st->tnum)) return 909;
 	}
 	else if (ra) {
 		if (has_eff(sp, 4)) st->nt = (double *)calloc(un, sizeof(double));
-		if (has_eff(sp, 5)) st->tnum = (double *)calloc(un, sizeof(double));
-		if ((has_eff(sp, 4) && !st->nt) || (has_eff(sp, 5) && !st->tnum)) return 909;
+		if (has_eff(sp, 5) && !st->W[4]) st->tnum = (double *)calloc(un, sizeof(double));
+		if ((has_eff(sp, 4) && !st->nt) || (has_eff(sp, 5) && !st->W[4] && !st->tnum)) return 909;
 	}
 	else if (co) {
 		/* coordination: the products are recomputed per event from Ab where needed; nodeTrans and tertius are kept */
 		if (has_eff(sp, 7)) st->nt = (double *)calloc(un, sizeof(double));
-		if (has_eff(sp, 9)) st->tnum = (double *)calloc(un, sizeof(double));
+		if (has_eff(sp, 9) && !st->W[4]) st->tnum = (double *)calloc(un, sizeof(double));
 		if (has_eff(sp, 8)) st->AA = (int32_t *)calloc(nn, sizeof(int32_t));
 		if (has_eff(sp, 10)) st->AtA = (int32_t *)calloc(nn, sizeof(int32_t));
-		if ((has_eff(sp, 7) && !st->nt) || (has_eff(sp, 9) && !st->tnum) || (has_eff(sp, 8) && !st->AA) || (has_eff(sp, 10) && !st->AtA)) return 909;
+		if ((has_eff(sp, 7) && !st->nt) || (has_eff(sp, 9) && !st->W[4] && !st->tnum) || (has_eff(sp, 8) && !st->AA) || (has_eff(sp, 10) && !st->AtA)) return 909;
 	}
 	return 0;
 }
@@ -217,9 +224,52 @@ static void flip_update(const Spec *sp, State *st, nwint a, nwint b, int d) {
 	st->outA[a] += d;
 }
 
+/* windowed tertius, a change of the tie (a,b) by dv: goldfish's update_REM_choice_tertius (cache of the mean attribute of the
+   in-neighbours of every actor; NaN = none; the statistic of an actor without in-neighbour is imputed with the mean of the
+   cache). Called BEFORE the tie value changes. */
+static void tert_impute(State *st, int anynan_or_empty) {
+	nwint j, n = st->n;
+	double sum = 0.0, imp;
+	int cnt = 0;
+	if (!anynan_or_empty) return;
+	for (j = 0; j < n; j++) if (!isnan(st->tcache[j])) { sum += st->tcache[j]; cnt++; }
+	imp = cnt > 0 ? sum / (double)cnt : NAN;
+	for (j = 0; j < n; j++) if (isnan(st->tcache[j])) st->tstat[j] = imp;
+}
+
+static void tert_tie(State *st, nwint a, nwint b, double dv) {
+	nwint n = st->n, k, j;
+	double old = st->W[4][a * n + b], nw = old + dv, sum = 0.0, val;
+	int cnt = 0, anynan = 0, allzero = 1, so = (old > 0.0) - (old < 0.0), sn = (nw > 0.0) - (nw < 0.0);
+	if (so == sn) return;
+	for (j = 0; j < n; j++) { if (isnan(st->tcache[j])) anynan = 1; else if (st->tcache[j] != 0.0) allzero = 0; }
+	for (k = 0; k < n; k++) if (k != a && st->W[4][k * n + b] > 0.0) { sum += st->cv[4][k]; cnt++; }
+	if (sn - so == 1) { sum += st->cv[4][a]; cnt++; }
+	val = cnt > 0 ? sum / (double)cnt : NAN;
+	st->tcache[b] = val;
+	if (!isnan(val)) st->tstat[b] = val;
+	tert_impute(st, anynan || allzero || isnan(val));
+}
+
+/* windowed tertius, the attribute of actor a changes to nv (goldfish: the out-neighbours of a get a new mean) */
+static void tert_attr(State *st, nwint a, double nv) {
+	nwint n = st->n, k, j;
+	int anynan = 0, allzero = 1;
+	for (j = 0; j < n; j++) { if (isnan(st->tcache[j])) anynan = 1; else if (st->tcache[j] != 0.0) allzero = 0; }
+	for (j = 0; j < n; j++) if (st->W[4][a * n + j] > 0.0) {
+		double sum = nv;
+		int cnt = 1;
+		for (k = 0; k < n; k++) if (k != a && st->W[4][k * n + j] > 0.0) { sum += st->cv[4][k]; cnt++; }
+		st->tcache[j] = sum / (double)cnt;
+		st->tstat[j] = st->tcache[j];
+	}
+	tert_impute(st, anynan || allzero);
+}
+
 static void wupd(State *st, int q, nwint a, nwint b, double dv) {
 	nwint n = st->n;
 	double old = st->W[q][a * n + b], nw = old + dv;
+	if (q == 4) tert_tie(st, a, b, dv);
 	if (q == 2) { st->wInS[b] += sgn(nw) - sgn(old); st->wInV[b] += dv; }
 	if (q == 3) { st->wOutS[a] += sgn(nw) - sgn(old); st->wOutV[a] += dv; }
 	st->W[q][a * n + b] = nw;
@@ -238,7 +288,7 @@ static void apply_cell(const Spec *sp, State *st, nwint a, nwint b, double v) {
 		st->Ab[a * n + b] = (char)na;
 	}
 	st->tv[a * n + b] = nw;
-	for (q = 0; q < 4; q++) if (st->W[q]) wupd(st, q, a, b, v);
+	for (q = 0; q < 5; q++) if (st->W[q]) wupd(st, q, a, b, v);
 }
 
 static void apply_event(const Spec *sp, State *st, nwint k) {
@@ -255,6 +305,7 @@ static void apply_one_change(const Spec *sp, State *st) {
 	nwint a = (nwint)c[1] - 1, b, n = st->n;
 	double old = st->cv[q][a], nw = c[3];
 	if (q == 4 && st->tnum) for (b = 0; b < n; b++) if (st->Ab[a * n + b]) st->tnum[b] += nw - old;
+	if (q == 4 && st->W[4] && nw != old) tert_attr(st, a, nw);
 	st->cv[q][a] = nw;
 	st->cpos++;
 }
@@ -273,16 +324,45 @@ static void apply_pres(const Spec *sp, State *st, double T) {
 	}
 }
 
+/* the earliest time at which an event of an earlier group (rows < gs) leaves a window, if it is before tcur (else 1e300) */
+static double next_expiry(const Spec *sp, const State *st, nwint gs, double tcur) {
+	int q;
+	double b = 1e300;
+	for (q = 0; q < 5; q++) {
+		double e;
+		if (!st->W[q] || st->ptr[q] >= gs) continue;
+		e = sp->ev[5 * st->ptr[q] + 2] + sp->win[q];
+		if (e < tcur && e < b) b = e;
+	}
+	return b;
+}
+
+/* drop the events of earlier groups (rows < gs) that have left their window at time b (event time + window <= b) */
+static void expire_upto(const Spec *sp, State *st, nwint gs, double b) {
+	int q;
+	for (q = 0; q < 5; q++) {
+		if (!st->W[q]) continue;
+		while (st->ptr[q] < gs) {
+			nwint p = st->ptr[q];
+			if (sp->ev[5 * p + 2] + sp->win[q] > b) break;
+			wupd(st, q, (nwint)sp->ev[5 * p] - 1, (nwint)sp->ev[5 * p + 1] - 1, -sp->ev[5 * p + 3]);
+			if (st->sym) wupd(st, q, (nwint)sp->ev[5 * p + 1] - 1, (nwint)sp->ev[5 * p] - 1, -sp->ev[5 * p + 3]);
+			st->ptr[q]++;
+		}
+	}
+}
+
 /* windows: drop the events of earlier groups (rows < gs) that are older than the window at time tcur */
 static void expire(const Spec *sp, State *st, nwint gs, double tcur) {
 	int q;
 	nwint n = st->n;
-	for (q = 0; q < 4; q++) {
+	for (q = 0; q < 5; q++) {
 		if (!st->W[q]) continue;
 		while (st->ptr[q] < gs) {
 			nwint p = st->ptr[q];
-			if (tcur - sp->ev[5 * p + 2] <= sp->win[q]) break;
+			if (sp->ev[5 * p + 2] + sp->win[q] >= tcur) break;   /* as goldfish: the expiry time is computed as time + window */
 			wupd(st, q, (nwint)sp->ev[5 * p] - 1, (nwint)sp->ev[5 * p + 1] - 1, -sp->ev[5 * p + 3]);
+			if (st->sym) wupd(st, q, (nwint)sp->ev[5 * p + 1] - 1, (nwint)sp->ev[5 * p] - 1, -sp->ev[5 * p + 3]);
 			st->ptr[q]++;
 		}
 	}
@@ -336,7 +416,10 @@ static void choice_stats(const Spec *sp, const State *st, nwint s, double *X, do
 			break;
 		case 14: for (j = 0; j < n; j++) x[j] = st->nt[j]; break;
 		case 15: for (j = 0; j < n; j++) x[j] = st->cv[5][s] * st->cv[6][j]; break;
-		case 16: for (j = 0; j < n; j++) x[j] = (st->inA[j] > 0.0) ? st->tnum[j] / st->inA[j] : 0.0; break;
+		case 16:
+			if (st->W[4]) for (j = 0; j < n; j++) x[j] = st->tstat[j];
+			else for (j = 0; j < n; j++) x[j] = (st->inA[j] > 0.0) ? st->tnum[j] / st->inA[j] : 0.0;
+			break;
 		case 17: for (j = 0; j < n; j++) x[j] = sp->tie[s * n + j]; break;
 		}
 	}
@@ -360,7 +443,10 @@ static void rate_stats(const Spec *sp, const State *st, double *X, int icpt) {
 			break;
 		case 3: for (j = 0; j < n; j++) x[j] = st->cv[3][j]; break;
 		case 4: for (j = 0; j < n; j++) x[j] = st->nt[j]; break;
-		case 5: for (j = 0; j < n; j++) x[j] = (st->inA[j] > 0.0) ? st->tnum[j] / st->inA[j] : 0.0; break;
+		case 5:
+			if (st->W[4]) for (j = 0; j < n; j++) x[j] = st->tstat[j];
+			else for (j = 0; j < n; j++) x[j] = (st->inA[j] > 0.0) ? st->tnum[j] / st->inA[j] : 0.0;
+			break;
 		}
 	}
 }
@@ -516,20 +602,23 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 		nwint s = (nwint)sp->ev[5 * i] - 1;
 		double tcur = sp->ev[5 * i + 2], lps = 0.0, w;
 		if (fresh) {
-			expire(sp, &st, gs, tcur);
+			/* no expire() here: events that leave a window inside the period are handled at their expiry time below */
 			rate_stats(sp, &st, X, 1);
 			{
 				/* periods ended by a change event earlier than this event (before the first event: the observation
 				   starts with the first change, as goldfish) */
 				double t0 = tprev;
-				while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] < tcur) {
-					double tc = sp->chg[4 * st.cpos + 2];
-					if (tc > t0) {
-						apply_pres(sp, &st, tc);
-						if (rateint_exposure(sp, theta, todo, X, tc - t0, &L, g, H, Sx, Sxx, st.pres)) { *overflow = 1; goto done; }
-						t0 = tc;
+				for (;;) {
+					double tc = (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] < tcur) ? sp->chg[4 * st.cpos + 2] : 1e300;
+					double te = next_expiry(sp, &st, gs, tcur), tb = (tc < te ? tc : te);
+					if (tb >= 1e300) break;
+					if (tb > t0) {
+						apply_pres(sp, &st, tb);
+						if (rateint_exposure(sp, theta, todo, X, tb - t0, &L, g, H, Sx, Sxx, st.pres)) { *overflow = 1; goto done; }
+						t0 = tb;
 					}
-					while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] == tc) apply_one_change(sp, &st);
+					while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] == tb) apply_one_change(sp, &st);
+					expire_upto(sp, &st, gs, tb);
 					rate_stats(sp, &st, X, 1);
 				}
 				tprev = t0;
@@ -556,18 +645,21 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 		}
 		else fresh = 0;
 	}
-	/* ... and the last change after the last event ends it: the periods up to each remaining change count */
+	/* ... and the last change after the last event ends it: the periods up to each remaining change count (and up to the
+	   expiry of events from their windows before that change) */
 	if (st.cpos < sp->C) {
-		double t0 = tprev;
+		double t0 = tprev, tend = sp->chg[4 * (sp->C - 1) + 2];
 		rate_stats(sp, &st, X, 1);
 		while (st.cpos < sp->C) {
 			double tc = sp->chg[4 * st.cpos + 2];
-			if (tc > t0) {
-				apply_pres(sp, &st, tc);
-				if (rateint_exposure(sp, theta, todo, X, tc - t0, &L, g, H, Sx, Sxx, st.pres)) { *overflow = 1; goto done; }
-				t0 = tc;
+			double te = next_expiry(sp, &st, gs, tend), tb = (tc < te ? tc : te);
+			if (tb > t0) {
+				apply_pres(sp, &st, tb);
+				if (rateint_exposure(sp, theta, todo, X, tb - t0, &L, g, H, Sx, Sxx, st.pres)) { *overflow = 1; goto done; }
+				t0 = tb;
 			}
-			while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] == tc) apply_one_change(sp, &st);
+			while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] == tb) apply_one_change(sp, &st);
+			expire_upto(sp, &st, gs, tb);
 			rate_stats(sp, &st, X, 1);
 		}
 	}
@@ -589,15 +681,21 @@ done:
 static double coord_S(const Spec *sp, const State *st, int e, nwint a, nwint b, const int32_t *AAtA) {
 	nwint n = sp->n;
 	switch (e) {
-	case 1: return (double)st->Ab[a * n + b];
-	case 2: return st->inS[b];
+	case 1:
+		if (st->W[0]) return (sp->wgt[0] != 0.0) ? st->W[0][a * n + b] : (double)(st->W[0][a * n + b] > 0.0);
+		return (sp->wgt[0] != 0.0) ? st->tv[a * n + b] : (double)st->Ab[a * n + b];
+	case 2:
+		if (st->W[2]) return (sp->wgt[2] != 0.0) ? st->wInV[b] : st->wInS[b];
+		return (sp->wgt[2] != 0.0) ? st->inV[b] : st->inS[b];
 	case 3: return (double)(st->cv[0][a] == st->cv[0][b]);
 	case 4: return fabs(st->cv[1][a] - st->cv[1][b]);
 	case 5: return -fabs(st->cv[2][a] - st->cv[2][b]);
 	case 6: return st->cv[3][b];
 	case 7: return st->nt[b];
 	case 8: return (double)st->AA[a * n + b];
-	case 9: return (st->inA[b] > 0.0) ? st->tnum[b] / st->inA[b] : 0.0;
+	case 9:
+		if (st->W[4]) return st->tstat[b];
+		return (st->inA[b] > 0.0) ? st->tnum[b] / st->inA[b] : 0.0;
 	case 10: {
 		double A = (double)st->Ab[a * n + b];
 		return (double)AAtA[a * n + b] - A * (st->outA[a] + (double)st->AtA[b * n + b] - A);
@@ -723,6 +821,7 @@ static int spec_read(Spec *sp, nwint L) {
 	sp->hasopp = (int)sp->blob[6];
 	sp->hastie = (int)sp->blob[7];
 	for (k = 0; k < 4; k++) { sp->win[k] = sp->blob[8 + k]; sp->wgt[k] = sp->blob[12 + k]; }
+	sp->win[4] = sp->blob[39];
 	for (k = 0; k < 20; k++) sp->act[k] = sp->blob[16 + k];
 	sp->P = 0;
 	for (k = 0; k < sp->M && k < 20; k++) if (sp->act[k] != 0.0) sp->eff[sp->P++] = k + 1;
