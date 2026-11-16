@@ -27,9 +27,20 @@
 	  [8..11]  windows inertia, recip, indeg, outdeg (>= 1e300 = none)
 	  [12..15] weighted flags inertia, recip, indeg, outdeg
 	  [16..35] active flags of the effect slots (choice 17, rate 5, coordination 12)
-	  [36..] events: N rows of (sender, receiver, time, value, last-of-group flag), sorted by time (the caller sorts)
+	  [36] C (number of change events of covariates)  [37] Cp (number of composition changes)  [38] initial presence given
+	  [39] reserved
+	  then events: N rows of (sender, receiver, time, value, last-of-group flag), sorted by time (the caller sorts)
 	  of n values (same, diff, sim, alter/ego, tertius, egoalterint1, egoalterint2): the values at the start of the log,
 	  then the N x n opportunity matrix (only when [6] = 1), then the n x n matrix of tie() (only when [7] = 1).
+
+	Composition change (as goldfish): the actors have a presence flag; an absent actor is not in the risk set (rate: the senders
+	of the hazard and of the normaliser; choice: the candidate receivers; coordination: both members of a pair), its statistics
+	are still computed. The blob carries, after the change events, Cp composition changes (actor, time, new presence 0/1) sorted
+	by time and, when [38] = 1, the n values of the presence at the start (else everybody is present). A composition change takes
+	effect for every event row whose time is LARGER OR EQUAL to its time (goldfish, unlike covariate changes, applies the changes
+	of a time point BEFORE the events of that time point); in the rate model with intercept the whole period that ends at an event
+	(or at a covariate change) uses the presence valid at the end of the period. The caller guarantees that the sender and
+	receiver of every event are present; the plugin refuses an event otherwise.
 
 	Time-varying covariates (as goldfish): a change event sets the value of a covariate row for one actor; it takes effect for
 	the events whose time is LARGER than its time (an event at exactly the same time is evaluated with the old value: in goldfish
@@ -49,7 +60,7 @@
 
 typedef int64_t nwint;
 
-#define DYNAM_PROTOCOL 3
+#define DYNAM_PROTOCOL 4
 #define NOWIN 1e300
 #define HDR 40
 #define M_CHOICE 1
@@ -66,6 +77,9 @@ typedef struct {
 	double *ev;        /* N x 5 */
 	double *cov[7];    /* each n (values at the start) */
 	nwint C;           /* number of change events */
+	nwint Cp;          /* number of composition changes */
+	double *pchg;      /* Cp x 3: actor (1..n), time, new presence (0/1) */
+	double *pinit;     /* n values (presence at the start) or NULL */
 	double *chg;       /* C x 4: covariate row (1..7), actor (1..n), time, new value */
 	double *opp;       /* N x n or NULL */
 	double *tie;       /* n x n or NULL */
@@ -85,6 +99,8 @@ typedef struct {
 	double *cv[7];                     /* the covariates as they are now (changed by the change events) */
 	double *cvbuf;
 	nwint cpos;                        /* next change event */
+	char *pres;                        /* presence of the actors now, NULL = nobody ever absent (no composition change) */
+	nwint ppos;                        /* next composition change */
 	int32_t *AA, *AtA, *AAt;
 	double *nt, *tnum;
 	int sym;
@@ -98,7 +114,7 @@ static void state_free(State *st) {
 	free(st->inA); free(st->outA);
 	for (q = 0; q < 4; q++) free(st->W[q]);
 	free(st->wInS); free(st->wInV); free(st->wOutS); free(st->wOutV);
-	free(st->AA); free(st->AtA); free(st->AAt); free(st->nt); free(st->tnum); free(st->cvbuf);
+	free(st->AA); free(st->AtA); free(st->AAt); free(st->nt); free(st->tnum); free(st->cvbuf); free(st->pres);
 	memset(st, 0, sizeof(State));
 }
 
@@ -124,6 +140,12 @@ static int state_init(const Spec *sp, State *st) {
 	st->inV = (double *)calloc(un, sizeof(double)); st->outV = (double *)calloc(un, sizeof(double));
 	st->inA = (double *)calloc(un, sizeof(double)); st->outA = (double *)calloc(un, sizeof(double));
 	if (!st->tv || !st->Ab || !st->inS || !st->outS || !st->inV || !st->outV || !st->inA || !st->outA) return 909;
+	if (sp->Cp > 0 || sp->pinit) {
+		nwint a;
+		st->pres = (char *)malloc(un);
+		if (!st->pres) return 909;
+		for (a = 0; a < n; a++) st->pres[a] = (char)(sp->pinit ? (sp->pinit[a] != 0.0) : 1);
+	}
 	for (q = 0; q < 4; q++) {
 		int use = (ch && q < 2) || (ra && q >= 2);
 		if (use && sp->win[q] < NOWIN) {
@@ -240,6 +262,15 @@ static void apply_one_change(const Spec *sp, State *st) {
 /* all change events earlier than tcur (an event at tcur itself still sees the old value, as in goldfish) */
 static void apply_changes(const Spec *sp, State *st, double tcur) {
 	while (st->cpos < sp->C && sp->chg[4 * st->cpos + 2] < tcur) apply_one_change(sp, st);
+}
+
+/* composition changes: all changes at or before time T (goldfish: a change at the time of an event takes effect for that event) */
+static void apply_pres(const Spec *sp, State *st, double T) {
+	if (!st->pres) return;
+	while (st->ppos < sp->Cp && sp->pchg[3 * st->ppos + 1] <= T) {
+		st->pres[(nwint)sp->pchg[3 * st->ppos] - 1] = (char)(sp->pchg[3 * st->ppos + 2] != 0.0);
+		st->ppos++;
+	}
 }
 
 /* windows: drop the events of earlier groups (rows < gs) that are older than the window at time tcur */
@@ -363,6 +394,10 @@ static int eval_softmax(const Spec *sp, const double *theta, int todo, double *l
 			apply_changes(sp, &st, sp->ev[5 * i + 2]);
 			if (!choice) rate_stats(sp, &st, X, 0);
 		}
+		if (st.pres) {
+			apply_pres(sp, &st, sp->ev[5 * i + 2]);
+			if (!st.pres[s] || !st.pres[r]) { SF_error("dynam_sim: an event has an absent sender or receiver\n"); rc = 198; goto done; }
+		}
 		if (choice) choice_stats(sp, &st, s, X, tmp);
 		/* linear predictor */
 		for (j = 0; j < n; j++) lp[j] = 0.0;
@@ -377,6 +412,7 @@ static int eval_softmax(const Spec *sp, const double *theta, int todo, double *l
 			if (sp->opp) for (j = 0; j < n; j++) if (sp->opp[i * n + j] == 0.0) lp[j] = -1e300;
 		}
 		else if (sp->n1 > 0) for (j = sp->n1; j < n; j++) lp[j] = -1e300;
+		if (st.pres) for (j = 0; j < n; j++) if (!st.pres[j]) lp[j] = -1e300;
 		mx = lp[0];
 		for (j = 1; j < n; j++) if (lp[j] > mx) mx = lp[j];
 		sumP = 0.0;
@@ -427,7 +463,7 @@ done:
    ------------------------------------------------------------------ */
 /* exposure term -w * sum_j exp(x_j theta) of a period of length w in the current state (X); 1 = overflow */
 static int rateint_exposure(const Spec *sp, const double *theta, int todo, const double *X, double w, double *L, double *g, double *H,
-		double *Sx, double *Sxx) {
+		double *Sx, double *Sxx, const char *pres) {
 	nwint n = sp->n, j, nrisk = (sp->n1 > 0 ? sp->n1 : sp->n);
 	int Pt = sp->P + 1, k, l;
 	double S = 0.0;
@@ -435,6 +471,7 @@ static int rateint_exposure(const Spec *sp, const double *theta, int todo, const
 	if (todo >= 2) for (k = 0; k < Pt * Pt; k++) Sxx[k] = 0.0;
 	for (j = 0; j < nrisk; j++) {
 		double lp = 0.0, ej;
+		if (pres && !pres[j]) continue;
 		for (k = 0; k < Pt; k++) lp += theta[k] * X[(size_t)k * (size_t)n + j];
 		if (lp > 700.0) return 1;
 		ej = exp(lp);
@@ -488,7 +525,8 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 				while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] < tcur) {
 					double tc = sp->chg[4 * st.cpos + 2];
 					if (tc > t0) {
-						if (rateint_exposure(sp, theta, todo, X, tc - t0, &L, g, H, Sx, Sxx)) { *overflow = 1; goto done; }
+						apply_pres(sp, &st, tc);
+						if (rateint_exposure(sp, theta, todo, X, tc - t0, &L, g, H, Sx, Sxx, st.pres)) { *overflow = 1; goto done; }
 						t0 = tc;
 					}
 					while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] == tc) apply_one_change(sp, &st);
@@ -498,12 +536,16 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 			}
 		}
 		w = tcur - tprev;
+		if (st.pres) {
+			apply_pres(sp, &st, tcur);
+			if (!st.pres[s]) { SF_error("dynam_sim: an event has an absent sender\n"); rc = 198; goto done; }
+		}
 		for (k = 0; k < Pt; k++) lps += theta[k] * X[(size_t)k * (size_t)n + s];
 		if (lps > 700.0) { *overflow = 1; goto done; }
 		L += lps;
 		for (k = 0; k < Pt; k++) g[k] += X[(size_t)k * (size_t)n + s];
 		if (w != 0.0) {
-			if (rateint_exposure(sp, theta, todo, X, w, &L, g, H, Sx, Sxx)) { *overflow = 1; goto done; }
+			if (rateint_exposure(sp, theta, todo, X, w, &L, g, H, Sx, Sxx, st.pres)) { *overflow = 1; goto done; }
 		}
 		tprev = tcur;
 		if (sp->ev[5 * i + 4] != 0.0) {
@@ -521,7 +563,8 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 		while (st.cpos < sp->C) {
 			double tc = sp->chg[4 * st.cpos + 2];
 			if (tc > t0) {
-				if (rateint_exposure(sp, theta, todo, X, tc - t0, &L, g, H, Sx, Sxx)) { *overflow = 1; goto done; }
+				apply_pres(sp, &st, tc);
+				if (rateint_exposure(sp, theta, todo, X, tc - t0, &L, g, H, Sx, Sxx, st.pres)) { *overflow = 1; goto done; }
 				t0 = tc;
 			}
 			while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] == tc) apply_one_change(sp, &st);
@@ -600,6 +643,10 @@ static int eval_coord(const Spec *sp, const double *theta, int todo, double *ll,
 			}
 			dirty = 0;
 		}
+		if (st.pres) {
+			apply_pres(sp, &st, sp->ev[5 * i + 2]);
+			if (!st.pres[s] || !st.pres[r]) { SF_error("dynam_sim: an event has an absent actor\n"); rc = 198; goto done; }
+		}
 		for (a = 0; a < n; a++) for (b = 0; b < n; b++) {
 			double v = 0.0;
 			for (q = 0; q < P; q++) v += theta[q] * coord_S(sp, &st, sp->eff[q], a, b, AAtA);
@@ -608,8 +655,12 @@ static int eval_coord(const Spec *sp, const double *theta, int todo, double *ll,
 		for (a = 0; a < n; a++) {
 			double rmax = stm[a * n], rs = 0.0;
 			for (b = 1; b < n; b++) if (stm[a * n + b] > rmax) rmax = stm[a * n + b];
-			for (b = 0; b < n; b++) { double e = (a == b) ? 0.0 : exp(stm[a * n + b] - rmax); p[a * n + b] = e; rs += e; }
-			for (b = 0; b < n; b++) p[a * n + b] /= rs;
+			for (b = 0; b < n; b++) {
+				double e = (a == b) ? 0.0 : exp(stm[a * n + b] - rmax);
+				if (st.pres && (!st.pres[a] || !st.pres[b])) e = 0.0;
+				p[a * n + b] = e; rs += e;
+			}
+			if (rs > 0.0) for (b = 0; b < n; b++) p[a * n + b] /= rs;
 		}
 		tot = 0.0;
 		for (a = 0; a < n; a++) for (b = 0; b < n; b++) { double v = p[a * n + b] * p[b * n + a]; Pn[a * n + b] = v; tot += v; }
@@ -680,6 +731,10 @@ static int spec_read(Spec *sp, nwint L) {
 	if (sp->C < 0) return 198;
 	sp->ev = sp->blob + pos; pos += 5 * sp->N;
 	sp->chg = sp->blob + pos; pos += 4 * sp->C;
+	sp->Cp = (nwint)sp->blob[37];
+	if (sp->Cp < 0) return 198;
+	sp->pchg = sp->blob + pos; pos += 3 * sp->Cp;
+	if (sp->blob[38] != 0.0) { sp->pinit = sp->blob + pos; pos += sp->n; }
 	for (k = 0; k < 7; k++) { sp->cov[k] = sp->blob + pos; pos += sp->n; }
 	if (sp->hasopp) { sp->opp = sp->blob + pos; pos += sp->N * sp->n; }
 	if (sp->hastie) { sp->tie = sp->blob + pos; pos += sp->n * sp->n; }
@@ -692,6 +747,14 @@ static int spec_read(Spec *sp, nwint L) {
 			return 198;
 		}
 		if (i > 0 && sp->chg[4 * i + 2] < sp->chg[4 * i - 2]) { SF_error("dynam_sim: change events are not sorted by time\n"); return 198; }
+	}
+	for (i = 0; i < sp->Cp; i++) {
+		double a = sp->pchg[3 * i], v = sp->pchg[3 * i + 2];
+		if (!(a >= 1.0 && a <= (double)sp->n) || !(v == 0.0 || v == 1.0)) {
+			SF_error("dynam_sim: a composition change has an actor outside 1..n or a presence other than 0/1\n");
+			return 198;
+		}
+		if (i > 0 && sp->pchg[3 * i + 1] < sp->pchg[3 * i - 2]) { SF_error("dynam_sim: composition changes are not sorted by time\n"); return 198; }
 	}
 	/* every actor index of an event must be an actor 1..n (the kernels index arrays with it) */
 	for (i = 0; i < sp->N; i++) {

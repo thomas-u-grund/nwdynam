@@ -22,6 +22,8 @@
 capture mata: mata drop DynamState()
 capture mata: mata drop dynam_node_rows()
 capture mata: mata drop dynam_change_rows()
+capture mata: mata drop dynam_comp_rows()
+capture mata: mata drop dynam_check_presence()
 capture mata: mata drop DynamNativePluginFilename()
 capture mata: mata drop DynamNativePluginSubdir()
 capture mata: mata drop DynamNativePluginPath()
@@ -148,6 +150,87 @@ real matrix dynam_change_rows(real matrix ev, string rowvector chgnames, string 
 		for (q = 1; q <= cols(slots); q++) out[(k - 1) * cols(slots) + q, .] = (slots[q], a, e[k, 3], v)
 	}
 	return(out)
+}
+
+/*
+	dynam_comp_rows(): composition change. ev = event list of the composition network (id, id, time, value) with the actor ids of that
+	network, chgnames = its node names, mainnames = node names of the fitted network, init = presence at the start (one 0/1 value
+	per actor of the fitted network; empty = everybody is present), netname for messages. The value of an event is the new presence
+	of the actor (1 = joins, 0 = leaves; goldfish: replace = TRUE / FALSE); sender = receiver. Returns rows (8, actor, time, value)
+	sorted by time (the row order of the event list breaks ties) and, when init is given, rows (9, actor, ., value) for every actor.
+	Stops with r(198) for an event whose sender is not its receiver, an actor that is not an actor of the fitted network, a missing
+	value or a value other than 0 and 1.
+*/
+real matrix dynam_comp_rows(real matrix ev, string rowvector chgnames, string rowvector mainnames, real rowvector init,
+		string scalar netname) {
+	real colvector ord, pos
+	real matrix e, out
+	real scalar k, n
+	transmorphic A
+
+	n = cols(mainnames)
+	out = J(0, 4, 0)
+	if (cols(init) > 0) out = (J(n, 1, 9), (1::n), J(n, 1, .), init')
+	if (rows(ev) == 0) return(out)
+	if (cols(ev) < 4) {
+		errprintf("{p 0 0 2}nwdynam: compchange(): %s has no event values; declare it with a value variable ({bf:nwset id id value, eventtime(time) selfloop}): 1 = the actor joins, 0 = the actor leaves.{p_end}\n", netname)
+		exit(198)
+	}
+	A = asarray_create("string", 1)
+	for (k = 1; k <= n; k++) asarray(A, mainnames[k], k)
+	e = ev[., 1..4]
+	ord = order((e[., 3], (1::rows(e))), (1, 2))
+	e = e[ord, .]
+	pos = J(rows(e), 1, 0)
+	for (k = 1; k <= rows(e); k++) {
+		if (e[k, 1] != e[k, 2]) {
+			errprintf("{p 0 0 2}nwdynam: compchange(): an event of %s has sender %s and receiver %s; a composition change names one actor (sender = receiver), for example {bf:nwset id id value, eventtime(time) selfloop}.{p_end}\n", netname, chgnames[e[k, 1]], chgnames[e[k, 2]])
+			exit(198)
+		}
+		if (missing(e[k, 4]) | (e[k, 4] != 0 & e[k, 4] != 1)) {
+			errprintf("{p 0 0 2}nwdynam: compchange(): an event of %s has the value %s; the value must be 1 (the actor joins) or 0 (the actor leaves).{p_end}\n", netname, strofreal(e[k, 4]))
+			exit(198)
+		}
+		if (!asarray_contains(A, chgnames[e[k, 1]])) {
+			errprintf("{p 0 0 2}nwdynam: compchange(): actor %s of %s is not an actor of the fitted network (actors are matched by label).{p_end}\n", chgnames[e[k, 1]], netname)
+			exit(198)
+		}
+		pos[k] = asarray(A, chgnames[e[k, 1]])
+	}
+	return(out \ (J(rows(e), 1, 8), pos, e[., 3], e[., 4]))
+}
+
+/*
+	dynam_check_presence(): as goldfish, an event whose sender or receiver is absent at the time of the event is an error (the
+	change events at the time of the event count: presence = the last change at or before that time). rows = the 8/9 rows of
+	dynam_comp_rows(), events = the event list (sender, receiver, time, ...), names = actor names of the fitted network.
+*/
+void dynam_check_presence(real matrix rows, real matrix events, string rowvector names) {
+	real colvector ord, pres
+	real matrix pc, pin, e
+	real scalar k, p, n
+	
+	n = cols(names)
+	pres = J(n, 1, 1)
+	pin = select(rows, rows[., 1] :== 9)
+	if (rows(pin) > 0) pres[pin[., 2]] = pin[., 4]
+	pc = select(rows, rows[., 1] :== 8)
+	if (rows(pc) == 0 & all(pres)) return
+	e = events[., 1..3]
+	ord = order((e[., 3], (1::rows(e))), (1, 2))
+	e = e[ord, .]
+	p = 1
+	for (k = 1; k <= rows(e); k++) {
+		while (p <= rows(pc)) {
+			if (pc[p, 3] > e[k, 3]) break
+			pres[pc[p, 2]] = pc[p, 4]
+			p++
+		}
+		if (!pres[e[k, 1]] | !pres[e[k, 2]]) {
+			errprintf("{p 0 0 2}nwdynam: actor %s is not present at time %s but has an event (sender %s, receiver %s); events of an absent actor are not allowed - add its join before the event or remove the event.{p_end}\n", names[pres[e[k, 1]] ? e[k, 2] : e[k, 1]], strofreal(e[k, 3]), names[e[k, 1]], names[e[k, 2]])
+			exit(198)
+		}
+	}
 }
 
 void DynamState::init(real matrix rawevents, real scalar nn) {
@@ -383,14 +466,16 @@ class DynamNat {
 	real scalar Pt       // number of parameters
 	real scalar isopen
 	string scalar origframe
-	real matrix chg      // change events of time-varying covariates: (covariate row 1..7, actor, time, new value), sorted by time; unset = none
+	real matrix chg      // change events: (covariate row 1..7, actor, time, new value) of time-varying covariates, sorted by time;
+	                     // rows with code 8 = composition change (8, actor, time, 1 joins / 0 leaves), code 9 = presence at the start
+	                     // (9, actor, ., 0/1); unset = none
 
 	void open()
 	void close()
 	void setup()
 }
 
-real scalar DYNAM_PROTOCOL_NEEDED() return(3)
+real scalar DYNAM_PROTOCOL_NEEDED() return(4)
 
 void DynamNat::open() {
 	string scalar p, fname, q
@@ -441,9 +526,10 @@ void DynamNat::close() {
 */
 void DynamNat::setup(real scalar model, pointer(class DynamState scalar) scalar pS, real rowvector active,
 		real matrix covmat, real rowvector win4, real rowvector wgt4, real scalar n1, real matrix oppmat, real matrix tiemat) {
-	real scalar nev, hasopp, hastie, M, nres, nchg
-	real colvector gend, blob
+	real scalar nev, hasopp, hastie, M, nres, nchg, ncomp, hasinit
+	real colvector gend, blob, pv
 	real rowvector hdr
+	real matrix cvc, pc, pin
 
 	nev = (*pS).nevents
 	M = cols(active)
@@ -451,10 +537,25 @@ void DynamNat::setup(real scalar model, pointer(class DynamState scalar) scalar 
 	hastie = (rows(tiemat) > 0)
 	gend = J(nev, 1, 1)
 	if (nev > 1) gend[1::(nev-1)] = ((*pS).gfirst[2::nev] :== (2::nev))
-	nchg = (cols(chg) == 4 ? rows(chg) : 0)
-	hdr = (DYNAM_PROTOCOL_NEEDED(), model, (*pS).n, nev, n1, M, hasopp, hastie, win4, wgt4, active, J(1, 20 - M, 0), nchg, 0, 0, 0)
+	cvc = J(0, 4, 0); pc = J(0, 3, 0); pin = J(0, 2, 0)
+	if (cols(chg) == 4 & rows(chg) > 0) {
+		cvc = select(chg, chg[., 1] :<= 7)
+		pc = select(chg, chg[., 1] :== 8)[., (2, 3, 4)]
+		pin = select(chg, chg[., 1] :== 9)[., (2, 4)]
+	}
+	nchg = rows(cvc)
+	ncomp = rows(pc)
+	hasinit = (rows(pin) > 0)
+	hdr = (DYNAM_PROTOCOL_NEEDED(), model, (*pS).n, nev, n1, M, hasopp, hastie, win4, wgt4, active, J(1, 20 - M, 0), nchg, ncomp, hasinit, 0)
 	blob = hdr' \ vec(((*pS).events, gend)')
-	if (nchg > 0) blob = blob \ vec(chg')
+	if (nchg > 0) blob = blob \ vec(cvc')
+	if (ncomp > 0) blob = blob \ vec(pc')
+	if (hasinit) {
+		// presence at the start, one value per actor (actors without a row are present)
+		pv = J((*pS).n, 1, 1)
+		pv[pin[., 1]] = pin[., 2]
+		blob = blob \ pv
+	}
 	blob = blob \ vec(covmat')
 	if (hasopp) blob = blob \ vec(oppmat')
 	if (hastie) blob = blob \ vec(tiemat')

@@ -22,7 +22,7 @@ program nwdynam, eclass
 			exit
 		}
 	}
-	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(string) RECIPWINDOW(string) INDEGWINDOW(string) OUTDEGWINDOW(string) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) CHange(string) INCREMENT INTERCEPT SEED(string) SEQUENTIAL Level(cilevel)]
+	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(string) RECIPWINDOW(string) INDEGWINDOW(string) OUTDEGWINDOW(string) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) CHange(string) INCREMENT PResent(varname numeric) COMPchange(string) INTERCEPT SEED(string) SEQUENTIAL Level(cilevel)]
 	// window options: a positive number when given (internally -1 = not given)
 	foreach __nwdynam_w in inertiawindow recipwindow indegwindow outdegwindow {
 		if `"``__nwdynam_w''"' != "" {
@@ -54,6 +54,13 @@ program nwdynam, eclass
 				error 109
 			}
 		}
+	}
+	// present() / compchange(): composition change (actors who join or leave the network; goldfish: the node attribute present).
+	// present() = the presence at the start (a 0/1 variable with one row per actor, like the covariates), compchange() = an event
+	// network of the joins (value 1) and leaves (value 0), one actor per event (sender = receiver)
+	if "`opportunities'" != "" & "`present'" != "" {
+		di as error "{p 0 0 2}present() cannot be combined with opportunities(): both read the data in memory in a different layout - see {help nwdynam}.{p_end}"
+		error 198
 	}
 	// opportunities() needs one row per (event, available actor); the covariate options need one row per actor
 	if "`opportunities'" != "" & "`same'`diff'`sim'`alter'`ego'`tertius'`egoalterint'" != "" {
@@ -632,7 +639,8 @@ program nwdynam, eclass
 	// refused.
 	tempname __nwdynam_same __nwdynam_diff __nwdynam_sim __nwdynam_ego __nwdynam_alter __nwdynam_tertius __nwdynam_rows
 	tempname __nwdynam_egoalterint1 __nwdynam_egoalterint2
-	if "`same'`diff'`sim'`ego'`alter'`tertius'`egoalterint'" != "" {
+	tempname __nwdynam_pinit
+	if "`same'`diff'`sim'`ego'`alter'`tertius'`egoalterint'`present'" != "" {
 		unw_defs
 		capture confirm string variable `nw_nodename'
 		if !_rc {
@@ -679,6 +687,17 @@ program nwdynam, eclass
 			mata: `__nwdynam_`__nwdynam_cv'' = J(1, `nodes', 0)
 		}
 	}
+	if "`present'" != "" {
+		mata: `__nwdynam_pinit' = st_data(`__nwdynam_rows', "`present'")'
+		mata: st_local("__nwdynam_nmiss", strofreal(missing(`__nwdynam_pinit')))
+		mata: st_local("__nwdynam_nbad", strofreal(sum((`__nwdynam_pinit' :!= 0) :& (`__nwdynam_pinit' :!= 1))))
+		if `__nwdynam_nmiss' > 0 | `__nwdynam_nbad' > 0 {
+			capture mata: mata drop `__nwdynam_rows' `__nwdynam_pinit' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2'
+			di as error "{p 0 0 2}present(): variable `present' must be 1 (present at the start) or 0 (absent at the start) for every actor of `netname', with no missing values.{p_end}"
+			error 198
+		}
+	}
+	else mata: `__nwdynam_pinit' = J(1, 0, 0)
 	capture mata: mata drop `__nwdynam_rows'
 
 	tempname __nwdynam_chg
@@ -721,6 +740,33 @@ program nwdynam, eclass
 		// the order inside a time point: event list order of the pairs, as given; sort by time, stable
 		mata: `__nwdynam_chg' = `__nwdynam_chg'[order((`__nwdynam_chg'[., 3], (1::rows(`__nwdynam_chg'))), (1, 2)), .]
 	}
+	// composition change: rows with code 8 (join/leave events) and 9 (presence at the start) after the covariate changes
+	local __nwdynam_ncomp = 0
+	tempname __nwdynam_comprows
+	mata: `__nwdynam_comprows' = J(0, 4, 0)
+	if `"`compchange'"' != "" {
+		if `: word count `compchange'' != 1 {
+			capture mata: mata drop `__nwdynam_comprows' `__nwdynam_pinit' `__nwdynam_chg' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2'
+			di as error "{p 0 0 2}compchange() takes the name of one event network with the joins (value 1) and leaves (value 0).{p_end}"
+			error 198
+		}
+		_nwsyntax `compchange', other(__nwdynam_compnet_) max(1)
+		if "`__nwdynam_compnet_istemporal'" != "true" | "`__nwdynam_compnet_temporaltype'" != "event" {
+			capture mata: mata drop `__nwdynam_comprows' `__nwdynam_pinit' `__nwdynam_chg' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2'
+			di as error "{p 0 0 2}compchange(): `compchange' is not an event network; declare the joins and leaves with {bf:nwset id id value, eventtime(time) selfloop name(`compchange')}.{p_end}"
+			error 198
+		}
+		mata: __nwdynam_cr = *(`__nwdynam_compnet_netobj'->get_eventlist())
+	}
+	else mata: __nwdynam_cr = J(0, 4, 0)
+	capture noisily mata: `__nwdynam_comprows' = dynam_comp_rows(__nwdynam_cr, ("`compchange'" != "" ? `__nwdynam_compnet_netobj'->get_nodenames() : J(1, 0, "")), `netobj'->get_nodenames(), `__nwdynam_pinit', "`compchange'")
+	local __nwdynam_crc = _rc
+	capture mata: mata drop __nwdynam_cr `__nwdynam_pinit'
+	if `__nwdynam_crc' {
+		capture mata: mata drop `__nwdynam_comprows' `__nwdynam_chg' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2'
+		exit `__nwdynam_crc'
+	}
+	mata: st_local("__nwdynam_ncomp", strofreal(sum(`__nwdynam_comprows'[., 1] :== 8)))
 
 	if `"`seed'"' != "" {
 		set seed `seed'
@@ -743,7 +789,7 @@ program nwdynam, eclass
 	mata: st_local("__nwdynam_badt", strofreal(missing(`__nwdynam_events'[., 3])))
 	mata: st_local("__nwdynam_badv", strofreal(cols(`__nwdynam_events') >= 4 ? missing(`__nwdynam_events'[., cols(`__nwdynam_events') >= 4 ? 4 : 3]) : 0))
 	if `__nwdynam_bad0' > 0 | `__nwdynam_badt' > 0 | `__nwdynam_badv' > 0 {
-		_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_chg'
+		_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_chg' `__nwdynam_comprows'
 		if `__nwdynam_bad0' > 0 {
 			di as error "{p 0 0 2}`__nwdynam_bad0' event(s) of `netname' have a sender or receiver that is not an actor of the network (a missing actor id, or an id that does not match a node label); drop these events before {cmd:nwset}.{p_end}"
 		}
@@ -821,7 +867,7 @@ program nwdynam, eclass
 		}
 		mata: mata drop __nwdynam_oord __nwdynam_orcv __nwdynam_ook __nwdynam_oi
 		if `__nwdynam_oppbad' > 0 {
-			_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_oppmat' `__nwdynam_chg'
+			_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_oppmat' `__nwdynam_chg' `__nwdynam_comprows'
 			di as error "{p 0 0 2}opportunities(): in `__nwdynam_oppbad' event(s) the realised receiver is not among the available actors (first: event `__nwdynam_oppfirst', receiver `__nwdynam_opprcv'); every event's receiver must be available.{p_end}"
 			error 198
 		}
@@ -894,6 +940,17 @@ program nwdynam, eclass
 		}
 	}
 
+	// goldfish: an event of an actor who is absent at the time of the event is an error
+	if `__nwdynam_ncomp' > 0 | "`present'" != "" {
+		capture noisily mata: dynam_check_presence(`__nwdynam_comprows', `__nwdynam_events', `netobj'->get_nodenames())
+		if _rc {
+			local __nwdynam_crc = _rc
+			_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_chg' `__nwdynam_comprows'
+			exit `__nwdynam_crc'
+		}
+	}
+	mata: `__nwdynam_chg' = `__nwdynam_chg' \ `__nwdynam_comprows'
+	capture mata: mata drop `__nwdynam_comprows'
 	// scalar read when the event stream is prepared (option sequential); the fit runs inside capture so that a failure inside Mata
 	// or the plugin still restores the user's frame (the native engine works in a frame of its own) and drops the helpers
 	capture scalar drop __nwdynam_sequential
@@ -929,7 +986,7 @@ program nwdynam, eclass
 	if `__nwdynam_rc' {
 		if "`c(frame)'" != "`__nwdynam_frame'" capture frame change `__nwdynam_frame'
 		capture frame drop __nwdynam_native
-		_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_oppmat' `__nwdynam_tiemat' `__nwdynam_chg'
+		_nwdynam_dropmata `__nwdynam_events' `__nwdynam_same' `__nwdynam_diff' `__nwdynam_sim' `__nwdynam_ego' `__nwdynam_alter' `__nwdynam_tertius' `__nwdynam_egoalterint1' `__nwdynam_egoalterint2' `__nwdynam_oppmat' `__nwdynam_tiemat' `__nwdynam_chg' `__nwdynam_comprows'
 		capture matrix drop __nwdynam_b
 		capture matrix drop __nwdynam_V
 		capture scalar drop __nwdynam_ll
@@ -958,6 +1015,11 @@ program nwdynam, eclass
 	ereturn scalar nodes = `nodes'
 	ereturn scalar ll = `__nwdynam_ll'
 	ereturn scalar ntimes = `__nwdynam_ntimes'
+	if "`present'`compchange'" != "" {
+		ereturn scalar ncompchange = `__nwdynam_ncomp'
+		ereturn local present "`present'"
+		ereturn local compchange "`compchange'"
+	}
 	ereturn local ties = cond(`__nwdynam_ntimes' < `nevents', cond("`sequential'" != "", "sequential", "simultaneous"), "none")
 
 	ereturn local header "`__nwdynam_hdr'"
