@@ -3,6 +3,14 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] - 2026-11-17
+
+### Changed
+- Coefficient tables show the coefficient names in full by default: the confidence intervals are left out, as with `noci`, at a `linesize` below 100 (where names of up to 32 characters do not fit next to them); before, long names were cut (e.g. `weightedine~a`). The new option `ci`, or `level(#)` given explicitly, shows the intervals as before. The display options of Stata's estimation commands (`noci`, `nopvalues`, `cformat()`, `pformat()`, `sformat()` and the others of `ereturn display`) are accepted in fits and in the replay (`nwdynam` alone, `estimates replay`). Tables whose names all fit, and all output outside the coefficient tables, are unchanged.
+- `ci` together with `noci` stops with return code 198; `noci` is accepted.
+
+Tested on macOS with Stata 17 BE, Stata 18 BE and StataNow 19.5 MP (full test suite). Windows and Linux: not tested for this version; the compiled plugin is the one of 1.8.0 (unchanged).
+
 ## [1.8.1] - 2026-11-16
 
 ### Fixed

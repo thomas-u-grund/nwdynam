@@ -18,7 +18,9 @@
 {cmd:,}
 [{opt submodel(string)}
 {opt seed(#)}
+{opt ci}
 {opt level(#)}
+{it:display_options}
 {opt sequential}
 {opt inertia}
 {opt recip}
@@ -64,7 +66,9 @@
 {syntab:General}
 {synopt:{opt submodel(string)}}which DyNAM sub-model to fit - {bf:choice} (the default), {bf:rate}, or {bf:choice_coordination}; see {bf:Description} below{p_end}
 {synopt:{opt seed(#)}}random-number seed set before estimation, an integer between 0 and 2147483647; the default effects of the choice and the rate sub-model (without window, weighted effect, {opt opportunities()}, {opt tie()} or two-mode network) start the optimizer from fixed values, all other effect sets from random values near zero, so the seed makes those fits reproducible{p_end}
-{synopt:{opt level(#)}}confidence level of the displayed intervals; default {cmd:level(95)}{p_end}
+{synopt:{opt ci}}Show the confidence intervals in the coefficient table. By default the table shows the coefficient names in full, and the intervals are left out (as with {opt noci}) at a {cmd:set linesize} below 100, where names of up to 32 characters do not fit next to them. With {opt ci} the intervals are shown and long names are cut (e.g. {cmd:weightedine~a}){p_end}
+{synopt:{opt level(#)}}confidence level of the intervals; giving it also shows them, as {opt ci}; default {cmd:level(95)} or as set by {cmd:set level}{p_end}
+{synopt:{it:{help estimation_options##display_options:display_options}}}{opt noci}, {opt nopvalues}, {opt cformat(%fmt)}, {opt pformat(%fmt)}, {opt sformat(%fmt)} and the other display options of Stata's estimation commands{p_end}
 {synopt:{opt sequential}}process events with identical times one after another instead of jointly; see {bf:Events with identical times}{p_end}
 
 {syntab:Effects (no decay - the entire prior event history counts equally)}
@@ -120,7 +124,7 @@
 {synopt:{opt intercept}}genuinely continuous-time competing-risks hazard; see {bf:Description} below{p_end}
 {synoptline}
 {p2colreset}{...}
-{pstd}Typed without arguments (or with {opt level()} only) after an {cmd:nwdynam} fit, {cmd:nwdynam} redisplays
+{pstd}Typed without arguments (or with display options only: {opt ci}, {opt level()}, ...) after an {cmd:nwdynam} fit, {cmd:nwdynam} redisplays
 those results; {cmd:estimates replay} works as well. Without an earlier {cmd:nwdynam} fit, {cmd:nwdynam} alone fits the
 default model of the current network.{p_end}
 

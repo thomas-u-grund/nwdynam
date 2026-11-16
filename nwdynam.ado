@@ -13,16 +13,20 @@ program nwdynam, eclass
 		nwdynam_version
 		exit
 	}
-	// replay: nwdynam with no arguments, or with display options only (level()), after an nwdynam fit; also what
-	// estimates replay runs. Without an earlier nwdynam fit, nwdynam alone fits the current network as before.
+	// replay: nwdynam with no arguments, or with display options only (ci, level(), noci, nopvalues, cformat() and the
+	// other options of Stata's ereturn display), after an nwdynam fit; also what estimates replay runs. Without an earlier nwdynam fit, nwdynam alone fits the current network as before.
 	if replay() & "`e(cmd)'" == "nwdynam" {
-		capture syntax [, Level(cilevel)]
+		capture _nwdynam_tabopts __t check `0'
 		if !_rc {
-			_nwdynam_display, level(`level')
+			_nwdynam_display `0'
 			exit
 		}
 	}
-	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(string) RECIPWINDOW(string) INDEGWINDOW(string) OUTDEGWINDOW(string) TERTIUSWINDOW(string) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(string) TIE(string) CHange(string) INCREMENT PResent(varname numeric) COMPchange(string) OPPFRAME(string) NETTERMS(string asis) IGNOREREP(string) INTERCEPT SEED(string) SEQUENTIAL Level(cilevel)]
+	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(string) RECIPWINDOW(string) INDEGWINDOW(string) OUTDEGWINDOW(string) TERTIUSWINDOW(string) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(string) TIE(string) CHange(string) INCREMENT PResent(varname numeric) COMPchange(string) OPPFRAME(string) NETTERMS(string asis) IGNOREREP(string) INTERCEPT SEED(string) SEQUENTIAL *]
+	// display options of the coefficient table (ci, level(), noci, nopvalues, cformat(), ...); any other option is
+	// refused here with Stata's usual message
+	local __tabopts `"`options'"'
+	_nwdynam_tabopts __chk check, `__tabopts'
 	// window options: a positive number when given (internally -1 = not given)
 	foreach __nwdynam_w in inertiawindow recipwindow indegwindow outdegwindow tertiuswindow {
 		if `"``__nwdynam_w''"' != "" {
@@ -1184,12 +1188,12 @@ program nwdynam, eclass
 		}
 	}
 	ereturn local unidentified "`=trim("`__nwdynam_bad'")'"
-	_nwdynam_display, level(`level')
+	_nwdynam_display, `__tabopts'
 end
 
 capture program drop _nwdynam_display
 program _nwdynam_display
-	syntax [, Level(cilevel)]
+	syntax [, *]
 	di as text "{hline 60}"
 	di as text "`e(header)'"
 	di as text "Network: " as result "`e(depvar)'" _col(40) as text "Actors: " as result e(nodes)
@@ -1204,7 +1208,8 @@ program _nwdynam_display
 			cond("`e(present)'" != "", "; presence at the start: " + "`e(present)'", "") as text ".{p_end}"
 	}
 	di as text "{hline 60}"
-	ereturn display, level(`level')
+	_nwdynam_tabopts __t, `options'
+	ereturn display, `__t'
 	if "`e(unidentified)'" != "" {
 		di as text "{p 0 6 2}Note: no usable standard error for " as result "`e(unidentified)'" as text ".{p_end}"
 		di as text "{p 6 6 2}These effects are probably not identified (too few events, a perfectly predicted pattern, or effects"   ///
@@ -1217,4 +1222,51 @@ program _nwdynam_dropmata
 	foreach __m of local 0 {
 		capture mata: mata drop `__m'
 	}
+end
+
+// the options of ereturn display for the coefficient table. The coefficient names are shown in full: the
+// confidence intervals are left out (noci) at a linesize below 100, where names of up to 32 characters do not fit next
+// to them. ci, or level(#) given explicitly, shows the intervals (long names are then cut, e.g. nodematch_o~e); noci,
+// nopvalues, cformat() and the other display options of Stata's estimation commands are passed on. With check, only
+// the options are checked (before a fit).
+// Use: _nwdynam_tabopts <local> [check] [, options]; the options for ereturn display are returned in <local>.
+capture program drop _nwdynam_tabopts
+program _nwdynam_tabopts
+	version 14
+	gettoken __mac 0 : 0, parse(" ,")
+	gettoken __chk : 0, parse(" ,")
+	if `"`__chk'"' == "check" gettoken __chk 0 : 0, parse(" ,")
+	else local __chk
+	syntax [, Level(string) *]
+	local __lev `"`level'"'
+	// ci is picked out by hand: declared to syntax, ci would also take noci (as its negation)
+	local ci
+	local __rest
+	while `"`options'"' != "" {
+		gettoken __o options : options, bind
+		if strlower(`"`__o'"') == "ci" local ci ci
+		else local __rest `"`__rest' `__o'"'
+	}
+	_get_diopts __di, `__rest'
+	local __noci : list posof "noci" in __di
+	local __nopv : list posof "nopvalues" in __di
+	if "`ci'" != "" & `__noci' {
+		di as err "only one of options ci or noci is allowed"
+		exit 198
+	}
+	local __show = ("`ci'" != "" | `"`__lev'"' != "")
+	if `"`__lev'"' != "" {
+		local 0 , level(`__lev')
+		syntax [, Level(cilevel)]
+		local __lev `level'
+	}
+	else local __lev = c(level)
+	if "`__chk'" != "" exit
+	local __add
+	if !`__show' & !`__noci' & !`__nopv' {
+		// full names: at a linesize below 100 (or with lstretch off) the names of up to 32 characters do not fit next
+		// to the intervals; from 100 on both fit
+		if c(linesize) < 100 | c(lstretch) == "off" | `: list posof "nolstretch" in __di' local __add noci
+	}
+	c_local `__mac' `"level(`__lev') `__di' `__add'"'
 end
