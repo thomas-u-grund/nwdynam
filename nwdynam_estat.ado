@@ -391,6 +391,15 @@ program define nwdynam_estat_changepoints, rclass
 		}
 		di as txt "{p 2 2 2}The change points are the events that end a regime: the log likelihood of the following events belongs to the next regime.{p_end}"
 	}
+	// the time of every change point for the graph, read before `idx' is moved into r() (return matrix removes it)
+	local xl ""
+	if `ncp' > 0 {
+		forvalues j = 1/`ncp' {
+			local __nwdynam_row = `idx'[1, `j']
+			frame `tab': local __nwdynam_tx = time[`__nwdynam_row']
+			local xl "`xl' `__nwdynam_tx'"
+		}
+	}
 	if `nidx' > 0 {
 		return matrix cpts = `idx'
 	}
@@ -401,12 +410,6 @@ program define nwdynam_estat_changepoints, rclass
 	return local moment "`moment'"
 	if "`plot'" != "" {
 		frame `tab' {
-			local xl ""
-			if `ncp' > 0 {
-				forvalues j = 1/`ncp' {
-					local xl "`xl' `=time[`=`idx'[1,`j']']'"
-				}
-			}
 			local gname = cond("`name'" != "", "name(`name', replace)", "")
 			twoway (line ll time, lcolor(black)) (scatter ll time, mcolor(black) msize(small)), ///
 				legend(off) xtitle("") ytitle("Interval log likelihood") `=cond("`xl'" != "", "xline(`xl', lcolor(red))", "")' `gname'

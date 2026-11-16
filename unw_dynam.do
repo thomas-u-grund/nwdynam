@@ -34,6 +34,7 @@ capture mata: mata drop dynam_nat_eval()
 capture mata: mata drop dynam_nat_eval_nr()
 capture mata: mata drop dynam_nat_eval_d1()
 capture mata: mata drop dynam_nat_optimize()
+capture mata: mata drop dynam_nat_warm()
 capture mata: mata drop dynam_rateint_accept()
 capture mata: mata drop dynam_rateint_newton()
 capture mata: mata drop DynamFitUnit1()
@@ -671,6 +672,74 @@ void dynam_nat_eval_d1(real scalar todo, real rowvector theta, pointer(class Dyn
 }
 
 /*
+	Pre-optimisation of the coordination model (no Hessian, not concave). Mata's BFGS takes as its first step the whole gradient; for a
+	statistic with large values (a degree, a count of paths) that step is far too long: exp() overflows, the log likelihood is missing and
+	optimize() stops in a "flat region" (r(111)) although the model is identified. This routine is a quasi-Newton ascent with a backtracking
+	line search that treats a missing log likelihood as a failed step, with an initial inverse Hessian that makes the first step one unit long.
+	It returns a point close to a maximum (or the best point it reached) from which optimize() polishes and computes the variance.
+*/
+real rowvector dynam_nat_warm(pointer(class DynamNat scalar) scalar pN, real rowvector theta) {
+	real rowvector th, thn, g, gn
+	real colvector s, y, d
+	real matrix Hinv, H, Id
+	real scalar f, fn, ng, t, it, k, ok, sy, rho, first, gd, p
+
+	p = cols(theta)
+	Id = I(p)
+	H = J(0, 0, .)
+	th = theta
+	dynam_nat_eval_d1(1, th, pN, f, g, H)
+	if (missing(f) | missing(g)) return(theta)
+	ng = sqrt(sum(g :^ 2))
+	Hinv = Id * (1 / max((ng, 1)))
+	first = 1
+	for (it = 1; it <= 150; it++) {
+		ng = sqrt(sum(g :^ 2))
+		if (ng < 1e-3) break
+		d = Hinv * g'
+		gd = g * d
+		if (gd <= 0) {
+			Hinv = Id * (1 / max((ng, 1)))
+			first = 1
+			d = Hinv * g'
+			gd = g * d
+		}
+		t = 1
+		ok = 0
+		for (k = 1; k <= 40; k++) {
+			thn = th + t * d'
+			dynam_nat_eval_d1(1, thn, pN, fn, gn, H)
+			if (!missing(fn) & !missing(gn) & fn >= f + 1e-4 * t * gd) {
+				ok = 1
+				break
+			}
+			t = t / 2
+		}
+		if (!ok) {
+			if (first) break
+			Hinv = Id * (1 / max((ng, 1)))
+			first = 1
+			continue
+		}
+		s = (thn - th)'
+		y = (g - gn)'
+		sy = s' * y
+		if (sy > 1e-12) {
+			if (first) {
+				Hinv = Id * (sy / (y' * y))
+				first = 0
+			}
+			rho = 1 / sy
+			Hinv = (Id - rho * s * y') * Hinv * (Id - rho * y * s') + rho * s * s'
+		}
+		th = thn
+		f = fn
+		g = gn
+	}
+	return(th)
+}
+
+/*
 	Maximisation on the native evaluator. mode 0 (choice and rate, concave): Newton-Raphson from 0, else up to 8 starts of BFGS
 	with the analytic Hessian (the first converged start wins, then Newton polishes it), Nelder-Mead from 0.01 as the last resort. mode 1 (coordination, not concave):
 	every start is run and the best converged result is kept (see the reference evaluator for the history of that rule).
@@ -729,6 +798,7 @@ void dynam_nat_optimize(pointer(class DynamNat scalar) scalar pN, real scalar mo
 	ok = 0
 	for (attempt = 1; attempt <= nstarts & (mode == 1 | ok == 0); attempt++) {
 		theta0 = starts[attempt, .]
+		if (mode == 1) theta0 = dynam_nat_warm(pN, theta0)
 		S_opt = optimize_init()
 		if (mode == 1) optimize_init_evaluator(S_opt, &dynam_nat_eval_d1())
 		else optimize_init_evaluator(S_opt, &dynam_nat_eval())
@@ -1105,10 +1175,15 @@ string rowvector dynam_xt_labels(string matrix T, string scalar depname) {
 	An event network starts empty; its actors are matched to the actors of the fitted network by label. A static network needs the same
 	number of actors in the same order.
 */
-real colvector dynam_xlayer(string scalar istemporal, string scalar directed, string scalar name, string rowvector mainnames, real matrix ev, string rowvector nm, real matrix M) {
+real colvector dynam_xlayer(string scalar istemporal, string scalar directed, string scalar name, string rowvector mainnames, real matrix evin, string rowvector nm, real matrix Min) {
 	real colvector ord, ids, pos
 	real scalar k, n
+	real matrix ev, M
 	transmorphic A
+	// Mata passes arguments by reference: the caller hands over the network's own event list or matrix, which must not be
+	// sorted, re-indexed or edited here (a second fit with the same event network would otherwise start from a corrupted list)
+	ev = evin
+	M = Min
 	n = cols(mainnames)
 	if (istemporal == "true") {
 		if (rows(ev) == 0) return((0 \ (directed != "true") \ 0))
