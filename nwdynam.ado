@@ -74,6 +74,10 @@ program nwdynam, eclass
 			error 111
 		}
 	}
+	if "`opportunities'" != "" & "`oppframe'" == "" & "`same'`diff'`sim'`alter'`ego'`tertius'`egoalterint'" != "" {
+		di as error "{p 0 0 2}opportunities() reads one row per event and available actor, the covariate options read one row per actor: with a covariate option, keep the covariates in memory and put the opportunities data in another frame, {bf:oppframe(}{it:framename}{bf:)} - see {help nwdynam}.{p_end}"
+		error 198
+	}
 	if "`opportunities'" != "" {
 		if `: word count `opportunities'' != 2 {
 			di as error "{p 0 0 2}opportunities() takes two variables: the event sequence number and the available actor.{p_end}"
@@ -91,10 +95,7 @@ program nwdynam, eclass
 			error 111
 		}
 	}
-	if "`opportunities'" != "" & "`oppframe'" == "" & "`same'`diff'`sim'`alter'`ego'`tertius'`egoalterint'" != "" {
-		di as error "{p 0 0 2}opportunities() reads one row per event and available actor, the covariate options read one row per actor: with a covariate option, keep the covariates in memory and put the opportunities data in another frame, {bf:oppframe(}{it:framename}{bf:)} - see {help nwdynam}.{p_end}"
-		error 198
-	}
+
 
 	// change(): time-varying covariates, pairs "variable network": the variable is a covariate of same()/diff()/sim()/ego()/alter()/
 	// tertius()/egoalterint(), the network an event network (nwset id id value, eventtime(time)) with its changes
@@ -449,7 +450,7 @@ program nwdynam, eclass
 			error 198
 		}
 		if "`change'" != "" & "`egoalterint'" != "" {
-			di as error "{p 0 0 2}change() together with egoalterint() is not available for two-mode (bipartite) networks: goldfish itself updates this effect wrongly when an attribute changes in a two-mode network.{p_end}"
+			di as error "{p 0 0 2}change() together with egoalterint() is not available for two-mode (bipartite) networks: goldfish does not give a usable result for this combination, so it stays refused.{p_end}"
 			error 198
 		}
 		if "`tie'`opportunities'" != "" {
