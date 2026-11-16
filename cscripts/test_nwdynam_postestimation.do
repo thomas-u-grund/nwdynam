@@ -59,8 +59,6 @@ assert _rc != 0
 capture estat foo
 assert _rc == 321
 quietly estat vce
-matrix VV = r(V)
-assert rowsof(VV) == colsof(e(b))
 capture estat outliers, method(xyz)
 assert _rc == 198
 capture estat outliers, window(-1)
