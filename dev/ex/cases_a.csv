@@ -1,0 +1,44 @@
+"id","sub","opts","kind","exo","tolb","tolse"
+"a01","choice","netterms(tie(x1))","one","x1=dyndir",1e-06,1e-06
+"a02","choice","netterms(tie(x3, weighted))","one","x3=dyndir",1e-06,1e-06
+"a03","choice","netterms(tie(x1, window(6)))","one","x1=dyndir",1e-06,1e-06
+"a04","choice","netterms(tie(x2))","one","x2=statdir",1e-06,1e-06
+"a05","choice","inertia netterms(tie(x1, ignorerep))","one","x1=dyndir",1e-06,1e-06
+"a11","choice","inertia indeg netterms(tie(x2))","one","x2=statdir",1e-06,1e-06
+"a12","choice","inertia netterms(tie(x4, weighted) tie(x1, window(9)))","one","x1=dyndir x4=statdir",1e-06,1e-06
+"a13","choice","inertia indeg netterms(tie(x1))","one","x1=dyndir",1e-06,1e-06
+"a14","choice","inertia indeg netterms(tie(x1))","one","x1=dyndir",1e-06,1e-06
+"a15","choice","inertia netterms(tie(x4, weighted) tie(x1, window(6)))","one","x1=dyndir x4=statdir",1e-06,1e-06
+"a16","choice","indeg netterms(tie(x2) tie(x1, window(3)))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"a17","choice","inertia indeg netterms(tie(x1))","one","x1=dyndir",1e-06,1e-06
+"a18","choice","indeg netterms(tie(x2) tie(x3, weighted))","one","x2=statdir x3=dyndir",1e-06,1e-06
+"a19","choice","inertia netterms(tie(x1) tie(x3, weighted))","one","x1=dyndir x3=dyndir",1e-06,1e-06
+"a20","choice","netterms(tie(x2) tie(x4, weighted) tie(x1, window(4.5)))","one","x1=dyndir x2=statdir x4=statdir",1e-06,1e-06
+"a21","choice","indeg netterms(tie(x1) tie(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"a22","choice","netterms(tie(x1) tie(x3, weighted) tie(x4, weighted))","one","x1=dyndir x3=dyndir x4=statdir",1e-06,1e-06
+"a23","choice","indeg netterms(tie(x2) tie(x1, window(9)))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"a24","choice","netterms(tie(x2) tie(x3, weighted) tie(x3, weighted window(3)))","one","x2=statdir x3=dyndir",1e-06,1e-06
+"a25","choice","inertia indeg netterms(tie(x2))","one","x2=statdir",1e-06,1e-06
+"a26","choice","indeg netterms(tie(x1) tie(x3, weighted))","one","x1=dyndir x3=dyndir",1e-06,1e-06
+"a28","choice","inertia indeg netterms(tie(x2))","one","x2=statdir",1e-06,1e-06
+"a29","choice","netterms(tie(x2))","one","x2=statdir",1e-06,1e-06
+"a30","choice","netterms(tie(x3, weighted) tie(x4, weighted) tie(x1, window(3)))","one","x1=dyndir x3=dyndir x4=statdir",1e-06,1e-06
+"a31","choice","inertia netterms(tie(x2) tie(x1, window(4.5)))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"a33","choice","inertia indeg netterms(tie(x2))","one","x2=statdir",1e-06,1e-06
+"a34","choice","indeg netterms(tie(x2) tie(x3, weighted))","one","x2=statdir x3=dyndir",1e-06,1e-06
+"a35","choice","inertia netterms(tie(x1) tie(x3, weighted))","one","x1=dyndir x3=dyndir",1e-06,1e-06
+"a36","choice","indeg netterms(tie(x1) tie(x3, weighted))","one","x1=dyndir x3=dyndir",1e-06,1e-06
+"a37","choice","inertia netterms(tie(x1) tie(x3, weighted))","one","x1=dyndir x3=dyndir",1e-06,1e-06
+"a38","choice","inertia netterms(tie(x2) tie(x1, window(3)))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"a39","choice","inertia netterms(tie(x2) tie(x3, weighted))","one","x2=statdir x3=dyndir",1e-06,1e-06
+"a40","choice","netterms(tie(x2) tie(x3, weighted) tie(x3, weighted window(6)))","one","x2=statdir x3=dyndir",1e-06,1e-06
+"a41","choice","inertia indeg netterms(tie(x1))","one","x1=dyndir",1e-06,1e-06
+"a42","choice","inertia indeg netterms(tie(x1))","one","x1=dyndir",1e-06,1e-06
+"a43","choice","inertia netterms(tie(x4, weighted) tie(x3, weighted window(4.5)))","one","x3=dyndir x4=statdir",1e-06,1e-06
+"a44","choice","indeg netterms(tie(x4, weighted) tie(x1, window(9)))","one","x1=dyndir x4=statdir",1e-06,1e-06
+"a45","choice","indeg netterms(tie(x1) tie(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"a46","choice","netterms(tie(x1) tie(x2) tie(x4, weighted))","one","x1=dyndir x2=statdir x4=statdir",1e-06,1e-06
+"a47","choice","inertia indeg netterms(tie(x2))","one","x2=statdir",1e-06,1e-06
+"a48","choice","netterms(tie(x2) tie(x4, weighted) tie(x1, window(2)))","one","x1=dyndir x2=statdir x4=statdir",1e-06,1e-06
+"a49","choice","inertia netterms(tie(x1) tie(x3, weighted window(6)))","one","x1=dyndir x3=dyndir",1e-06,1e-06
+"a50","choice","inertia netterms(tie(x3, weighted) tie(x4, weighted))","one","x3=dyndir x4=statdir",1e-06,1e-06

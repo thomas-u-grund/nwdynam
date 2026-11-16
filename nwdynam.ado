@@ -22,7 +22,7 @@ program nwdynam, eclass
 			exit
 		}
 	}
-	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(string) RECIPWINDOW(string) INDEGWINDOW(string) OUTDEGWINDOW(string) TERTIUSWINDOW(string) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(string) TIE(string) CHange(string) INCREMENT PResent(varname numeric) COMPchange(string) OPPFRAME(string) INTERCEPT SEED(string) SEQUENTIAL Level(cilevel)]
+	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(string) RECIPWINDOW(string) INDEGWINDOW(string) OUTDEGWINDOW(string) TERTIUSWINDOW(string) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(string) TIE(string) CHange(string) INCREMENT PResent(varname numeric) COMPchange(string) OPPFRAME(string) NETTERMS(string asis) IGNOREREP(string) INTERCEPT SEED(string) SEQUENTIAL Level(cilevel)]
 	// window options: a positive number when given (internally -1 = not given)
 	foreach __nwdynam_w in inertiawindow recipwindow indegwindow outdegwindow tertiuswindow {
 		if `"``__nwdynam_w''"' != "" {
@@ -476,6 +476,27 @@ program nwdynam, eclass
 	// work the same way for `inertia`/`recip`. `-1` sentinel = "not
 	// given," matching {opt seed()}'s own established convention in
 	// this same file.
+	// netterms(): effects on other networks, mixed closures, tertiusDiff (choice and choice_coordination). tie() of an event network
+	// (a network that changes over time) is such a term. The terms are parsed here, the networks resolved further down.
+	tempname __nwdynam_xt __nwdynam_XL __nwdynam_XA
+	local __nwdynam_nxt = 0
+	capture mata: mata drop __nwdynam_xblob
+	if `"`tie'"' != "" & "`submodel'" != "rate" & "`is2mode'" != "true" {
+		_nwsyntax `tie', other(__nwdynam_tienet_) max(1)
+		if "`__nwdynam_tienet_istemporal'" == "true" {
+			local netterms `"tie(`tie') `netterms'"'
+			local tie ""
+		}
+	}
+	if `"`netterms'"' != "" {
+		if "`is2mode'" == "true" {
+			di as error "{p 0 0 2}netterms() is not yet available for two-mode (bipartite) networks - see {help nwdynam}.{p_end}"
+			error 198
+		}
+		mata: `__nwdynam_xt' = dynam_parse_terms(`"`netterms'"', "`submodel'", "`netname'")
+		mata: st_local("__nwdynam_nxt", strofreal(rows(`__nwdynam_xt')))
+	}
+
 	local __nwdynam_windowinertia = 1e300
 	local __nwdynam_windowrecip = 1e300
 	if `inertiawindow' != -1 {
@@ -660,6 +681,31 @@ program nwdynam, eclass
 	foreach __nwdynam_e of local __nwdynam_effnames {
 		if "``__nwdynam_e''" != "" local __nwdynam_anygiven = 1
 	}
+	if `__nwdynam_nxt' > 0 local __nwdynam_anygiven = 1
+	// ignorerep(): effects whose statistic is set to 0 for the pairs that already have a tie in the dependent network (goldfish: ignoreRep = TRUE)
+	if "`ignorerep'" != "" {
+		if "`submodel'" == "rate" {
+			di as error "{p 0 0 2}ignorerep() is available for submodel(choice) and submodel(choice_coordination); goldfish's rate sub-model does not accept ignoreRep.{p_end}"
+			error 198
+		}
+		foreach __nwdynam_w of local ignorerep {
+			local __nwdynam_w = lower("`__nwdynam_w'")
+			if inlist("`__nwdynam_w'", "same", "diff", "sim", "alter", "ego", "egoalterint") {
+				di as error "{p 0 0 2}ignorerep(): {bf:`__nwdynam_w'} has no ignoreRep in goldfish (only structural effects have).{p_end}"
+				error 198
+			}
+			local __nwdynam_ok : list posof "`__nwdynam_w'" in __nwdynam_effnames
+			if `__nwdynam_ok' == 0 {
+				di as error "{p 0 0 2}ignorerep(): {bf:`__nwdynam_w'} is not an effect of submodel(`submodel'); give the effects of the model (the terms of netterms() have their own ignorerep option).{p_end}"
+				error 198
+			}
+			if "``__nwdynam_w''" == "" & !(`__nwdynam_anygiven' == 0 & `: list posof "`__nwdynam_w'" in __nwdynam_defaulteffs' > 0) {
+				di as error "{p 0 0 2}ignorerep(): {bf:`__nwdynam_w'} is not among the effects of this model.{p_end}"
+				error 198
+			}
+		}
+		local ignorerep = lower("`ignorerep'")
+	}
 
 	local __nwdynam_active ""
 	local __nwdynam_sep ""
@@ -668,7 +714,8 @@ program nwdynam, eclass
 	foreach __nwdynam_e of local __nwdynam_effnames {
 		local __nwdynam_isdefault : list posof "`__nwdynam_e'" in __nwdynam_defaulteffs
 		if "``__nwdynam_e''" != "" | (`__nwdynam_anygiven' == 0 & `__nwdynam_isdefault' > 0) {
-			local __nwdynam_active "`__nwdynam_active'`__nwdynam_sep'1"
+			local __nwdynam_ig : list posof "`__nwdynam_e'" in ignorerep
+			local __nwdynam_active "`__nwdynam_active'`__nwdynam_sep'`=cond(`__nwdynam_ig' > 0, 2, 1)'"
 			local __nwdynam_collabs "`__nwdynam_collabs' `__nwdynam_e'"
 			local __nwdynam_nactive = `__nwdynam_nactive' + 1
 		}
@@ -685,7 +732,9 @@ program nwdynam, eclass
 	tempname __nwdynam_same __nwdynam_diff __nwdynam_sim __nwdynam_ego __nwdynam_alter __nwdynam_tertius __nwdynam_rows
 	tempname __nwdynam_egoalterint1 __nwdynam_egoalterint2
 	tempname __nwdynam_pinit
-	if "`same'`diff'`sim'`ego'`alter'`tertius'`egoalterint'`present'" != "" {
+	local __nwdynam_xvars ""
+	if `__nwdynam_nxt' > 0 mata: st_local("__nwdynam_xvars", invtokens(dynam_xt_vars(`__nwdynam_xt')))
+	if "`same'`diff'`sim'`ego'`alter'`tertius'`egoalterint'`present'`__nwdynam_xvars'" != "" {
 		unw_defs
 		capture confirm string variable `nw_nodename'
 		if !_rc {
@@ -743,6 +792,22 @@ program nwdynam, eclass
 		}
 	}
 	else mata: `__nwdynam_pinit' = J(1, 0, 0)
+	mata: `__nwdynam_XA' = asarray_create("string", 1)
+	foreach __nwdynam_xv of local __nwdynam_xvars {
+		capture confirm numeric variable `__nwdynam_xv'
+		if _rc {
+			capture mata: mata drop `__nwdynam_rows'
+			di as error "{p 0 0 2}netterms(): {bf:`__nwdynam_xv'} is not a numeric variable of the current dataset.{p_end}"
+			error 109
+		}
+		mata: asarray(`__nwdynam_XA', "`__nwdynam_xv'", st_data(`__nwdynam_rows', "`__nwdynam_xv'")')
+		mata: st_local("__nwdynam_nmiss", strofreal(missing(asarray(`__nwdynam_XA', "`__nwdynam_xv'"))))
+		if `__nwdynam_nmiss' > 0 {
+			capture mata: mata drop `__nwdynam_rows'
+			di as error "{p 0 0 2}covariate `__nwdynam_xv': `__nwdynam_nmiss' actor(s) of `netname' have a missing value; the covariate must be defined for every actor.{p_end}"
+			error 416
+		}
+	}
 	capture mata: mata drop `__nwdynam_rows'
 
 	tempname __nwdynam_chg
@@ -818,6 +883,28 @@ program nwdynam, eclass
 	if `"`seed'"' != "" {
 		set seed `seed'
 	}
+
+	if `__nwdynam_nxt' > 0 {
+		mata: st_local("__nwdynam_xnets", invtokens(dynam_xt_nets(`__nwdynam_xt', "`netname'")))
+		mata: `__nwdynam_XL' = asarray_create("string", 1)
+		foreach __nwdynam_xn of local __nwdynam_xnets {
+			_nwsyntax `__nwdynam_xn', other(__nwdynam_xnet_) max(1)
+			if "`__nwdynam_xnet_istemporal'" == "true" & "`__nwdynam_xnet_temporaltype'" != "event" {
+				di as error "{p 0 0 2}netterms(): `__nwdynam_xn' is a temporal network that is not an event network; use an ordinary network or one declared with {bf:nwset ..., eventtime()}.{p_end}"
+				error 198
+			}
+			if "`__nwdynam_xnet_istemporal'" == "true" {
+				mata: asarray(`__nwdynam_XL', "`__nwdynam_xn'", dynam_xlayer("true", "`__nwdynam_xnet_directed'", "`__nwdynam_xn'", `netobj'->get_nodenames(), *(`__nwdynam_xnet_netobj'->get_eventlist()), `__nwdynam_xnet_netobj'->get_nodenames(), J(0, 0, 0)))
+			}
+			else {
+				mata: asarray(`__nwdynam_XL', "`__nwdynam_xn'", dynam_xlayer("false", "`__nwdynam_xnet_directed'", "`__nwdynam_xn'", `netobj'->get_nodenames(), J(0, 0, 0), J(1, 0, ""), *(`__nwdynam_xnet_netobj'->get_matrix())))
+			}
+		}
+		mata: __nwdynam_xblob = dynam_xblob(`__nwdynam_xt', tokens("`__nwdynam_xnets'"), `__nwdynam_XL', "`netname'", tokens("`__nwdynam_xvars'"), `__nwdynam_XA', `nodes')
+		mata: st_local("__nwdynam_xlabs", invtokens(dynam_xt_labels(`__nwdynam_xt', "`netname'")))
+		local __nwdynam_collabs "`__nwdynam_collabs' `__nwdynam_xlabs'"
+	}
+	capture mata: mata drop `__nwdynam_xt' `__nwdynam_XL' `__nwdynam_XA'
 
 	tempname __nwdynam_events
 	mata: `__nwdynam_events' = *(`netobj'->get_eventlist())
@@ -1032,6 +1119,7 @@ program nwdynam, eclass
 	}
 	local __nwdynam_rc = _rc
 	capture scalar drop __nwdynam_sequential
+	capture mata: mata drop __nwdynam_xblob
 	if `__nwdynam_rc' {
 		if "`c(frame)'" != "`__nwdynam_frame'" capture frame change `__nwdynam_frame'
 		capture frame drop __nwdynam_native

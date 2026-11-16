@@ -1,0 +1,36 @@
+"id","sub","opts","kind","exo","tolb","tolse"
+"d01","choice","netterms(tertiusdiff(x))","one","",1e-06,1e-06
+"d03","choice","netterms(tertiusdiff(y x2))","one","x2=statdir",1e-06,1e-06
+"d05","choice","inertia netterms(tertiusdiff(x))","one","",1e-06,1e-06
+"d11","choice","inertia netterms(tertiusdiff(y))","one","",1e-06,1e-06
+"d12","choice","indeg alter(x) netterms(tertiusdiff(y x2))","one","x2=statdir",1e-06,1e-06
+"d13","choice","indeg alter(y) netterms(tertiusdiff(y))","one","",1e-06,1e-06
+"d15","choice","indeg alter(x) netterms(tertiusdiff(y))","one","",1e-06,1e-06
+"d16","choice","indeg alter(y) netterms(tertiusdiff(x))","one","",1e-06,1e-06
+"d18","choice","alter(x) netterms(tertiusdiff(x) tertiusdiff(x x1))","one","x1=dyndir",1e-06,1e-06
+"d23","choice","inertia indeg alter(x)","one","",1e-06,1e-06
+"d24","choice","inertia alter(x) netterms(tertiusdiff(x))","one","",1e-06,1e-06
+"d25","choice","inertia netterms(tertiusdiff(y x2))","one","x2=statdir",1e-06,1e-06
+"d26","choice","indeg alter(x) netterms(tertiusdiff(x))","one","",1e-06,1e-06
+"d27","choice","inertia indeg netterms(tertiusdiff(y))","one","",1e-06,1e-06
+"d31","choice","indeg alter(y) netterms(tertiusdiff(y))","one","",1e-06,1e-06
+"d33","choice","inertia indeg alter(y)","one","",1e-06,1e-06
+"d34","choice","inertia indeg alter(x)","one","",1e-06,1e-06
+"d36","choice","inertia indeg alter(y)","one","",1e-06,1e-06
+"d37","choice","inertia alter(y) netterms(tertiusdiff(y x1))","one","x1=dyndir",1e-06,1e-06
+"d40","choice","inertia indeg netterms(tertiusdiff(x))","one","",1e-06,1e-06
+"d41","choice","inertia indeg netterms(tertiusdiff(x))","one","",1e-06,1e-06
+"d42","choice","inertia indeg netterms(tertiusdiff(y x1))","one","x1=dyndir",1e-06,1e-06
+"d43","choice","inertia indeg netterms(tertiusdiff(x))","one","",1e-06,1e-06
+"d46","choice","indeg netterms(tertiusdiff(x) tertiusdiff(x x1))","one","x1=dyndir",1e-06,1e-06
+"d47","choice","inertia netterms(tertiusdiff(y x1) tertiusdiff(x x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"d48","choice","inertia indeg netterms(tertiusdiff(y))","one","",1e-06,1e-06
+"d49","choice","inertia indeg netterms(tertiusdiff(y))","one","",1e-06,1e-06
+"d50","choice","inertia alter(x) netterms(tertiusdiff(x x1))","one","x1=dyndir",1e-06,1e-06
+"d51","choice","inertia alter(y) netterms(tertiusdiff(x x2))","one","x2=statdir",1e-06,1e-06
+"d52","choice","inertia alter(x) netterms(tertiusdiff(y))","one","",1e-06,1e-06
+"d53","choice","inertia alter(y) netterms(tertiusdiff(x))","one","",1e-06,1e-06
+"d54","choice","inertia indeg alter(x)","one","",1e-06,1e-06
+"d58","choice","inertia indeg alter(x)","one","",1e-06,1e-06
+"d59","choice","inertia alter(x) netterms(tertiusdiff(x))","one","",1e-06,1e-06
+"d60","choice","inertia alter(y) netterms(tertiusdiff(x x1))","one","x1=dyndir",1e-06,1e-06

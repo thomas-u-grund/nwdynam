@@ -1,0 +1,43 @@
+"id","sub","opts","kind","exo","tolb","tolse"
+"e01","choice","inertia indeg ignorerep(indeg)","one","",1e-06,1e-06
+"e02","choice","inertia trans ignorerep(trans)","one","",1e-06,1e-06
+"e11","choice","recip indeg alter(x) ignorerep(recip indeg)","one","",1e-06,1e-06
+"e12","choice","recip indeg alter(x) ignorerep(recip indeg)","one","",1e-06,1e-06
+"e13","choice","same(g) outdeg trans ignorerep(outdeg trans)","one","",1e-06,1e-06
+"e14","choice","recip same(g) commonreceiver ignorerep(recip commonreceiver)","one","",1e-06,1e-06
+"e15","choice","same(g) outdeg trans ignorerep(outdeg trans)","one","",1e-06,1e-06
+"e16","choice","indeg same(g) trans ignorerep(indeg trans)","one","",1e-06,1e-06
+"e17","choice","indeg alter(x) trans ignorerep(indeg trans)","one","",1e-06,1e-06
+"e18","choice","inertia recip indeg ignorerep(recip indeg)","one","",1e-06,1e-06
+"e19","choice","recip same(g) cycle ignorerep(recip cycle)","one","",1e-06,1e-06
+"e20","choice","inertia indeg outdeg ignorerep(indeg outdeg)","one","",1e-06,1e-06
+"e21","choice","inertia indeg alter(x) ignorerep(indeg)","one","",1e-06,1e-06
+"e22","choice","recip same(g) alter(x) ignorerep(recip)","one","",1e-06,1e-06
+"e23","choice","recip same(g) trans ignorerep(recip trans)","one","",1e-06,1e-06
+"e24","choice","alter(x) outdeg cycle ignorerep(outdeg cycle)","one","",1e-06,1e-06
+"e25","choice","inertia recip same(g) ignorerep(recip)","one","",1e-06,1e-06
+"e26","choice","inertia recip alter(x) ignorerep(recip)","one","",1e-06,1e-06
+"e27","choice","recip same(g) alter(x) ignorerep(recip)","one","",1e-06,1e-06
+"e28","choice","inertia recip outdeg ignorerep(recip outdeg)","one","",1e-06,1e-06
+"e29","choice","indeg outdeg trans ignorerep(indeg outdeg trans)","one","",1e-06,1e-06
+"e30","choice","inertia indeg cycle ignorerep(indeg cycle)","one","",1e-06,1e-06
+"e31","choice","indeg outdeg four ignorerep(indeg outdeg four)","one","",1e-06,1e-06
+"e32","choice","trans commonreceiver tertius(x) ignorerep(trans commonreceiver tertius)","one","",1e-06,1e-06
+"e33","choice","inertia indeg same(g) ignorerep(indeg)","one","",1e-06,1e-06
+"e34","choice","inertia recip trans ignorerep(recip trans)","one","",1e-06,1e-06
+"e35","choice","commonsender nodetrans ignorerep(commonsender nodetrans)","one","",1e-06,1e-06
+"e36","choice","inertia recip alter(x) ignorerep(recip)","one","",1e-06,1e-06
+"e37","choice","inertia same(g) trans ignorerep(trans)","one","",1e-06,1e-06
+"e38","choice","alter(x) outdeg four ignorerep(outdeg four)","one","",1e-06,1e-06
+"e39","choice","inertia indeg same(g) ignorerep(indeg)","one","",1e-06,1e-06
+"e40","choice","indeg alter(x) cycle ignorerep(indeg cycle)","one","",1e-06,1e-06
+"e41","choice","recip indeg same(g) ignorerep(recip indeg)","one","",1e-06,1e-06
+"e42","choice","indeg same(g) outdeg ignorerep(indeg outdeg)","one","",1e-06,1e-06
+"e43","choice","indeg alter(x) trans ignorerep(indeg trans)","one","",1e-06,1e-06
+"e44","choice","recip indeg outdeg ignorerep(recip indeg outdeg)","one","",1e-06,1e-06
+"e45","choice","recip indeg alter(x) ignorerep(recip indeg)","one","",1e-06,1e-06
+"e46","choice","same(g) trans commonreceiver ignorerep(trans commonreceiver)","one","",1e-06,1e-06
+"e47","choice","indeg same(g) alter(x) ignorerep(indeg)","one","",1e-06,1e-06
+"e48","choice","inertia commonreceiver nodetrans ignorerep(commonreceiver nodetrans)","one","",1e-06,1e-06
+"e49","choice","alter(x) commonsender ignorerep(commonsender)","one","",1e-06,1e-06
+"e50","choice","recip outdeg commonsender ignorerep(recip outdeg commonsender)","one","",1e-06,1e-06

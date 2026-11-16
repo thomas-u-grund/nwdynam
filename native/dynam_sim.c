@@ -28,7 +28,7 @@
 	  [12..15] weighted flags inertia, recip, indeg, outdeg
 	  [16..35] active flags of the effect slots (choice 17, rate 5, coordination 12)
 	  [36] C (number of change events of covariates)  [37] Cp (number of composition changes)  [38] initial presence given
-	  [39] window of tertius (>= 1e300 = none)
+	  [39] window of tertius (>= 1e300 = none)  [40] length of the block of exogenous networks and extra terms (0 = none)
 	  then events: N rows of (sender, receiver, time, value, last-of-group flag), sorted by time (the caller sorts)
 	  of n values (same, diff, sim, alter/ego, tertius, egoalterint1, egoalterint2): the values at the start of the log,
 	  then the N x n opportunity matrix (only when [6] = 1), then the n x n matrix of tie() (only when [7] = 1).
@@ -63,11 +63,27 @@ typedef int64_t nwint;
 
 #define DYNAM_PROTOCOL 5
 #define NOWIN 1e300
-#define HDR 40
+#define HDR 41
+#define XMAXL 16
+#define XMAXT 32
+#define XMAXA 16
+#define XT_TIE 1
+#define XT_TRANS 2
+#define XT_CYCLE 3
+#define XT_CSEND 4
+#define XT_CRECV 5
+#define XT_MTRANS 6
+#define XT_MCYCLE 7
+#define XT_MCSEND 8
+#define XT_MCRECV 9
+#define XT_TDIFF 10
 #define M_CHOICE 1
 #define M_RATE 2
 #define M_RATEINT 3
 #define M_COORD 4
+
+typedef struct { int hasmat, sym; nwint ne; const double *ev; const double *mat; } XLayer;
+typedef struct { int type, la, lb, ign, attr; double win, wgt; } XTermSpec;
 
 typedef struct {
 	int model;
@@ -85,11 +101,27 @@ typedef struct {
 	double *opp;       /* N x n or NULL */
 	double *tie;       /* n x n or NULL */
 	double *blob;
-	int eff[20], P;    /* active effect slots (1-based) and their number */
+	int eff[64], P;    /* active effect slots (1-based; 100 + t = extra term t) and their number */
+	int ign[20];       /* ignoreRep of the built-in effect slots */
+	int nxl, nxt, nxa;
+	XLayer xl[XMAXL];
+	XTermSpec xt[XMAXT];
+	const double *xattr[XMAXA];
 } Spec;
 
 typedef struct {
+	double *V[2];                      /* the term's own copies of its networks (values) */
+	nwint pc[2], pe[2];                /* next creation / expiry per network */
+	double *C;                         /* cache (counts) or statistic (tie) */
+	double *S;                         /* tertiusDiff: statistic matrix */
+	double *cv;                        /* tertiusDiff: cache vector (NaN = no in-neighbour) */
+	int impute;                        /* tertiusDiff: some cache is NaN */
+} XTState;
+
+typedef struct {
 	nwint n;
+	XTState *xs;
+	int nxt;
 	double *tv;                        /* tie values, n x n */
 	char *Ab;                          /* tv > 0 */
 	double *inS, *outS, *inV, *outV;   /* column / row sums of sign(tv) and of tv */
@@ -111,7 +143,9 @@ typedef struct {
 static double sgn(double x) { return (double)((x > 0.0) - (x < 0.0)); }
 
 static void state_free(State *st) {
-	int q;
+	int q, t;
+	if (st->xs) for (t = 0; t < st->nxt; t++) { free(st->xs[t].V[0]); free(st->xs[t].V[1]); free(st->xs[t].C); free(st->xs[t].S); free(st->xs[t].cv); }
+	free(st->xs);
 	free(st->tv); free(st->Ab); free(st->inS); free(st->outS); free(st->inV); free(st->outV);
 	free(st->inA); free(st->outA);
 	for (q = 0; q < 5; q++) free(st->W[q]);
@@ -120,6 +154,8 @@ static void state_free(State *st) {
 	free(st->AA); free(st->AtA); free(st->AAt); free(st->nt); free(st->tnum); free(st->cvbuf); free(st->pres);
 	memset(st, 0, sizeof(State));
 }
+
+static int xt_init(const Spec *sp, State *st);
 
 static int has_eff(const Spec *sp, int e) {
 	int k;
@@ -185,7 +221,7 @@ static int state_init(const Spec *sp, State *st) {
 		if (has_eff(sp, 10)) st->AtA = (int32_t *)calloc(nn, sizeof(int32_t));
 		if ((has_eff(sp, 7) && !st->nt) || (has_eff(sp, 9) && !st->W[4] && !st->tnum) || (has_eff(sp, 8) && !st->AA) || (has_eff(sp, 10) && !st->AtA)) return 909;
 	}
-	return 0;
+	return xt_init(sp, st);
 }
 
 /* a cell (a,b) of Ab changes by d = +1 / -1 (call BEFORE Ab is changed) */
@@ -370,6 +406,302 @@ static void expire(const Spec *sp, State *st, nwint gs, double tcur) {
 	(void)n;
 }
 
+
+/* ------------------------------------------------------------------
+   Extra terms: goldfish's update functions, translated literally (see the header)
+   ------------------------------------------------------------------ */
+static int xt_layer(const XTermSpec *ts, int m) { return m == 0 ? ts->la : ts->lb; }
+
+static int xt_init(const Spec *sp, State *st) {
+	nwint n = sp->n, i, j, k;
+	size_t nn = (size_t)n * (size_t)n;
+	int t, m;
+	st->nxt = sp->nxt;
+	if (sp->nxt == 0) return 0;
+	st->xs = (XTState *)calloc((size_t)sp->nxt, sizeof(XTState));
+	if (!st->xs) return 909;
+	for (t = 0; t < sp->nxt; t++) {
+		const XTermSpec *ts = &sp->xt[t];
+		XTState *x = &st->xs[t];
+		int two = (ts->lb >= 0), win = (ts->win < NOWIN), tdiff = (ts->type == XT_TDIFF);
+		double *S1 = NULL, *S2 = NULL;
+		for (m = 0; m < (two ? 2 : 1); m++) {
+			int L = xt_layer(ts, m);
+			x->V[m] = (double *)calloc(nn, sizeof(double));
+			if (!x->V[m]) return 909;
+			if (L > 0 && sp->xl[L - 1].hasmat) memcpy(x->V[m], sp->xl[L - 1].mat, nn * sizeof(double));
+		}
+		x->C = (double *)calloc(nn, sizeof(double));
+		if (!x->C) return 909;
+		if (tdiff) {
+			x->S = (double *)calloc(nn, sizeof(double));
+			x->cv = (double *)calloc((size_t)n, sizeof(double));
+			if (!x->S || !x->cv) return 909;
+		}
+		/* initial cache and statistic: from the start state of the network(s); windowed terms start at 0 (goldfish) */
+		if (ts->type == XT_TIE) {
+			if (!win) for (i = 0; i < (nwint)nn; i++) x->C[i] = ts->wgt != 0.0 ? x->V[0][i] : (double)(x->V[0][i] > 0.0);
+			continue;
+		}
+		if (win) continue;
+		S1 = (double *)malloc(nn * sizeof(double));
+		if (!S1) return 909;
+		for (i = 0; i < (nwint)nn; i++) S1[i] = sgn(x->V[0][i]);
+		if (two) {
+			S2 = (double *)malloc(nn * sizeof(double));
+			if (!S2) { free(S1); return 909; }
+			for (i = 0; i < (nwint)nn; i++) S2[i] = sgn(x->V[1][i]);
+		}
+		else S2 = S1;
+		switch (ts->type) {
+		case XT_TRANS: case XT_MTRANS: case XT_CYCLE: case XT_MCYCLE:
+			/* P = S1 S2 ; cycle: transposed */
+			for (i = 0; i < n; i++) for (k = 0; k < n; k++) {
+				double a = S1[i * n + k];
+				if (a == 0.0) continue;
+				for (j = 0; j < n; j++) {
+					double b = S2[k * n + j];
+					if (b == 0.0) continue;
+					if (ts->type == XT_TRANS || ts->type == XT_MTRANS) x->C[i * n + j] += a * b; else x->C[j * n + i] += a * b;
+				}
+			}
+			if (ts->type == XT_CYCLE) for (i = 0; i < n; i++) x->C[i * n + i] = 0.0;
+			break;
+		case XT_CSEND: case XT_MCSEND:
+			/* crossprod(S1, S2)[i,j] = sum_k S1[k,i] S2[k,j]; mixed: plus transpose */
+			for (k = 0; k < n; k++) for (i = 0; i < n; i++) {
+				double a = S1[k * n + i];
+				if (a == 0.0) continue;
+				for (j = 0; j < n; j++) {
+					double b = S2[k * n + j];
+					if (b == 0.0) continue;
+					x->C[i * n + j] += a * b;
+					if (ts->type == XT_MCSEND) x->C[j * n + i] += a * b;
+				}
+			}
+			break;
+		case XT_CRECV: case XT_MCRECV:
+			/* tcrossprod(S1, S2)[i,j] = sum_k S1[i,k] S2[j,k]; mixed: plus transpose */
+			for (i = 0; i < n; i++) for (k = 0; k < n; k++) {
+				double a = S1[i * n + k];
+				if (a == 0.0) continue;
+				for (j = 0; j < n; j++) {
+					double b = S2[j * n + k];
+					if (b == 0.0) continue;
+					x->C[i * n + j] += a * b;
+					if (ts->type == XT_MCRECV) x->C[j * n + i] += a * b;
+				}
+			}
+			break;
+		case XT_TDIFF: {
+			const double *at = sp->xattr[ts->attr - 1];
+			int allz = 1, any = 0;
+			double sum = 0.0, imp;
+			nwint cnt = 0;
+			for (i = 0; i < (nwint)nn; i++) if (x->V[0][i] != 0.0) { allz = 0; break; }
+			if (allz) break;       /* cache 0, statistic 0 */
+			for (j = 0; j < n; j++) {
+				double sa = 0.0; nwint c = 0;
+				for (k = 0; k < n; k++) if (S1[k * n + j] == 1.0) { sa += at[k]; c++; }
+				x->cv[j] = c > 0 ? sa / (double)c : NAN;
+				if (c == 0) x->impute = 1;
+			}
+			for (i = 0; i < n; i++) for (j = 0; j < n; j++) {
+				double v = isnan(x->cv[j]) ? NAN : fabs(at[i] - x->cv[j]);
+				x->S[i * n + j] = v;
+				if (i != j && !isnan(v)) { sum += v; cnt++; any = 1; }
+			}
+			imp = any ? sum / (double)cnt : NAN;
+			for (i = 0; i < n; i++) for (j = 0; j < n; j++) {
+				if (i == j) x->S[i * n + j] = 0.0;
+				else if (isnan(x->S[i * n + j])) x->S[i * n + j] = imp;
+			}
+			break;
+		}
+		}
+		free(S1);
+		if (two) free(S2);
+	}
+	return 0;
+}
+
+/* tertiusDiff: the new in-neighbour mean of receiver r after the tie (s,r) changes by d = sign(new) - sign(old); called before V changes */
+static void xt_tdiff(const Spec *sp, State *st, XTState *x, const XTermSpec *ts, nwint s, nwint r, int so, int sn) {
+	nwint n = sp->n, i, j, k;
+	const double *at = sp->xattr[ts->attr - 1], *V = x->V[0];
+	int isEmpty = 1, isImpute, newval = sn - so, nchg = 0;
+	double sum = 0.0, val, imp;
+	nwint cnt = 0;
+	(void)st;
+	for (j = 0; j < n; j++) if (isnan(x->cv[j]) || x->cv[j] != 0.0) { isEmpty = 0; break; }
+	isImpute = 0;
+	for (j = 0; j < n; j++) if (isnan(x->cv[j])) { isImpute = 1; break; }
+	for (k = 0; k < n; k++) if (V[k * n + r] > 0.0 && !(newval != 1 && k == s)) { sum += at[k]; cnt++; }
+	if (newval == 1) { sum += at[s]; cnt++; }
+	val = cnt > 0 ? sum / (double)cnt : NAN;
+	if (!isImpute && isnan(val)) isImpute = 1;
+	x->cv[r] = val;
+	x->impute = isImpute;
+	/* changes: column r for every actor but r */
+	if (!isnan(val)) {
+		for (i = 0; i < n; i++) if (i != r) x->S[i * n + r] = fabs(at[i] - val);
+		nchg = 1;
+	}
+	if (isEmpty) {
+		/* every cell that is not a change gets the mean of the changed values */
+		if (nchg) {
+			double ms = 0.0; nwint mc = 0;
+			for (i = 0; i < n; i++) if (i != r) { ms += fabs(at[i] - val); mc++; }
+			imp = mc > 0 ? ms / (double)mc : NAN;
+		}
+		else imp = NAN;
+		for (i = 0; i < n; i++) for (j = 0; j < n; j++) {
+			if (i == j) continue;
+			if (nchg && j == r) continue;
+			x->S[i * n + j] = imp;
+		}
+	}
+	else if (isImpute) {
+		/* statistic recomputed from the whole cache; its missing cells get its mean (diagonal excluded) */
+		double ms = 0.0; nwint mc = 0;
+		for (i = 0; i < n; i++) for (j = 0; j < n; j++) {
+			double v;
+			if (i == j) continue;
+			v = isnan(x->cv[j]) ? NAN : fabs(at[i] - x->cv[j]);
+			if (!isnan(v)) { ms += v; mc++; }
+		}
+		imp = mc > 0 ? ms / (double)mc : NAN;
+		for (i = 0; i < n; i++) for (j = 0; j < n; j++) {
+			if (i == j) continue;
+			if (isnan(x->cv[j]) && !(nchg && j == r)) x->S[i * n + j] = imp;
+		}
+	}
+}
+
+/* one change of network slot m of term t: cell (a,b) changes by dv (the term's own copy; goldfish: update_* with the network before the change) */
+static void xt_cell(const Spec *sp, State *st, int t, int m, nwint a, nwint b, double dv) {
+	nwint n = sp->n, k;
+	const XTermSpec *ts = &sp->xt[t];
+	XTState *x = &st->xs[t];
+	double old = x->V[m][a * n + b], nw = old + dv, so = sgn(old), sn = sgn(nw), d = sn - so;
+	const double *V0 = x->V[0], *V1 = x->V[ts->lb >= 0 ? 1 : 0];
+	double *C = x->C;
+	if (ts->type == XT_TIE) {
+		x->V[m][a * n + b] = nw;
+		if (ts->wgt != 0.0) C[a * n + b] = nw; else C[a * n + b] = (double)(nw > 0.0);
+		return;
+	}
+	if (ts->type == XT_TDIFF) {
+		if (a != b && d != 0.0) xt_tdiff(sp, st, x, ts, a, b, (int)so, (int)sn);
+		x->V[m][a * n + b] = nw;
+		return;
+	}
+	if (a == b || d == 0.0) { x->V[m][a * n + b] = nw; return; }
+	switch (ts->type) {
+	case XT_TRANS:
+		for (k = 0; k < n; k++) {
+			if (k != b && V0[b * n + k] > 0.0) C[a * n + k] += d;
+			if (k != a && V0[k * n + a] > 0.0) C[k * n + b] += d;
+		}
+		break;
+	case XT_CYCLE:
+		for (k = 0; k < n; k++) {
+			if (k == a || k == b) continue;
+			if (V0[b * n + k] > 0.0) C[k * n + a] += d;
+			if (V0[k * n + a] > 0.0) C[b * n + k] += d;
+		}
+		break;
+	case XT_CSEND:
+		for (k = 0; k < n; k++) if (k != a && k != b && V0[a * n + k] > 0.0) { C[k * n + b] += d; C[b * n + k] += d; }
+		break;
+	case XT_CRECV:
+		for (k = 0; k < n; k++) if (k != a && k != b && V0[k * n + b] > 0.0) { C[a * n + k] += d; C[k * n + a] += d; }
+		break;
+	case XT_MTRANS:
+		for (k = 0; k < n; k++) {
+			if (k == a || k == b) continue;
+			if (m == 0 ? V1[b * n + k] > 0.0 : V0[k * n + a] > 0.0) C[m == 0 ? a * n + k : k * n + b] += d;
+		}
+		break;
+	case XT_MCYCLE:
+		for (k = 0; k < n; k++) {
+			if (k == a || k == b) continue;
+			if (m == 0 ? V1[b * n + k] > 0.0 : V0[k * n + a] > 0.0) C[m == 0 ? k * n + a : b * n + k] += d;
+		}
+		break;
+	case XT_MCSEND:
+		for (k = 0; k < n; k++) {
+			if (k == a || k == b) continue;
+			if (m == 0 ? V1[a * n + k] > 0.0 : V0[a * n + k] > 0.0) { C[(m == 0 ? b * n + k : k * n + b)] += d; C[(m == 0 ? k * n + b : b * n + k)] += d; }
+		}
+		break;
+	case XT_MCRECV:
+		for (k = 0; k < n; k++) {
+			if (k == a || k == b) continue;
+			if (m == 0 ? V1[k * n + b] > 0.0 : V0[k * n + b] > 0.0) { C[(m == 0 ? a * n + k : k * n + a)] += d; C[(m == 0 ? k * n + a : a * n + k)] += d; }
+		}
+		break;
+	}
+	x->V[m][a * n + b] = nw;
+}
+
+static void xt_change(const Spec *sp, State *st, int t, int m, int sym, nwint a, nwint b, double dv) {
+	xt_cell(sp, st, t, m, a, b, dv);
+	if (sym) xt_cell(sp, st, t, m, b, a, dv);
+}
+
+/* bring every extra term up to the start of the group that begins at row gs of the dependent events (time tcur): the events of
+   the networks with time < tcur (dependent events: rows < gs) and the expiries of windowed events with time + window < tcur,
+   in the order of time; at equal times creations come before expiries, the first network before the second. */
+static void xadvance(const Spec *sp, State *st, nwint gs, double tcur) {
+	int t;
+	for (t = 0; t < sp->nxt; t++) {
+		const XTermSpec *ts = &sp->xt[t];
+		XTState *x = &st->xs[t];
+		int nsl = (ts->lb >= 0) ? 2 : 1, win = (ts->win < NOWIN);
+		for (;;) {
+			int bm = -1, bk = 0, m;
+			double bt = 1e300;
+			for (m = 0; m < nsl; m++) {
+				int L = xt_layer(ts, m);
+				nwint ne = (L == 0) ? sp->N : sp->xl[L - 1].ne;
+				const double *ev = (L == 0) ? sp->ev : sp->xl[L - 1].ev;
+				int stride = (L == 0) ? 5 : 4;
+				if (x->pc[m] < ne) {
+					double tc = ev[stride * x->pc[m] + 2];
+					int ok = (L == 0) ? (x->pc[m] < gs) : (tc < tcur);
+					if (ok && (bm < 0 || tc < bt)) { bm = m; bk = 0; bt = tc; }
+				}
+				if (win && x->pe[m] < x->pc[m]) {
+					double te = ev[stride * x->pe[m] + 2] + ts->win;
+					if (te < tcur && (bm < 0 || te < bt)) { bm = m; bk = 1; bt = te; }
+				}
+			}
+			if (bm < 0) break;
+			{
+				int L = xt_layer(ts, bm);
+				int stride = (L == 0) ? 5 : 4, sym = (L == 0) ? st->sym : sp->xl[L - 1].sym;
+				const double *ev = (L == 0) ? sp->ev : sp->xl[L - 1].ev;
+				nwint i = bk == 0 ? x->pc[bm] : x->pe[bm];
+				nwint a = (nwint)ev[stride * i] - 1, b = (nwint)ev[stride * i + 1] - 1;
+				double v = ev[stride * i + 3];
+				xt_change(sp, st, t, bm, sym, a, b, bk == 0 ? v : -v);
+				if (bk == 0) x->pc[bm]++; else x->pe[bm]++;
+			}
+		}
+	}
+}
+
+static int eff_ign(const Spec *sp, int e) { return e >= 100 ? sp->xt[e - 100].ign : (e < 20 ? sp->ign[e] : 0); }
+
+/* statistic of term t for the dyad (a,b) */
+static double xt_stat(const Spec *sp, const State *st, int t, nwint a, nwint b) {
+	const XTState *x = &st->xs[t];
+	double v = (sp->xt[t].type == XT_TDIFF) ? x->S[a * sp->n + b] : x->C[a * sp->n + b];
+	if (isnan(v)) v = 0.0;
+	return v;
+}
+
 /* ------------------------------------------------------------------
    Statistics of one candidate vector. X is P x n (row k = k-th active effect)
    ------------------------------------------------------------------ */
@@ -423,6 +755,8 @@ static void choice_stats(const Spec *sp, const State *st, nwint s, double *X, do
 			break;
 		case 17: for (j = 0; j < n; j++) x[j] = sp->tie[s * n + j]; break;
 		}
+		if (sp->eff[q] >= 100) { int t = sp->eff[q] - 100; for (j = 0; j < n; j++) x[j] = xt_stat(sp, st, t, s, j); }
+		if (eff_ign(sp, sp->eff[q])) for (j = 0; j < n; j++) if (A[s * n + j]) x[j] = 0.0;
 	}
 }
 
@@ -479,6 +813,7 @@ static int eval_softmax(const Spec *sp, const double *theta, int todo, double *l
 		if (fresh) {
 			expire(sp, &st, gs, sp->ev[5 * i + 2]);
 			apply_changes(sp, &st, sp->ev[5 * i + 2]);
+			if (sp->nxt > 0) xadvance(sp, &st, gs, sp->ev[5 * i + 2]);
 			if (!choice) rate_stats(sp, &st, X, 0);
 		}
 		if (st.pres) {
@@ -685,7 +1020,15 @@ done:
    Pnorm(a,b) = p(a,b) p(b,a) / (sum / 2); log likelihood ln Pnorm(s,r); gradient from the row scores (see the reference
    evaluator). Gradient only (no Hessian).
    ------------------------------------------------------------------ */
+static double coord_S0(const Spec *sp, const State *st, int e, nwint a, nwint b, const int32_t *AAtA);
 static double coord_S(const Spec *sp, const State *st, int e, nwint a, nwint b, const int32_t *AAtA) {
+	double v;
+	if (e >= 100) v = xt_stat(sp, st, e - 100, a, b);
+	else v = coord_S0(sp, st, e, a, b, AAtA);
+	if (eff_ign(sp, e) && st->Ab[a * sp->n + b]) v = 0.0;
+	return v;
+}
+static double coord_S0(const Spec *sp, const State *st, int e, nwint a, nwint b, const int32_t *AAtA) {
 	nwint n = sp->n;
 	switch (e) {
 	case 1:
@@ -737,6 +1080,7 @@ static int eval_coord(const Spec *sp, const double *theta, int todo, double *ll,
 		if (dirty) {
 			expire(sp, &st, gs, sp->ev[5 * i + 2]);
 			apply_changes(sp, &st, sp->ev[5 * i + 2]);
+			if (sp->nxt > 0) xadvance(sp, &st, gs, sp->ev[5 * i + 2]);
 			if (four) {
 				/* AAtA = A * (A'A), recomputed when the tie matrix changed */
 				memset(AAtA, 0, (size_t)n * (size_t)n * sizeof(int32_t));
@@ -831,7 +1175,7 @@ static int spec_read(Spec *sp, nwint L) {
 	sp->win[4] = sp->blob[39];
 	for (k = 0; k < 20; k++) sp->act[k] = sp->blob[16 + k];
 	sp->P = 0;
-	for (k = 0; k < sp->M && k < 20; k++) if (sp->act[k] != 0.0) sp->eff[sp->P++] = k + 1;
+	for (k = 0; k < sp->M && k < 20; k++) if (sp->act[k] != 0.0) { sp->eff[sp->P++] = k + 1; sp->ign[k + 1 < 20 ? k + 1 : 19] = (sp->act[k] == 2.0); }
 	pos = HDR;
 	sp->C = (nwint)sp->blob[36];
 	if (sp->C < 0) return 198;
@@ -844,6 +1188,40 @@ static int spec_read(Spec *sp, nwint L) {
 	for (k = 0; k < 7; k++) { sp->cov[k] = sp->blob + pos; pos += sp->n; }
 	if (sp->hasopp) { sp->opp = sp->blob + pos; pos += sp->N * sp->n; }
 	if (sp->hastie) { sp->tie = sp->blob + pos; pos += sp->n * sp->n; }
+	{
+		nwint xlen = (nwint)sp->blob[40];
+		if (xlen < 0) return 198;
+		if (xlen > 0) {
+			const double *xb = sp->blob + pos;
+			nwint p = 3, nl, nt, na, l, t;
+			if (xlen < 3) return 198;
+			nl = (nwint)xb[0]; nt = (nwint)xb[1]; na = (nwint)xb[2];
+			if (nl < 0 || nl > XMAXL || nt < 0 || nt > XMAXT || na < 0 || na > XMAXA) { SF_error("dynam_sim: too many exogenous networks or terms\n"); return 198; }
+			for (l = 0; l < nl; l++) {
+				XLayer *xl = &sp->xl[l];
+				if (p + 3 > xlen) return 198;
+				xl->hasmat = (int)xb[p]; xl->sym = (int)xb[p + 1]; xl->ne = (nwint)xb[p + 2]; p += 3;
+				if (xl->ne < 0) return 198;
+				xl->ev = xb + p; p += 4 * xl->ne;
+				if (xl->hasmat) { xl->mat = xb + p; p += sp->n * sp->n; }
+				if (p > xlen) return 198;
+			}
+			for (t = 0; t < nt; t++) {
+				XTermSpec *ts = &sp->xt[t];
+				if (p + 8 > xlen) return 198;
+				ts->type = (int)xb[p]; ts->la = (int)xb[p + 1]; ts->lb = (int)xb[p + 2]; ts->win = xb[p + 3]; ts->wgt = xb[p + 4];
+				ts->ign = (int)xb[p + 5]; ts->attr = (int)xb[p + 6]; p += 8;
+				if (ts->type < XT_TIE || ts->type > XT_TDIFF || ts->la < 0 || ts->la > nl || ts->lb > nl || ts->lb < -1) return 198;
+				if (ts->type == XT_TDIFF && (ts->attr < 1 || ts->attr > na)) return 198;
+				if (sp->P >= 60) return 198;
+				sp->eff[sp->P++] = 100 + (int)t;
+			}
+			for (l = 0; l < na; l++) { if (p + sp->n > xlen) return 198; sp->xattr[l] = xb + p; p += sp->n; }
+			if (p != xlen) return 198;
+			sp->nxl = (int)nl; sp->nxt = (int)nt; sp->nxa = (int)na;
+			pos += xlen;
+		}
+	}
 	if (pos != L) return 198;
 	if (sp->n < 2 || sp->N < 1) return 198;
 	for (i = 0; i < sp->C; i++) {
@@ -861,6 +1239,18 @@ static int spec_read(Spec *sp, nwint L) {
 			return 198;
 		}
 		if (i > 0 && sp->pchg[3 * i + 1] < sp->pchg[3 * i - 2]) { SF_error("dynam_sim: composition changes are not sorted by time\n"); return 198; }
+	}
+	if (sp->nxt > 0 && (sp->model == M_RATE || sp->model == M_RATEINT)) { SF_error("dynam_sim: extra terms are not available in the rate model\n"); return 198; }
+	{
+		int l;
+		for (l = 0; l < sp->nxl; l++) {
+			nwint e;
+			for (e = 0; e < sp->xl[l].ne; e++) {
+				double a = sp->xl[l].ev[4 * e], b = sp->xl[l].ev[4 * e + 1];
+				if (!(a >= 1.0 && a <= (double)sp->n && b >= 1.0 && b <= (double)sp->n)) { SF_error("dynam_sim: an event of an exogenous network has an actor outside 1..n\n"); return 198; }
+				if (e > 0 && sp->xl[l].ev[4 * e + 2] < sp->xl[l].ev[4 * e - 2]) { SF_error("dynam_sim: events of an exogenous network are not sorted by time\n"); return 198; }
+			}
+		}
 	}
 	/* every actor index of an event must be an actor 1..n (the kernels index arrays with it) */
 	for (i = 0; i < sp->N; i++) {

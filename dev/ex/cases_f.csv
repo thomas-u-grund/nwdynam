@@ -1,0 +1,46 @@
+"id","sub","opts","kind","exo","tolb","tolse"
+"f01","choice_coordination","netterms(tie(x1))","und","x1=dynund",5e-04,0.1
+"f02","choice_coordination","netterms(tie(x2))","und","x2=statund",5e-04,0.1
+"f03","choice_coordination","netterms(trans(x1))","und","x1=dynund",5e-04,0.1
+"f04","choice_coordination","netterms(mixedtrans(net x1))","und","x1=dynund",5e-04,0.1
+"f05","choice_coordination","netterms(tertiusdiff(x))","und","",5e-04,0.1
+"f11","choice_coordination","inertia netterms(tie(x1))","und","x1=dynund",5e-04,0.1
+"f12","choice_coordination","inertia netterms(tie(x1))","und","x1=dynund",5e-04,0.1
+"f13","choice_coordination","inertia netterms(mixedtrans(net x1))","und","x1=dynund",5e-04,0.1
+"f14","choice_coordination","netterms(tie(x1) trans(x2))","und","x1=dynund x2=statund",5e-04,0.1
+"f15","choice_coordination","indeg netterms(tie(x1))","und","x1=dynund",5e-04,0.1
+"f16","choice_coordination","netterms(tie(x2) trans(x1))","und","x1=dynund x2=statund",5e-04,0.1
+"f17","choice_coordination","netterms(tie(x3, weighted) trans(x1))","und","x1=dynund x3=dynund",5e-04,0.1
+"f18","choice_coordination","inertia netterms(tie(x3, weighted))","und","x3=dynund",5e-04,0.1
+"f19","choice_coordination","indeg netterms(tie(x1))","und","x1=dynund",5e-04,0.1
+"f20","choice_coordination","indeg netterms(tie(x3, weighted))","und","x3=dynund",5e-04,0.1
+"f21","choice_coordination","inertia netterms(tie(x2))","und","x2=statund",5e-04,0.1
+"f22","choice_coordination","inertia indeg","und","",5e-04,0.1
+"f23","choice_coordination","inertia netterms(tie(x2))","und","x2=statund",5e-04,0.1
+"f24","choice_coordination","inertia indeg","und","",5e-04,0.1
+"f25","choice_coordination","inertia indeg","und","",5e-04,0.1
+"f26","choice_coordination","indeg netterms(tie(x2))","und","x2=statund",5e-04,0.1
+"f27","choice_coordination","inertia netterms(tie(x2))","und","x2=statund",5e-04,0.1
+"f28","choice_coordination","inertia indeg","und","",5e-04,0.1
+"f29","choice_coordination","inertia netterms(trans(x2))","und","x2=statund",5e-04,0.1
+"f30","choice_coordination","netterms(tie(x3, weighted) trans(x1))","und","x1=dynund x3=dynund",5e-04,0.1
+"f31","choice_coordination","inertia netterms(tie(x1))","und","x1=dynund",5e-04,0.1
+"f32","choice_coordination","indeg netterms(tie(x3, weighted))","und","x3=dynund",5e-04,0.1
+"f33","choice_coordination","netterms(tie(x1) tie(x2))","und","x1=dynund x2=statund",5e-04,0.1
+"f34","choice_coordination","netterms(tie(x2) tie(x3, weighted))","und","x2=statund x3=dynund",5e-04,0.1
+"f35","choice_coordination","inertia indeg","und","",5e-04,0.1
+"f36","choice_coordination","netterms(tie(x1) tie(x2))","und","x1=dynund x2=statund",5e-04,0.1
+"f37","choice_coordination","netterms(trans(x1) trans(x2))","und","x1=dynund x2=statund",5e-04,0.1
+"f38","choice_coordination","inertia netterms(tie(x1))","und","x1=dynund",5e-04,0.1
+"f39","choice_coordination","inertia netterms(tie(x1))","und","x1=dynund",5e-04,0.1
+"f40","choice_coordination","inertia netterms(tie(x3, weighted))","und","x3=dynund",5e-04,0.1
+"f41","choice_coordination","netterms(tie(x2) tie(x3, weighted))","und","x2=statund x3=dynund",5e-04,0.1
+"f42","choice_coordination","inertia indeg","und","",5e-04,0.1
+"f43","choice_coordination","inertia netterms(tie(x2))","und","x2=statund",5e-04,0.1
+"f44","choice_coordination","inertia indeg","und","",5e-04,0.1
+"f45","choice_coordination","netterms(tie(x1) tertiusdiff(x x1))","und","x1=dynund",5e-04,0.1
+"f46","choice_coordination","inertia indeg","und","",5e-04,0.1
+"f47","choice_coordination","indeg netterms(tie(x2))","und","x2=statund",5e-04,0.1
+"f48","choice_coordination","indeg netterms(tie(x1))","und","x1=dynund",5e-04,0.1
+"f49","choice_coordination","indeg netterms(tie(x3, weighted))","und","x3=dynund",5e-04,0.1
+"f50","choice_coordination","indeg netterms(tie(x1))","und","x1=dynund",5e-04,0.1

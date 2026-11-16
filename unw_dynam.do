@@ -49,6 +49,13 @@ capture mata: mata drop DynamRateInterceptFitMulti()
 
 
 capture mata: mata drop DynamCoordFitMulti()
+capture mata: mata drop dynam_parse_terms()
+capture mata: mata drop dynam_xt_nets()
+capture mata: mata drop dynam_xt_vars()
+capture mata: mata drop dynam_xt_labels()
+capture mata: mata drop dynam_xlayer()
+capture mata: mata drop dynam_xblob()
+capture mata: mata drop dynam_nx()
 
 mata:
 mata set matastrict off
@@ -544,9 +551,11 @@ void DynamNat::close() {
 void DynamNat::setup(real scalar model, pointer(class DynamState scalar) scalar pS, real rowvector active,
 		real matrix covmat, real rowvector win5, real rowvector wgt4, real scalar n1, real matrix oppmat, real matrix tiemat) {
 	real scalar nev, hasopp, hastie, M, nres, nchg, ncomp, hasinit
-	real colvector gend, blob, pv
+	real colvector gend, blob, pv, xb
 	real rowvector hdr
 	real matrix cvc, pc, pin
+	real scalar nx
+	pointer scalar px
 
 	if (cols(win5) == 4) win5 = (win5, 1e300)   // the window of tertius is optional
 	nev = (*pS).nevents
@@ -564,7 +573,14 @@ void DynamNat::setup(real scalar model, pointer(class DynamState scalar) scalar 
 	nchg = rows(cvc)
 	ncomp = rows(pc)
 	hasinit = (rows(pin) > 0)
-	hdr = (DYNAM_PROTOCOL_NEEDED(), model, (*pS).n, nev, n1, M, hasopp, hastie, win5[1..4], wgt4, active, J(1, 20 - M, 0), nchg, ncomp, hasinit, win5[5])
+	px = findexternal("__nwdynam_xblob")
+	xb = J(0, 1, .)
+	nx = 0
+	if (px != NULL) {
+		xb = (*px)
+		nx = xb[2]
+	}
+	hdr = (DYNAM_PROTOCOL_NEEDED(), model, (*pS).n, nev, n1, M, hasopp, hastie, win5[1..4], wgt4, active, J(1, 20 - M, 0), nchg, ncomp, hasinit, win5[5], rows(xb))
 	blob = hdr' \ vec(((*pS).events, gend)')
 	if (nchg > 0) blob = blob \ vec(cvc')
 	if (ncomp > 0) blob = blob \ vec(pc')
@@ -577,8 +593,9 @@ void DynamNat::setup(real scalar model, pointer(class DynamState scalar) scalar 
 	blob = blob \ vec(covmat')
 	if (hasopp) blob = blob \ vec(oppmat')
 	if (hastie) blob = blob \ vec(tiemat')
+	if (rows(xb) > 0) blob = blob \ xb
 	L = rows(blob)
-	Pt = sum(active) + (model == 3)
+	Pt = sum(active :!= 0) + nx + (model == 3)
 	nres = 1 + Pt + Pt * Pt
 	if (max((L, nres)) > st_nobs()) st_addobs(max((L, nres)) - st_nobs())
 	st_store((1::L), 1, blob)
@@ -753,7 +770,7 @@ void DynamChoiceFitMulti(real matrix eventmat, real scalar n, real rowvector act
 
 	S = DynamState()
 	S.init(eventmat, n)
-	if (sum(activevec) == 0) _error("nwdynam: at least one effect must be selected.")
+	if (sum(activevec) == 0 & dynam_nx() == 0) _error("nwdynam: at least one effect must be selected.")
 	covmat = (samevec \ diffvec \ simvec \ altervec \ tertiusvec \ egoalterint1vec \ egoalterint2vec)
 	NT = DynamNat()
 	NT.chg = chgmat
@@ -779,7 +796,7 @@ void DynamRateFitMulti(real matrix eventmat, real scalar n, real rowvector activ
 
 	S = DynamState()
 	S.init(eventmat, n)
-	if (sum(activevec) == 0) _error("nwdynam: at least one effect must be selected.")
+	if (sum(activevec) == 0 & dynam_nx() == 0) _error("nwdynam: at least one effect must be selected.")
 	covmat = (J(3, n, 0) \ egovec \ tertiusvec \ J(2, n, 0))
 	NT = DynamNat()
 	NT.chg = chgmat
@@ -849,7 +866,7 @@ void DynamCoordFitMulti(real matrix eventmat, real scalar n, real rowvector acti
 
 	S = DynamState()
 	S.init(eventmat, n)
-	if (sum(activevec) == 0) _error("nwdynam: at least one effect must be selected.")
+	if (sum(activevec) == 0 & dynam_nx() == 0) _error("nwdynam: at least one effect must be selected.")
 	covmat = (samevec \ diffvec \ simvec \ altervec \ tertiusvec \ egoalterint1vec \ egoalterint2vec)
 	NT = DynamNat()
 	NT.chg = chgmat
@@ -861,6 +878,263 @@ void DynamCoordFitMulti(real matrix eventmat, real scalar n, real rowvector acti
 	st_matrix(bname, theta_hat)
 	st_matrix(vname, V)
 	st_numscalar(llname, ll)
+}
+
+
+/*
+	Extra terms (option netterms()): effects of goldfish on networks other than the dependent network, mixed closures and
+	tertiusDiff. dynam_parse_terms() splits the option text into terms and checks them; the ado file resolves the network names,
+	dynam_xlayer() turns one network into a block of the plugin (its events and/or start matrix), dynam_xblob() writes the whole block.
+	One row per term: (effect, network 1, network 2, attribute variable, window, weighted, ignoreRep).
+*/
+string matrix dynam_parse_terms(string scalar s, string scalar submodel, string scalar depname) {
+	string matrix out
+	string scalar t, nm, args, opts, a1, a2, rest, ow, wopt
+	string rowvector aw, ow2
+	real scalar i, j, depth, k, start, win, wgt, ign, nterm, two, ok
+	string rowvector choiceok, coordok, onenet, twonet
+
+	choiceok = ("tie", "trans", "cycle", "commonsender", "commonreceiver", "mixedtrans", "mixedcycle", "mixedcommonsender", "mixedcommonreceiver", "tertiusdiff")
+	coordok = ("tie", "trans", "mixedtrans", "tertiusdiff")
+	onenet = ("tie", "trans", "cycle", "commonsender", "commonreceiver")
+	twonet = ("mixedtrans", "mixedcycle", "mixedcommonsender", "mixedcommonreceiver")
+	out = J(0, 7, "")
+	s = strtrim(s)
+	i = 1
+	while (i <= strlen(s)) {
+		while (i <= strlen(s) & substr(s, i, 1) == " ") i++
+		if (i > strlen(s)) break
+		start = i
+		while (i <= strlen(s) & substr(s, i, 1) != "(" & substr(s, i, 1) != " ") i++
+		nm = strlower(substr(s, start, i - start))
+		if (i > strlen(s) | substr(s, i, 1) != "(") {
+			errprintf("{p 0 0 2}netterms(): {bf:%s} must be written as a term with parentheses, for example {bf:trans(friends)}.{p_end}\n", nm)
+			exit(198)
+		}
+		depth = 0
+		j = i
+		while (j <= strlen(s)) {
+			if (substr(s, j, 1) == "(") depth++
+			if (substr(s, j, 1) == ")") {
+				depth--
+				if (depth == 0) break
+			}
+			j++
+		}
+		if (depth != 0) {
+			errprintf("{p 0 0 2}netterms(): unbalanced parentheses after {bf:%s}.{p_end}\n", nm)
+			exit(198)
+		}
+		t = substr(s, i + 1, j - i - 1)
+		i = j + 1
+		// arguments before the first top-level comma, options after it
+		depth = 0; k = 0
+		for (j = 1; j <= strlen(t); j++) {
+			if (substr(t, j, 1) == "(") depth++
+			if (substr(t, j, 1) == ")") depth--
+			if (substr(t, j, 1) == "," & depth == 0) {
+				k = j
+				break
+			}
+		}
+		args = strtrim(k > 0 ? substr(t, 1, k - 1) : t)
+		opts = strtrim(k > 0 ? substr(t, k + 1, .) : "")
+		if (submodel == "rate") {
+			errprintf("{p 0 0 2}netterms() is available for submodel(choice) and submodel(choice_coordination) only: goldfish's rate sub-model has no effect on another network in this release.{p_end}\n")
+			exit(198)
+		}
+		ok = any(nm :== (submodel == "choice" ? choiceok : coordok))
+		if (!ok) {
+			if (any(nm :== choiceok)) errprintf("{p 0 0 2}netterms(): {bf:%s} is not available with submodel(choice_coordination): goldfish's coordination model has only tie, trans, mixedtrans and tertiusdiff among these effects.{p_end}\n", nm)
+			else errprintf("{p 0 0 2}netterms(): unknown term {bf:%s}; the terms are tie, trans, cycle, commonsender, commonreceiver, mixedtrans, mixedcycle, mixedcommonsender, mixedcommonreceiver and tertiusdiff.{p_end}\n", nm)
+			exit(198)
+		}
+		aw = tokens(args)
+		a1 = ""; a2 = ""; ow = ""
+		if (any(nm :== onenet)) {
+			if (cols(aw) != 1) {
+				errprintf("{p 0 0 2}netterms(): %s() takes one network, for example %s(friends).{p_end}\n", nm, nm)
+				exit(198)
+			}
+			a1 = aw[1]
+		}
+		else if (any(nm :== twonet)) {
+			if (cols(aw) != 2) {
+				errprintf("{p 0 0 2}netterms(): %s() takes two networks, for example %s(net1 net2).{p_end}\n", nm, nm)
+				exit(198)
+			}
+			if (aw[1] == aw[2]) {
+				errprintf("{p 0 0 2}netterms(): %s() needs two different networks.{p_end}\n", nm)
+				exit(198)
+			}
+			if (aw[1] == depname & aw[2] == depname) exit(198)
+			a1 = aw[1]; a2 = aw[2]
+		}
+		else {
+			if (cols(aw) < 1 | cols(aw) > 2) {
+				errprintf("{p 0 0 2}netterms(): tertiusdiff() takes a variable and, optionally, a network: tertiusdiff(x) or tertiusdiff(x friends).{p_end}\n")
+				exit(198)
+			}
+			ow = aw[1]
+			a1 = (cols(aw) == 2 ? aw[2] : depname)
+		}
+		win = 1e300; wgt = 0; ign = 0
+		ow2 = tokens(opts)
+		for (k = 1; k <= cols(ow2); k++) {
+			wopt = strlower(ow2[k])
+			if (wopt == "weighted") {
+				if (!any(nm :== ("tie", "tertiusdiff"))) {
+					errprintf("{p 0 0 2}netterms(): weighted is an option of tie() only; goldfish's %s counts the presence of ties.{p_end}\n", nm)
+					exit(198)
+				}
+				wgt = 1
+			}
+			else if (wopt == "ignorerep") ign = 1
+			else if (substr(wopt, 1, 7) == "window(") {
+				win = strtoreal(substr(wopt, 8, strlen(wopt) - 8))
+				if (missing(win) | win <= 0) {
+					errprintf("{p 0 0 2}netterms(): window() must be a positive number.{p_end}\n")
+					exit(198)
+				}
+			}
+			else if (wopt == "window" & k < cols(ow2)) {
+				win = strtoreal(ow2[k + 1])
+				k++
+				if (missing(win) | win <= 0) {
+					errprintf("{p 0 0 2}netterms(): window() must be a positive number.{p_end}\n")
+					exit(198)
+				}
+			}
+			else {
+				errprintf("{p 0 0 2}netterms(): unknown option {bf:%s} in %s(); the options are window(#), weighted (tie only) and ignorerep.{p_end}\n", ow2[k], nm)
+				exit(198)
+			}
+		}
+		out = out \ (nm, a1, a2, ow, strofreal(win, "%25.17g"), strofreal(wgt), strofreal(ign))
+	}
+	return(out)
+}
+
+// the distinct network names of the terms other than the dependent network (in order of appearance)
+string rowvector dynam_xt_nets(string matrix T, string scalar depname) {
+	string rowvector r
+	real scalar i, c
+	r = J(1, 0, "")
+	for (i = 1; i <= rows(T); i++) for (c = 2; c <= 3; c++) {
+		if (T[i, c] != "" & T[i, c] != depname & !any(T[i, c] :== r)) r = r, T[i, c]
+	}
+	return(r)
+}
+
+string rowvector dynam_xt_vars(string matrix T) {
+	string rowvector r
+	real scalar i
+	r = J(1, 0, "")
+	for (i = 1; i <= rows(T); i++) if (T[i, 4] != "" & !any(T[i, 4] :== r)) r = r, T[i, 4]
+	return(r)
+}
+
+// column labels of the terms: effect_network[_network2|_variable], at most 32 characters, letters, digits and underscores
+string rowvector dynam_xt_labels(string matrix T, string scalar depname) {
+	string rowvector lab
+	string scalar l, c
+	real scalar i, k, m
+	lab = J(1, rows(T), "")
+	for (i = 1; i <= rows(T); i++) {
+		l = T[i, 1]
+		if (T[i, 4] != "") l = l + "_" + T[i, 4]
+		if (T[i, 2] != "" & !(T[i, 4] != "" & T[i, 2] == depname)) l = l + "_" + T[i, 2]
+		if (T[i, 3] != "") l = l + "_" + T[i, 3]
+		if (strtoreal(T[i, 5]) < 1e300) l = l + "_w" + strofreal(strtoreal(T[i, 5]), "%12.0g")
+		if (strtoreal(T[i, 6]) != 0 & T[i, 1] == "tie") l = l + "_wgt"
+		if (strtoreal(T[i, 7]) != 0) l = l + "_ign"
+		c = ""
+		for (k = 1; k <= strlen(l); k++) {
+			m = ascii(substr(l, k, 1))
+			c = c + ((m >= 48 & m <= 57) | (m >= 65 & m <= 90) | (m >= 97 & m <= 122) | m == 95 ? substr(l, k, 1) : "_")
+		}
+		lab[i] = substr(c, 1, 32)
+	}
+	for (i = 1; i <= cols(lab); i++) for (k = i + 1; k <= cols(lab); k++) if (lab[i] == lab[k]) {
+		errprintf("{p 0 0 2}netterms(): the terms %g and %g would get the same column name %s; they are the same effect.{p_end}\n", i, k, lab[i])
+		exit(198)
+	}
+	return(lab)
+}
+
+/*
+	One network of the terms as a block of the plugin (ev = its event list, nm = its node names, M = its matrix, whichever istemporal needs): (hasmatrix, symmetric, ne), the ne events (sender, receiver, time, value) in the
+	order of time (rows of the event list break ties) with the actors of the fitted network, then the start matrix of a static network.
+	An event network starts empty; its actors are matched to the actors of the fitted network by label. A static network needs the same
+	number of actors in the same order.
+*/
+real colvector dynam_xlayer(string scalar istemporal, string scalar directed, string scalar name, string rowvector mainnames, real matrix ev, string rowvector nm, real matrix M) {
+	real colvector ord, ids, pos
+	real scalar k, n
+	transmorphic A
+	n = cols(mainnames)
+	if (istemporal == "true") {
+		if (rows(ev) == 0) return((0 \ (directed != "true") \ 0))
+		if (cols(ev) < 4) ev = (ev[., 1..3], J(rows(ev), 1, 1))
+		else ev = ev[., 1..4]
+		A = asarray_create("string", 1)
+		for (k = 1; k <= n; k++) asarray(A, mainnames[k], k)
+		ord = order((ev[., 3], (1::rows(ev))), (1, 2))
+		ev = ev[ord, .]
+		for (k = 1; k <= rows(ev); k++) {
+			if (missing(ev[k, 1]) | missing(ev[k, 2]) | missing(ev[k, 3]) | missing(ev[k, 4]) | ev[k, 1] < 1 | ev[k, 2] < 1) {
+				errprintf("{p 0 0 2}netterms(): an event of %s has a missing actor, time or value.{p_end}\n", name)
+				exit(416)
+			}
+			if (!asarray_contains(A, nm[ev[k, 1]]) | !asarray_contains(A, nm[ev[k, 2]])) {
+				errprintf("{p 0 0 2}netterms(): actor %s of %s is not an actor of the fitted network (actors are matched by label).{p_end}\n", (asarray_contains(A, nm[ev[k, 1]]) ? nm[ev[k, 2]] : nm[ev[k, 1]]), name)
+				exit(198)
+			}
+			ev[k, 1] = asarray(A, nm[ev[k, 1]])
+			ev[k, 2] = asarray(A, nm[ev[k, 2]])
+		}
+		return((0 \ (directed != "true") \ rows(ev) \ vec(ev')))
+	}
+	if (rows(M) != n | cols(M) != n) {
+		errprintf("{p 0 0 2}netterms(): the static network %s has %g actors but the fitted network has %g; a static network needs the same actors in the same order.{p_end}\n", name, rows(M), n)
+		exit(198)
+	}
+	M = editmissing(M, 0)
+	return((1 \ 0 \ 0 \ vec(M')))
+}
+
+/*
+	The block of the extra terms: T = rows of dynam_parse_terms(), xnames = names of the exogenous networks in layer order (layer 0 =
+	the dependent network, named depname), XL = asarray name -> block of dynam_xlayer(), vnames/XA = attribute variables and an asarray
+	name -> row vector of the actor values.
+*/
+real colvector dynam_xblob(string matrix T, string rowvector xnames, transmorphic XL, string scalar depname, string rowvector vnames, transmorphic XA, real scalar n) {
+	real colvector b, terms, attrs, lay
+	real scalar i, la, lb, ty, na
+	string rowvector tys
+	tys = ("tie", "trans", "cycle", "commonsender", "commonreceiver", "mixedtrans", "mixedcycle", "mixedcommonsender", "mixedcommonreceiver", "tertiusdiff")
+	lay = J(0, 1, .)
+	for (i = 1; i <= cols(xnames); i++) lay = lay \ asarray(XL, xnames[i])
+	terms = J(0, 1, .)
+	for (i = 1; i <= rows(T); i++) {
+		ty = selectindex(tys :== T[i, 1])
+		la = (T[i, 2] == depname ? 0 : selectindex(xnames :== T[i, 2]))
+		lb = (T[i, 3] == "" ? -1 : (T[i, 3] == depname ? 0 : selectindex(xnames :== T[i, 3])))
+		na = (T[i, 4] == "" ? 0 : selectindex(vnames :== T[i, 4]))
+		terms = terms \ (ty \ la \ lb \ strtoreal(T[i, 5]) \ strtoreal(T[i, 6]) \ strtoreal(T[i, 7]) \ na \ 0)
+	}
+	attrs = J(0, 1, .)
+	for (i = 1; i <= cols(vnames); i++) attrs = attrs \ asarray(XA, vnames[i])'
+	b = (cols(xnames) \ rows(T) \ cols(vnames) \ lay \ terms \ attrs)
+	return(b)
+}
+
+// number of extra terms (0 when no block is set)
+real scalar dynam_nx() {
+	pointer scalar px
+	px = findexternal("__nwdynam_xblob")
+	if (px == NULL) return(0)
+	return((*px)[2])
 }
 
 end
