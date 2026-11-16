@@ -1,5 +1,5 @@
 . nwdynam version
-nwdynam version 1.8.0, 16nov2026
+nwdynam version 1.8.1, 16nov2026
   core package nwcommands : installed (development copy, no distribution date)
   native plugin           : ~/Library/Application Support/Stata/ado/plus/d/dynam_sim_macos.plugin
   compared with           : R goldfish 1.6.12

@@ -11,7 +11,6 @@ A network used by one of these terms is the name of a network that was declared 
   \item a network declared with \opt{eventtime()} that \emph{changes over time} with its own events. It starts empty and its actors are matched to those of the fitted network by label; an actor of this network that is not an actor of the fitted network stops the command with error 198.
 \end{itemize}
 Events of another network at exactly the time of an event of the dependent network are seen by the following events only, as for covariate changes (Section~\ref{sec:tvc}). With a window the statistic starts at 0 whatever the other network holds at the start of the log, as in \goldfish{}.
-\todoowner{Fits that use an \emph{event} network as the second network (for example \texttt{netterms(tie(hier))} with the reporting hierarchy declared as an event network at time 0) did not converge reliably in a test for this manual on the first 631 emails: the estimates depended on the starting values (different \texttt{seed()}, different results, log likelihoods between $-2272$ and $-2307$, the largest not reached by every seed, and some runs reported an estimate near $-28$), although the same tie as an ordinary network gave one stable result ($-2297.04$). \texttt{netterms(trans(mail))} through the fitted network itself was stable. The examples of this manual therefore use ordinary networks. Please check before release whether this is a defect of 1.8.0; the chapter describes the documented behaviour.}
 
 \section{The terms}
 

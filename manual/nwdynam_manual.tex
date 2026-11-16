@@ -29,18 +29,14 @@
 \newcommand{\showlog}[1]{\lstinputlisting{ex/out/#1.txt}}
 \newcommand{\showlogpart}[3]{\lstinputlisting[firstline=#2,lastline=#3]{ex/out/#1.txt}}
 \newcommand{\inc}[1]{\typeout{>>>#1}\input{#1}}
-% Draft marks for the owner: \todoowner{...} prints a red note while \drafttrue holds; set \draftfalse for the version that goes to Zenodo.
-\newif\ifdraft \drafttrue
-\newcommand{\todoowner}[1]{\ifdraft{\par\noindent\textcolor{red}{\textbf{TODO(owner):} #1}\par}\fi}
 \input{gen_compare_nums.tex}
 \newcommand{\manualseries}{1.8}
 % The manual is labelled by the minor series (valid for 1.8.x): change \manualseries only for a new minor or major release whose documented behaviour changed.
-\newcommand{\pkgversion}{1.8.0}
+\newcommand{\pkgversion}{1.8.1}
 \newcommand{\pkgdate}{16 November 2026}
 % Exact version and date of the release that produced the listings (tools/set_version.py does not touch this file; change by hand and rerun the examples).
-% DOI of the archived manual (Zenodo). TO BE REPLACED: the owner creates the Zenodo record and tells the all-versions DOI; until then nothing is archived.
-\newcommand{\manualdoi}{10.5281/zenodo.TO-BE-REPLACED}% TO BE REPLACED by the all-versions DOI of the Zenodo record (see ZENODO.md); with an empty value nothing is printed
-\newcommand{\citedoi}{\ifdefempty{\manualdoi}{}{ Zenodo. \url{https://doi.org/\manualdoi}}}
+\newcommand{\manualurl}{https://nwcommands.org/nwdynam/nwdynam_manual.pdf}
+\newcommand{\citedoi}{ \url{\manualurl}}
 \title{\textbf{nwdynam}\\[4pt]\large Dynamic network actor models in Stata\\ (a package that builds on \texttt{nwcommands})\\[6pt]\normalsize User manual and reference}
 \author{Thomas U. Grund\\ RWTH Aachen University}
 \date{This manual describes \texttt{nwdynam} \manualseries.x\\ (examples produced with \texttt{nwdynam} \pkgversion, \pkgdate)}
@@ -50,7 +46,6 @@
 \noindent Grund, T.~U. (2026). \emph{nwdynam: Dynamic network actor models in Stata. Manual.}\citedoi\par\smallskip
 \noindent Please also report the exact version of the program that produced your results, as printed by \texttt{nwdynam version} and stored in \texttt{e(version)}.
 \end{quote}
-\ifdraft\todoowner{The DOI above is a placeholder (\texttt{\detokenize{\manualdoi}} in \texttt{nwdynam\_manual.tex}); the Zenodo record does not exist yet. All red TODO(owner) notes in this draft mark facts that could not be verified or decisions that are the owner's; set \texttt{\textbackslash draftfalse} to hide them.}\fi
 \chapter*{Acknowledgments}\addcontentsline{toc}{chapter}{Acknowledgments}
 \nwdynam{} follows the \goldfish{} project closely and exists because of it. The dynamic network actor model is due to Christoph Stadtfeld and Per Block~\cite{stadtfeld2017b}, the coordination model to Stadtfeld, Hollway and Block~\cite{stadtfeld2017h}, and \goldfish{} (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors~\cite{goldfish}) is the reference implementation on which the effects, the likelihoods, the defaults and the postestimation tools of \nwdynam{} are modeled. The R source code and the documentation of \goldfish{}~\gfver{} were the specification against which the Stata code was written and checked. The change point methods of \texttt{estat changepoints} are a port of the R package \texttt{changepoint} (Rebecca Killick, Kaylea Haynes, Idris Eckley, Paul Fearnhead and Jamie Lee~\cite{killick2014}), which \goldfish{} calls for the same purpose.
 

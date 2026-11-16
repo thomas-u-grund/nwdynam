@@ -9,6 +9,8 @@ nwset
 nwdynam contact, submodel(choice_coordination) inertia
 *# sm_coord2
 nwdynam contact, submodel(choice_coordination) inertia trans
+*# sm_coord3
+nwdynam contact, submodel(choice_coordination) inertia indeg
 *# sm_two_data
 * two-mode events: an employee (mode 1) writes to a division (mode 2: the division of the receiver, labelled D plus the
 * identifier of the head of the division, so that a division is not mistaken for an employee)

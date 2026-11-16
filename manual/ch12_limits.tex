@@ -49,15 +49,12 @@ The \texttt{estat} commands read the data of the fit in memory (Chapter~\ref{ch:
 
 \section{Limits of estimation}
 
-\paragraph{The coordination sub-model.} The log likelihood of the coordination sub-model is not concave and can be flat. \nwdynam{} runs several starting values, keeps the best converged result and, as a last resort, a simplex search (Section~\ref{sec:technewton}); when none converges it stops with the message of Mata's optimizer and return code 111. On the emails taken as undirected contacts the default effects \opt{inertia} and \opt{indeg} could not be fitted together, while \opt{inertia} alone and \opt{inertia} with \opt{trans} could (Section~\ref{sec:ex_coord}):
-\showlog{li_flat}
-When this happens, drop or recode an effect, or use a different set of effects.
+\paragraph{The coordination sub-model.} The log likelihood of the coordination sub-model is not concave and can be flat. \nwdynam{} first runs a damped quasi-Newton search, then several starting values, keeps the best converged result and, as a last resort, a simplex search (Section~\ref{sec:technewton}); when none converges it stops with the message of Mata's optimizer and return code 111. When this happens, drop or recode an effect, or use a different set of effects.
 
 \paragraph{Effects that are not identified.} An effect is flagged when its standard error is missing, zero or above 100: \texttt{e(unidentified)} lists them and a note under the table says so. Such an estimate must not be interpreted. Typical reasons are too few events for the effect, a perfectly predicted pattern in the data (for instance a covariate that is constant within the candidate sets of every event, as \opt{same()} when the opportunities are restricted to the sender's own division), and effects that are linear functions of each other (\opt{diff()} and \opt{sim()} of the same variable).
 
 \paragraph{Small logs.} A handful of events on very few actors has too little information to pin down the coefficients; wide confidence intervals are to be expected. The precision of a coefficient grows with the number of events.
 
 \paragraph{Size.} The number of rows of the table of \texttt{estat eventprob} is the number of events times the number of candidates and is limited by \opt{maxrows()}. The fits themselves are fast (Section~\ref{sec:speed}); the largest fit that was timed has 20,000 events among 100 actors.
-\todoowner{No maximum number of events or actors is documented in the help file or the tests; if the owner knows practical limits (memory of the frame of the fit, the size of the matrices of the actors), add them here.}
 
 \paragraph{Platforms.} Windows is not tested yet. The plugins for Linux and Windows are built by the build workflow of the repository; the benchmark of Section~\ref{sec:speed} ran on Linux.

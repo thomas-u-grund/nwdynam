@@ -41,12 +41,6 @@ end
 nwset sender receiver, directed eventtime(t) name(loops)
 capture noisily nwdynam loops
 display "return code: " _rc
-*# li_flat
-quietly nwwebuse manufacturing, nwclear
-keep if t < 5
-nwset sender receiver, undirected eventtime(t) name(contact)
-capture noisily nwdynam contact, submodel(choice_coordination) indeg
-display "return code: " _rc
 *# li_restore
 mkmail 5
 quietly nwdynam mail, inertia recip indeg
