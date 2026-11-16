@@ -81,7 +81,8 @@ program nwdynam, eclass
 	if "`opportunities'" != "" {
 		if `: word count `opportunities'' != 2 {
 			di as error "{p 0 0 2}opportunities() takes two variables: the event sequence number and the available actor.{p_end}"
-			error 198
+			if `: word count `opportunities'' < 2 error 102
+			error 103
 		}
 		if "`oppframe'" == "" {
 			capture unab opportunities : `opportunities'

@@ -160,20 +160,22 @@ xt_err 198 nwdynam w40, indegwindow(5)
 xt_err 198 nwdynam w40, submodel(rate) indegwindow(0)
 xt_err 198 nwdynam w40, outdegwindow(5)
 xt_err 198 nwdynam w40, submodel(rate) outdegwindow(-0.5)
-xt_err 198 nwdynam wu, submodel(choice_coordination) inertiawindow(5)
 xt_err 198 nwdynam w40, submodel(rate) weightedinertia
 xt_err 198 nwdynam w40, submodel(rate) weightedrecip
-xt_err 198 nwdynam wu, submodel(choice_coordination) weightedindeg
 xt_err 198 nwdynam wu, submodel(choice_coordination) weightedoutdeg
 * a weighted effect together with its own window runs (as goldfish; compared in test_nwdynam_eventvalues.do)
 foreach spec in "weightedinertia inertiawindow(5)" "weightedrecip recipwindow(5)" "submodel(rate) weightedindeg indegwindow(5)" "submodel(rate) weightedoutdeg outdegwindow(5)" {
 	quietly nwdynam w40, `spec' seed(1)
 }
 di as text "  PASS: weighted effect + own window run"
+* these run now (compared with goldfish in test_nwdynam_combinations.do): coordination windows and weights, windows with the intercept
+foreach spec in "submodel(choice_coordination) inertiawindow(5)" "submodel(choice_coordination) weightedindeg" "submodel(rate) intercept indegwindow(5)" "submodel(rate) intercept outdegwindow(5)" {
+	if strpos("`spec'", "coordination") quietly nwdynam wu, `spec' seed(1)
+	else quietly nwdynam w40, `spec' seed(1)
+}
+di as text "  PASS: coordination windows and weights, windows with intercept run"
 xt_err 198 nwdynam w40, intercept
 xt_err 198 nwdynam wu, submodel(choice_coordination) intercept
-xt_err 198 nwdynam w40, submodel(rate) intercept indegwindow(5)
-xt_err 198 nwdynam w40, submodel(rate) intercept outdegwindow(5)
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
