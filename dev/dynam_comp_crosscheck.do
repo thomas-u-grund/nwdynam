@@ -19,9 +19,11 @@ program runcase
 	save `ndfile'
 	nwclear
 	import delimited using `"$COMPDIR/events_`cid'.csv"', clear varnames(1) stringcols(2 3)
-	if "`isdir'" == "0" nwset sender receiver, eventtime(time) undirected name(net)
+	if "`isdir'" == "2" nwset sender receiver, twomode eventtime(time) name(net)
+	else if "`isdir'" == "0" nwset sender receiver, eventtime(time) undirected name(net)
 	else nwset sender receiver, eventtime(time) directed name(net)
 	* actors without an event of their own (for example absent during the whole log) are not in the network yet
+	* (the two-mode cases have none: nwaddnodes appends to the end, a two-mode network needs mode 1 first)
 	_nwsyntax net, max(1)
 	preserve
 	use `ndfile', clear

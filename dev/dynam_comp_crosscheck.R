@@ -192,5 +192,67 @@ for (cc in cases) {
   cdf <- rbind(cdf, data.frame(id = cc$id, sub = cc$sub, opts = cc$opts, directed = as.integer(!isFALSE(cc$directed)),
     tolb = if (cc$sub == "choice_coordination") 1e-5 else 1e-6, tolse = if (cc$sub == "choice_coordination") 0.1 else 1e-6))
 }
+# ---- two-mode: people (mode 1, senders) and organisations (mode 2, receivers), each with its own presence and changes
+mk2 <- function(seed, n1, n2, N, pabs = 0.25, ncomp = 10) {
+  set.seed(seed)
+  l1 <- paste0("P", 1:n1); l2 <- paste0("O", 1:n2); lab <- c(l1, l2)
+  tm <- round(cumsum(runif(N, 0.3, 3)), 2)
+  for (k in seq(7, N, by = 9)) tm[k] <- tm[k - 1]
+  init <- runif(n1 + n2) > pabs
+  ct <- sort(round(runif(ncomp, min(tm) - 2, max(tm) + 2), 2))
+  ct[seq(2, ncomp, by = 3)] <- sort(sample(tm, length(seq(2, ncomp, by = 3))))
+  ct <- sort(ct)
+  comp <- data.frame(time = ct, node = sample(lab, ncomp, replace = TRUE), value = runif(ncomp) < 0.5, stringsAsFactors = FALSE)
+  snd <- character(N); rcv <- character(N)
+  for (k in 1:N) {
+    p <- pres_at(init, comp, lab, tm[k])
+    while (sum(p[l1]) < 1 || sum(p[l2]) < 2) {
+      nd <- sample(lab[!p], 1)
+      comp <- rbind(comp, data.frame(time = tm[k], node = nd, value = TRUE, stringsAsFactors = FALSE)); comp <- comp[order(comp$time), ]
+      p <- pres_at(init, comp, lab, tm[k])
+    }
+    snd[k] <- sample(l1[p[l1]], 1); rcv[k] <- sample(l2[p[l2]], 1)
+  }
+  # nwdynam builds a two-mode network from its events: actors without any event are left out of both fits
+  used <- unique(c(snd, rcv)); keep <- lab %in% used
+  l1 <- l1[l1 %in% used]; l2 <- l2[l2 %in% used]; init <- init[keep]; lab <- lab[keep]
+  comp <- comp[comp$node %in% used, ]
+  rownames(comp) <- NULL
+  list(l1 = l1, l2 = l2, lab = lab, init = init, comp = comp,
+       ev = data.frame(time = tm, sender = snd, receiver = rcv, increment = 1, stringsAsFactors = FALSE))
+}
+fit2 <- function(cs, form, sub) {
+  n1 <- length(cs$l1)
+  nd1 <- defineNodes(data.frame(label = cs$l1, present = cs$init[1:n1], stringsAsFactors = FALSE))
+  nd2 <- defineNodes(data.frame(label = cs$l2, present = cs$init[-(1:n1)], stringsAsFactors = FALSE))
+  c1 <- cs$comp[cs$comp$node %in% cs$l1, ]; c2 <- cs$comp[cs$comp$node %in% cs$l2, ]
+  if (nrow(c1)) { assign("comp1", data.frame(time = c1$time, node = c1$node, replace = c1$value, stringsAsFactors = FALSE), globalenv()); nd1 <- linkEvents(nd1, changeEvent = comp1, attribute = "present") }
+  if (nrow(c2)) { assign("comp2", data.frame(time = c2$time, node = c2$node, replace = c2$value, stringsAsFactors = FALSE), globalenv()); nd2 <- linkEvents(nd2, changeEvent = comp2, attribute = "present") }
+  assign("ev", cs$ev, globalenv()); assign("nd1", nd1, globalenv()); assign("nd2", nd2, globalenv())
+  net <- defineNetwork(nodes = nd1, nodes2 = nd2, directed = TRUE)
+  net <- linkEvents(net, changeEvent = ev, nodes = nd1, nodes2 = nd2); assign("net", net, globalenv())
+  dep <- defineDependentEvents(events = ev, nodes = nd1, nodes2 = nd2, defaultNetwork = net); assign("dep", dep, globalenv())
+  m <- suppressWarnings(estimate(as.formula(paste("dep ~", form)), model = "DyNAM", subModel = sub,
+          estimationInit = list(maxIterations = 200, initialDamping = 10, maxScoreStopCriterion = 1e-9)))
+  list(b = coef(m), se = m$standardErrors, ll = as.numeric(m$logLikelihood))
+}
+two <- list(
+  list(id = "m01", seed = 61, n1 = 6, n2 = 5, N = 60, form = "inertia(net) + indeg(net)", opts = "inertia indeg", sub = "choice"),
+  list(id = "m02", seed = 62, n1 = 7, n2 = 5, N = 60, form = "outdeg(net)", opts = "outdeg", sub = "rate"),
+  list(id = "m03", seed = 63, n1 = 7, n2 = 5, N = 60, form = "1 + outdeg(net)", opts = "outdeg intercept", sub = "rate"),
+  list(id = "m04", seed = 64, n1 = 8, n2 = 6, N = 80, pabs = 0.4, ncomp = 20, form = "inertia(net)", opts = "inertia", sub = "choice"),
+  list(id = "m05", seed = 65, n1 = 8, n2 = 6, N = 80, pabs = 0.4, ncomp = 20, form = "1 + outdeg(net)", opts = "outdeg intercept", sub = "rate"),
+  list(id = "m06", seed = 66, n1 = 8, n2 = 6, N = 80, pabs = 0.1, ncomp = 20, form = "indeg(net)", opts = "indeg", sub = "choice"))
+for (cc in two) {
+  cs <- mk2(cc$seed, cc$n1, cc$n2, cc$N, pabs = if (is.null(cc$pabs)) 0.25 else cc$pabs, ncomp = if (is.null(cc$ncomp)) 10 else cc$ncomp)
+  f <- tryCatch(fit2(cs, cc$form, cc$sub), error = function(e) { cat(cc$id, "SKIPPED", conditionMessage(e), "\n"); NULL })
+  if (is.null(f) || any(!is.finite(f$se)) || max(abs(f$b[names(f$b) != "Intercept"])) > 8 || max(f$se) > 3) { if (!is.null(f)) cat(cc$id, "SKIPPED (unstable)\n"); next }
+  write.csv(cs$ev[, c("time", "sender", "receiver")], file.path(out, paste0("events_", cc$id, ".csv")), row.names = FALSE)
+  write.csv(data.frame(label = cs$lab, x = 0, y = 0, g = 1, present0 = as.integer(cs$init)), file.path(out, paste0("nodes_", cc$id, ".csv")), row.names = FALSE)
+  write.csv(data.frame(time = cs$comp$time, node = cs$comp$node, value = as.integer(cs$comp$value)), file.path(out, paste0("comp_", cc$id, ".csv")), row.names = FALSE)
+  cat(cc$id, ":", paste(sprintf("%.8f", c(f$b, f$ll)), collapse = " "), "\n")
+  res <- rbind(res, data.frame(case = cc$id, term = c(names(f$b), "ll"), estimate = c(f$b, f$ll), se = c(f$se, NA)))
+  cdf <- rbind(cdf, data.frame(id = cc$id, sub = cc$sub, opts = cc$opts, directed = 2L, tolb = 1e-6, tolse = 1e-6))
+}
 write.csv(res, file.path(out, "results.csv"), row.names = FALSE)
 write.csv(cdf, file.path(out, "cases.csv"), row.names = FALSE)

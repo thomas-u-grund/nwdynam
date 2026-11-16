@@ -62,3 +62,7 @@
 "r48","choice","inertia diff(x) trans egoalterint(x y)",1,1e-06,1e-06
 "r49","choice","recip diff(y) alter(x) outdeg",1,1e-06,1e-06
 "r50","rate","indeg outdeg ego(y) intercept",1,1e-06,1e-06
+"m01","choice","inertia indeg",2,1e-06,1e-06
+"m03","rate","outdeg intercept",2,1e-06,1e-06
+"m04","choice","inertia",2,1e-06,1e-06
+"m06","choice","indeg",2,1e-06,1e-06

@@ -759,7 +759,9 @@ program nwdynam, eclass
 		mata: __nwdynam_cr = *(`__nwdynam_compnet_netobj'->get_eventlist())
 	}
 	else mata: __nwdynam_cr = J(0, 4, 0)
-	capture noisily mata: `__nwdynam_comprows' = dynam_comp_rows(__nwdynam_cr, ("`compchange'" != "" ? `__nwdynam_compnet_netobj'->get_nodenames() : J(1, 0, "")), `netobj'->get_nodenames(), `__nwdynam_pinit', "`compchange'")
+	local __nwdynam_cnames `"J(1, 0, "")"'
+	if `"`compchange'"' != "" local __nwdynam_cnames "`__nwdynam_compnet_netobj'->get_nodenames()"
+	capture noisily mata: `__nwdynam_comprows' = dynam_comp_rows(__nwdynam_cr, `__nwdynam_cnames', `netobj'->get_nodenames(), `__nwdynam_pinit', "`compchange'")
 	local __nwdynam_crc = _rc
 	capture mata: mata drop __nwdynam_cr `__nwdynam_pinit'
 	if `__nwdynam_crc' {
@@ -1050,6 +1052,11 @@ program _nwdynam_display
 	if e(ntimes) < e(N) {
 		if "`e(ties)'" == "sequential" di as text "{p 0 0 2}Note: " as result e(N) - e(ntimes) as text " events share a time point; processed one after another (option sequential).{p_end}"
 		else di as text "{p 0 0 2}Note: " as result e(N) - e(ntimes) as text " events share a time point with an earlier event; events with equal times are simultaneous (as in goldfish).{p_end}"
+	}
+	if "`e(present)'`e(compchange)'" != "" {
+		di as text "{p 0 0 2}Composition change: " as result e(ncompchange) as text " join/leave events" ///
+			cond("`e(compchange)'" != "", " (" + "`e(compchange)'" + ")", "") ///
+			cond("`e(present)'" != "", "; presence at the start: " + "`e(present)'", "") as text ".{p_end}"
 	}
 	di as text "{hline 60}"
 	ereturn display, level(`level')
