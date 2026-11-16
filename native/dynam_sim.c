@@ -57,6 +57,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 
 typedef int64_t nwint;
 
@@ -80,7 +81,7 @@ typedef struct {
 	nwint Cp;          /* number of composition changes */
 	double *pchg;      /* Cp x 3: actor (1..n), time, new presence (0/1) */
 	double *pinit;     /* n values (presence at the start) or NULL */
-	double *chg;       /* C x 4: covariate row (1..7), actor (1..n), time, new value */
+	double *chg;       /* C x 4: covariate row (1..7; 15 = row 5 of a variable that only a windowed tertius uses), actor (1..n), time, new value */
 	double *opp;       /* N x n or NULL */
 	double *tie;       /* n x n or NULL */
 	double *blob;
@@ -301,7 +302,7 @@ static void apply_event(const Spec *sp, State *st, nwint k) {
 /* change events (time-varying covariates): apply the next change event */
 static void apply_one_change(const Spec *sp, State *st) {
 	const double *c = sp->chg + 4 * st->cpos;
-	int q = (int)c[0] - 1;
+	int q = ((int)c[0] % 10) - 1;
 	nwint a = (nwint)c[1] - 1, b, n = st->n;
 	double old = st->cv[q][a], nw = c[3];
 	if (q == 4 && st->tnum) for (b = 0; b < n; b++) if (st->Ab[a * n + b]) st->tnum[b] += nw - old;
@@ -417,7 +418,7 @@ static void choice_stats(const Spec *sp, const State *st, nwint s, double *X, do
 		case 14: for (j = 0; j < n; j++) x[j] = st->nt[j]; break;
 		case 15: for (j = 0; j < n; j++) x[j] = st->cv[5][s] * st->cv[6][j]; break;
 		case 16:
-			if (st->W[4]) for (j = 0; j < n; j++) x[j] = st->tstat[j];
+			if (st->W[4]) for (j = 0; j < n; j++) x[j] = isnan(st->tstat[j]) ? 0.0 : st->tstat[j];   /* goldfish turns a missing statistic into 0 */
 			else for (j = 0; j < n; j++) x[j] = (st->inA[j] > 0.0) ? st->tnum[j] / st->inA[j] : 0.0;
 			break;
 		case 17: for (j = 0; j < n; j++) x[j] = sp->tie[s * n + j]; break;
@@ -444,7 +445,7 @@ static void rate_stats(const Spec *sp, const State *st, double *X, int icpt) {
 		case 3: for (j = 0; j < n; j++) x[j] = st->cv[3][j]; break;
 		case 4: for (j = 0; j < n; j++) x[j] = st->nt[j]; break;
 		case 5:
-			if (st->W[4]) for (j = 0; j < n; j++) x[j] = st->tstat[j];
+			if (st->W[4]) for (j = 0; j < n; j++) x[j] = isnan(st->tstat[j]) ? 0.0 : st->tstat[j];   /* goldfish turns a missing statistic into 0 */
 			else for (j = 0; j < n; j++) x[j] = (st->inA[j] > 0.0) ? st->tnum[j] / st->inA[j] : 0.0;
 			break;
 		}
@@ -553,6 +554,7 @@ static int rateint_exposure(const Spec *sp, const double *theta, int todo, const
 	nwint n = sp->n, j, nrisk = (sp->n1 > 0 ? sp->n1 : sp->n);
 	int Pt = sp->P + 1, k, l;
 	double S = 0.0;
+	{ const char *dp = getenv("DYNDBG"); if (dp && w > 0) { FILE *f = fopen(dp, "a"); if (f) { fprintf(f, "w %.6f :", w); for (j = 0; j < nrisk; j++) fprintf(f, " %.6f", X[(size_t)(Pt - 1) * (size_t)n + j]); fprintf(f, "\n"); fclose(f); } } }
 	for (k = 0; k < Pt; k++) Sx[k] = 0.0;
 	if (todo >= 2) for (k = 0; k < Pt * Pt; k++) Sxx[k] = 0.0;
 	for (j = 0; j < nrisk; j++) {
@@ -582,12 +584,17 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 	State st;
 	nwint n = sp->n, N = sp->N, i, gs = 0;
 	int Pt = sp->P + 1, k, rc = 0;
-	double *X = NULL, *Sx = NULL, *Sxx = NULL, L = 0.0, tprev = sp->ev[2];
+	double *X = NULL, *Sx = NULL, *Sxx = NULL, L = 0.0, tprev = sp->ev[2], tlastchg = -1e300;
 	int fresh = 1;
 
 	*overflow = 0;
 	/* goldfish observes from the earliest event of any list: a change before the first event starts the observation */
-	if (sp->C > 0 && sp->chg[2] < tprev) tprev = sp->chg[2];
+	{
+		/* (changes of a variable that only a windowed tertius uses, code 15, do not set the start or the end, as in goldfish) */
+		nwint ci;
+		for (ci = 0; ci < sp->C; ci++) if (sp->chg[4 * ci] < 10.0) { if (sp->chg[4 * ci + 2] < tprev) tprev = sp->chg[4 * ci + 2]; break; }
+		for (ci = sp->C - 1; ci >= 0; ci--) if (sp->chg[4 * ci] < 10.0) { tlastchg = sp->chg[4 * ci + 2]; break; }
+	}
 	if ((rc = state_init(sp, &st)) != 0) { state_free(&st); return rc; }
 	X = (double *)malloc((size_t)Pt * (size_t)n * sizeof(double));
 	Sx = (double *)malloc((size_t)Pt * sizeof(double));
@@ -617,8 +624,8 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 						if (rateint_exposure(sp, theta, todo, X, tb - t0, &L, g, H, Sx, Sxx, st.pres)) { *overflow = 1; goto done; }
 						t0 = tb;
 					}
-					while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] == tb) apply_one_change(sp, &st);
 					expire_upto(sp, &st, gs, tb);
+					while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] == tb) apply_one_change(sp, &st);
 					rate_stats(sp, &st, X, 1);
 				}
 				tprev = t0;
@@ -647,10 +654,10 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 	}
 	/* ... and the last change after the last event ends it: the periods up to each remaining change count (and up to the
 	   expiry of events from their windows before that change) */
-	if (st.cpos < sp->C) {
-		double t0 = tprev, tend = sp->chg[4 * (sp->C - 1) + 2];
+	if (st.cpos < sp->C && tlastchg > tprev) {
+		double t0 = tprev, tend = tlastchg;
 		rate_stats(sp, &st, X, 1);
-		while (st.cpos < sp->C) {
+		while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] <= tend) {
 			double tc = sp->chg[4 * st.cpos + 2];
 			double te = next_expiry(sp, &st, gs, tend), tb = (tc < te ? tc : te);
 			if (tb > t0) {
@@ -658,8 +665,8 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 				if (rateint_exposure(sp, theta, todo, X, tb - t0, &L, g, H, Sx, Sxx, st.pres)) { *overflow = 1; goto done; }
 				t0 = tb;
 			}
-			while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] == tb) apply_one_change(sp, &st);
 			expire_upto(sp, &st, gs, tb);
+			while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] == tb) apply_one_change(sp, &st);
 			rate_stats(sp, &st, X, 1);
 		}
 	}
@@ -694,7 +701,7 @@ static double coord_S(const Spec *sp, const State *st, int e, nwint a, nwint b, 
 	case 7: return st->nt[b];
 	case 8: return (double)st->AA[a * n + b];
 	case 9:
-		if (st->W[4]) return st->tstat[b];
+		if (st->W[4]) return isnan(st->tstat[b]) ? 0.0 : st->tstat[b];
 		return (st->inA[b] > 0.0) ? st->tnum[b] / st->inA[b] : 0.0;
 	case 10: {
 		double A = (double)st->Ab[a * n + b];
@@ -841,7 +848,7 @@ static int spec_read(Spec *sp, nwint L) {
 	if (sp->n < 2 || sp->N < 1) return 198;
 	for (i = 0; i < sp->C; i++) {
 		double r = sp->chg[4 * i], a = sp->chg[4 * i + 1];
-		if (!(r >= 1.0 && r <= 7.0 && a >= 1.0 && a <= (double)sp->n)) {
+		if (!((r >= 1.0 && r <= 7.0) || r == 15.0) || !( a >= 1.0 && a <= (double)sp->n)) {
 			SF_error("dynam_sim: a change event has an actor or covariate outside the range\n");
 			return 198;
 		}

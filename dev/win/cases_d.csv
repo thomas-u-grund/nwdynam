@@ -1,0 +1,53 @@
+"id","sub","opts","kind","chg","opp","inc","tolb","tolse"
+"d01","choice","alter(x)","two","",0,0,1e-06,1e-06
+"d02","rate","ego(x)","two","",0,0,1e-06,1e-06
+"d03","rate","ego(x) intercept","two","",0,0,1e-06,1e-06
+"d04","choice","four","two","",0,0,1e-06,1e-06
+"d05","choice","tertius(x)","two","",0,0,1e-06,1e-06
+"d06","choice","egoalterint(x y)","two","",0,0,1e-06,1e-06
+"d11","choice","indeg alter(x) egoalterint(x y)","two","",0,0,1e-06,1e-06
+"d12","choice","alter(x) four egoalterint(x y)","two","",0,0,1e-06,1e-06
+"d13","choice","inertia indeg four","two","",0,0,1e-06,1e-06
+"d14","choice","four egoalterint(x y) tertius(x)","two","",0,0,1e-06,1e-06
+"d15","choice","inertia alter(x) four","two","",0,0,1e-06,1e-06
+"d16","choice","alter(y) egoalterint(x y)","two","",0,0,1e-06,1e-06
+"d17","choice","indeg alter(x) egoalterint(x y)","two","",0,0,1e-06,1e-06
+"d18","choice","inertia alter(x) tertius(y)","two","",0,0,1e-06,1e-06
+"d19","choice","alter(y) egoalterint(x y)","two","",0,0,1e-06,1e-06
+"d20","choice","indeg alter(x) four","two","",0,0,1e-06,1e-06
+"d21","choice","inertia indeg alter(y)","two","",0,0,1e-06,1e-06
+"d22","choice","inertia indeg alter(y)","two","",0,0,1e-06,1e-06
+"d23","choice","indeg alter(y) four","two","",0,0,1e-06,1e-06
+"d24","choice","inertia indeg alter(x)","two","",0,0,1e-06,1e-06
+"d25","choice","indeg four tertius(x)","two","",0,0,1e-06,1e-06
+"d26","choice","inertia alter(y)","two","",0,0,1e-06,1e-06
+"d27","choice","inertia indeg alter(x)","two","",0,0,1e-06,1e-06
+"d28","choice","inertia egoalterint(x y) tertius(x)","two","",0,0,1e-06,1e-06
+"d29","choice","inertia indeg","two","",0,0,1e-06,1e-06
+"d30","choice","egoalterint(x y) tertius(x)","two","",0,0,1e-06,1e-06
+"d31","choice","inertia four egoalterint(x y)","two","",0,0,1e-06,1e-06
+"d32","choice","inertia alter(x) four","two","",0,0,1e-06,1e-06
+"d33","choice","inertia indeg four","two","",0,0,1e-06,1e-06
+"d34","choice","inertia alter(x) four","two","",0,0,1e-06,1e-06
+"d35","choice","inertia four tertius(y)","two","",0,0,1e-06,1e-06
+"d36","choice","inertia four egoalterint(x y)","two","",0,0,1e-06,1e-06
+"d37","choice","alter(y) four tertius(y)","two","",0,0,1e-06,1e-06
+"d38","choice","inertia indeg four","two","",0,0,1e-06,1e-06
+"d39","choice","inertia alter(x) egoalterint(x y)","two","",0,0,1e-06,1e-06
+"d40","choice","inertia alter(x)","two","",0,0,1e-06,1e-06
+"d51","rate","outdeg","two","",0,0,1e-06,1e-06
+"d52","rate","outdeg intercept","two","",0,0,1e-06,1e-06
+"d53","rate","outdeg","two","",0,0,1e-06,1e-06
+"d54","rate","outdeg ego(y) intercept","two","",0,0,1e-06,1e-06
+"d55","rate","outdeg ego(y)","two","",0,0,1e-06,1e-06
+"d56","rate","outdeg ego(x) intercept","two","",0,0,1e-06,1e-06
+"d57","rate","outdeg","two","",0,0,1e-06,1e-06
+"d58","rate","outdeg intercept","two","",0,0,1e-06,1e-06
+"d59","rate","outdeg","two","",0,0,1e-06,1e-06
+"d60","rate","ego(x) intercept","two","",0,0,1e-06,1e-06
+"d61","rate","outdeg","two","",0,0,1e-06,1e-06
+"d62","rate","ego(x) intercept","two","",0,0,1e-06,1e-06
+"d63","rate","outdeg ego(y)","two","",0,0,1e-06,1e-06
+"d64","rate","ego(x) intercept","two","",0,0,1e-06,1e-06
+"d65","rate","ego(y)","two","",0,0,1e-06,1e-06
+"d66","rate","outdeg ego(x) intercept","two","",0,0,1e-06,1e-06

@@ -101,6 +101,10 @@ program nwdynam, eclass
 				di as error "{p 0 0 2}change(): {bf:`__nwdynam_cvar'} is not used by same(), diff(), sim(), ego(), alter(), tertius() or egoalterint(); name a variable of an effect.{p_end}"
 				error 198
 			}
+			if `tertiuswindow' != -1 & "`intercept'" != "" & "`__nwdynam_cvar'" == "`tertius'" & "`submodel'" == "rate" {
+				di as error "{p 0 0 2}change() of the tertius() variable together with tertiuswindow() and intercept in a rate model is not available: goldfish itself gives an estimate there that depends on how it orders the changes and the expiries of the window.{p_end}"
+				error 198
+			}
 			local __nwdynam_cvars "`__nwdynam_cvars' `__nwdynam_cvar'"
 			local __nwdynam_cnets "`__nwdynam_cnets' `__nwdynam_cnet'"
 			local __nwdynam_dup : list dups __nwdynam_cvars
@@ -388,9 +392,9 @@ program nwdynam, eclass
 				di as error "{p 0 0 2}outdeg is not supported for two-mode (bipartite) networks under submodel(choice) - goldfish itself rejects it (mode 2 never sends, so a candidate has no out-degree) - see {help nwdynam}.{p_end}"
 				error 198
 			}
-			foreach __nwdynam_e in trans cycle commonsender commonreceiver four nodetrans tertius same diff sim alter egoalterint {
+			foreach __nwdynam_e in trans cycle commonsender commonreceiver nodetrans same diff sim {
 				if "``__nwdynam_e''" != "" {
-					di as error "{p 0 0 2}`__nwdynam_e' is not yet verified for two-mode (bipartite) networks - see {help nwdynam}.{p_end}"
+					di as error "{p 0 0 2}`__nwdynam_e' is not available for two-mode (bipartite) networks - goldfish itself rejects it or computes it with the wrong dimensions there - see {help nwdynam}.{p_end}"
 					error 198
 				}
 			}
@@ -401,9 +405,9 @@ program nwdynam, eclass
 				di as error "{p 0 0 2}indeg is not supported for two-mode (bipartite) networks under submodel(rate) - goldfish itself rejects it (mode 1 never receives, so a candidate sender has no in-degree) - see {help nwdynam}.{p_end}"
 				error 198
 			}
-			foreach __nwdynam_e in nodetrans tertius ego {
+			foreach __nwdynam_e in nodetrans tertius {
 				if "``__nwdynam_e''" != "" {
-					di as error "{p 0 0 2}`__nwdynam_e' is not yet verified for two-mode (bipartite) networks - see {help nwdynam}.{p_end}"
+					di as error "{p 0 0 2}`__nwdynam_e' is not available for two-mode (bipartite) networks under submodel(rate) - goldfish itself rejects it - see {help nwdynam}.{p_end}"
 					error 198
 				}
 			}

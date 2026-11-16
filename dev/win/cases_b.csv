@@ -1,0 +1,47 @@
+"id","sub","opts","kind","chg","opp","inc","tolb","tolse"
+"b01","choice","tertius(x) tertiuswindow(6)","one","",0,0,1e-06,1e-06
+"b02","rate","tertius(x) tertiuswindow(6)","one","",0,0,1e-06,1e-06
+"b03","rate","tertius(x) tertiuswindow(6) intercept","one","",0,0,1e-06,1e-06
+"b04","choice_coordination","tertius(x) tertiuswindow(6)","und","",0,0,5e-04,0.1
+"b11","choice","indeg tertius(x) tertiuswindow(9)","one","x",0,0,1e-06,1e-06
+"b12","choice","indeg tertius(x) tertiuswindow(4.5)","one","",0,0,1e-06,1e-06
+"b13","choice","inertia tertius(x) tertiuswindow(2)","one","",0,0,1e-06,1e-06
+"b14","choice","alter(y) tertius(x) tertiuswindow(6)","one","x",0,1,1e-06,1e-06
+"b15","choice","inertia indeg tertius(x) tertiuswindow(2)","one","",0,0,1e-06,1e-06
+"b16","choice","inertia indeg tertius(x) tertiuswindow(9)","one","",0,0,1e-06,1e-06
+"b17","choice","inertia tertius(x) tertiuswindow(9)","one","x",0,0,1e-06,1e-06
+"b18","choice","indeg alter(x) tertius(x) tertiuswindow(3)","one","",0,0,1e-06,1e-06
+"b19","choice","inertia tertius(x) tertiuswindow(9)","one","",0,0,1e-06,1e-06
+"b20","choice","alter(y) tertius(x) tertiuswindow(3)","one","x",0,1,1e-06,1e-06
+"b21","choice","indeg tertius(x) tertiuswindow(4.5)","one","",0,0,1e-06,1e-06
+"b22","choice","alter(x) tertius(x) tertiuswindow(9)","one","",0,0,1e-06,1e-06
+"b23","choice","inertia tertius(x) tertiuswindow(6)","one","x",0,0,1e-06,1e-06
+"b24","choice","inertia indeg tertius(x) tertiuswindow(2)","one","",0,0,1e-06,1e-06
+"b31","rate","indeg outdeg tertius(x) tertiuswindow(6)","one","x",0,0,1e-06,1e-06
+"b32","rate","ego(x) tertius(x) tertiuswindow(6) intercept","one","",0,0,1e-06,1e-06
+"b33","rate","indeg outdeg tertius(x) tertiuswindow(9)","one","",0,0,1e-06,1e-06
+"b34","rate","outdeg tertius(x) tertiuswindow(4.5) intercept","one","",0,1,1e-06,1e-06
+"b35","rate","indeg outdeg tertius(x) tertiuswindow(9)","one","",0,0,1e-06,1e-06
+"b36","rate","indeg outdeg tertius(x) tertiuswindow(4.5) intercept","one","",0,0,1e-06,1e-06
+"b37","rate","indeg outdeg tertius(x) tertiuswindow(2)","one","x",0,0,1e-06,1e-06
+"b38","rate","ego(x) tertius(x) tertiuswindow(9) intercept","one","",0,0,1e-06,1e-06
+"b39","rate","indeg outdeg tertius(x) tertiuswindow(3)","one","",0,0,1e-06,1e-06
+"b40","rate","ego(x) tertius(x) tertiuswindow(4.5) intercept","one","",0,1,1e-06,1e-06
+"b41","rate","outdeg tertius(x) tertiuswindow(2)","one","",0,0,1e-06,1e-06
+"b42","rate","indeg outdeg tertius(x) tertiuswindow(2) intercept","one","",0,0,1e-06,1e-06
+"b43","rate","outdeg tertius(x) tertiuswindow(2)","one","x",0,0,1e-06,1e-06
+"b44","rate","indeg outdeg tertius(x) tertiuswindow(2) intercept","one","",0,0,1e-06,1e-06
+"b51","choice_coordination","same(g) sim(x) tertius(x) tertiuswindow(9)","und","x",0,0,5e-04,0.1
+"b52","choice_coordination","sim(x) tertius(x) tertiuswindow(6)","und","",0,0,5e-04,0.1
+"b53","choice_coordination","sim(y) tertius(x) tertiuswindow(6)","und","",0,0,5e-04,0.1
+"b54","choice_coordination","sim(y) tertius(x) tertiuswindow(4.5)","und","x",0,1,5e-04,0.1
+"b55","choice_coordination","inertia sim(x) tertius(x) tertiuswindow(4.5)","und","",0,0,5e-04,0.1
+"b56","choice_coordination","inertia same(g) tertius(x) tertiuswindow(9)","und","",0,0,5e-04,0.1
+"b57","choice_coordination","same(g) tertius(x) tertiuswindow(4.5)","und","x",0,0,5e-04,0.1
+"b58","choice_coordination","sim(y) tertius(x) tertiuswindow(3)","und","",0,0,5e-04,0.1
+"b59","choice_coordination","inertia same(g) tertius(x) tertiuswindow(4.5)","und","",0,0,5e-04,0.1
+"b60","choice_coordination","inertia same(g) tertius(x) tertiuswindow(4.5)","und","x",0,1,5e-04,0.1
+"b61","choice_coordination","same(g) tertius(x) tertiuswindow(6)","und","",0,0,5e-04,0.1
+"b62","choice_coordination","same(g) sim(y) tertius(x) tertiuswindow(2)","und","",0,0,5e-04,0.1
+"b63","choice_coordination","sim(y) tertius(x) tertiuswindow(2)","und","x",0,0,5e-04,0.1
+"b64","choice_coordination","inertia same(g) tertius(x) tertiuswindow(3)","und","",0,0,5e-04,0.1

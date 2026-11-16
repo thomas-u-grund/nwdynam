@@ -109,6 +109,12 @@ fitgf <- function(cs, form, sub, intercept = FALSE) {
 res <- list(); cdf <- list()
 # run a list of case specs; each spec: sec, id, sub, form, opts, plus mkcase arguments in `mk`
 runspec <- function(sp) {
+  # a windowed and a weighted inertia in one coordination model are nearly collinear: the likelihood is flat and the estimates are not determined to the tolerance
+  if (sp$sub == "choice_coordination" && ((grepl("inertiawindow", sp$opts) && grepl("weightedinertia", sp$opts)) ||
+      (grepl("indegwindow", sp$opts) && grepl("weightedindeg", sp$opts)))) { cat(sp$id, "SKIPPED (collinear)\n"); return(invisible()) }
+  # refused by nwdynam: change of the tertius variable with tertiuswindow and intercept (rate)
+  if (sp$sub == "rate" && grepl("tertiuswindow", sp$opts) && grepl("intercept", sp$opts) && length(sp$mk$chg) > 0 &&
+      grepl(paste0("tertius\\(", sp$mk$chg[1], "\\)"), sp$opts)) sp$mk$chg <- character(0)
   cs <- do.call(mkcase, c(list(seed = sp$seed), sp$mk))
   f <- tryCatch(fitgf(cs, sp$form, sp$sub), error = function(e) { cat(sp$id, "SKIPPED:", conditionMessage(e), "\n"); NULL })
   if (is.null(f)) return(invisible())
@@ -127,7 +133,7 @@ runspec <- function(sp) {
 }
 
 # ---- random specs from pieces: a piece = list(goldfish term, nwdynam option[, variable letters])
-randspecs <- function(sec, pieces, nrand, seed0, sub, mkargs, kind = "one", maxeff = 3, icpt = FALSE, idoff = 0, groups = NULL) {
+randspecs <- function(sec, pieces, nrand, seed0, sub, mkargs, kind = "one", maxeff = 3, icpt = FALSE, idoff = 0, groups = NULL, must = NULL) {
   set.seed(seed0)
   sp <- list()
   for (k in 1:nrand) {
@@ -143,6 +149,7 @@ randspecs <- function(sec, pieces, nrand, seed0, sub, mkargs, kind = "one", maxe
         forms <- c(forms, gsub("%s", v, pp[[1]], fixed = TRUE)); opts <- c(opts, gsub("%s", v, pp[[2]], fixed = TRUE))
       } else { forms <- c(forms, pp[[1]]); opts <- c(opts, pp[[2]]) }
     }
+    if (!is.null(must)) { forms <- c(forms, must[[1]]); opts <- c(opts, must[[2]]) }
     ic <- icpt && (k %% 2 == 0)
     mk <- mkargs(k)
     fm <- paste(c(if (ic) "1", forms), collapse = " + "); op <- paste(c(opts, if (ic) "intercept"), collapse = " ")
@@ -200,6 +207,49 @@ if ("c" %in% secs) {
   sc4 <- randspecs("c", pc, 40, 41, "choice_coordination", function(k) list(kind = "und", n = sample(6:10, 1), N = sample(40:90, 1), canon = TRUE,
          weights = (k %% 2 == 0), inttime = (k %% 5 == 0), ties = (k %% 3 != 0)), maxeff = 3, idoff = 100, groups = c(1, 1, 2, 2, 1, 2, 3, 4, 5, 6, 7))
   specs <- c(specs, sc, sc2, sc3, sc4)
+}
+# ================= section b: windows on tertius() =================
+if ("b" %in% secs) {
+  tw <- function(sub, n0) {
+    pieces <- switch(sub,
+      choice = list(list("inertia(net)", "inertia"), list("indeg(net)", "indeg"), list("alter(nd$%s)", "alter(%s)", "xy"),
+                    list("tertius(net, nd$x, window = %W)", "tertius(x) tertiuswindow(%W)")),
+      rate = list(list("indeg(net)", "indeg"), list("outdeg(net)", "outdeg"), list("ego(nd$%s)", "ego(%s)", "xy"),
+                  list("tertius(net, nd$x, window = %W)", "tertius(x) tertiuswindow(%W)")),
+      choice_coordination = list(list("inertia(net)", "inertia"), list("same(nd$g)", "same(g)"), list("sim(nd$%s)", "sim(%s)", "xy"),
+                  list("tertius(net, nd$x, window = %W)", "tertius(x) tertiuswindow(%W)")))
+    ic <- (sub == "rate")
+    sp <- randspecs("b", pieces[-length(pieces)], 14, n0, sub, function(k) list(kind = if (sub == "choice_coordination") "und" else "one", n = sample(6:10, 1), N = sample(40:90, 1),
+          weights = FALSE, inttime = (k %% 4 == 0), ties = (k %% 3 != 0), chg = if (k %% 3 == 1) "x" else character(0), nchg = 12, inc = (k %% 6 == 4)),
+          maxeff = 2, icpt = ic, idoff = (n0 - 21) * 20 + 10, must = pieces[[length(pieces)]])
+    sp
+  }
+  sb <- c(
+    list(list(sec = "b", id = "b01", seed = 1, sub = "choice", mk = list(n = 7, N = 60), form = "tertius(net, nd$x, window = 6)", opts = "tertius(x) tertiuswindow(6)"),
+         list(sec = "b", id = "b02", seed = 2, sub = "rate", mk = list(n = 7, N = 60), form = "tertius(net, nd$x, window = 6)", opts = "tertius(x) tertiuswindow(6)"),
+         list(sec = "b", id = "b03", seed = 3, sub = "rate", mk = list(n = 7, N = 60), form = "1 + tertius(net, nd$x, window = 6)", opts = "tertius(x) tertiuswindow(6) intercept"),
+         list(sec = "b", id = "b04", seed = 4, sub = "choice_coordination", mk = list(kind = "und", n = 7, N = 60), form = "tertius(net, nd$x, window = 6)", opts = "tertius(x) tertiuswindow(6)")),
+    tw("choice", 21), tw("rate", 22), tw("choice_coordination", 23))
+  specs <- c(specs, sb)
+}
+# ================= section d: two-mode attribute and closure effects =================
+if ("d" %in% secs) {
+  # goldfish: alter() and ego() need isTwoMode = TRUE; egoAlterInt takes the mode-1 and the mode-2 attribute (no isTwoMode); tertius uses the
+  # mode-1 attribute (choice only); four works; trans, cycle, commonReceiver, nodeTrans, mixedTrans, recip, same, diff, sim are refused
+  pd1 <- list(list("inertia(net)", "inertia"), list("indeg(net)", "indeg"), list("alter(nd2$%s, isTwoMode = TRUE)", "alter(%s)", "xy"),
+              list("four(net)", "four"), list("egoAlterInt(nd1$x, nd2$y)", "egoalterint(x y)"), list("tertius(net, nd1$%s)", "tertius(%s)", "xy"))
+  pd2 <- list(list("outdeg(net)", "outdeg"), list("ego(nd1$%s, isTwoMode = TRUE)", "ego(%s)", "xy"))
+  mk2 <- function(k, ...) list(kind = "two", n1 = sample(5:8, 1), n2 = sample(4:7, 1), N = sample(45:90, 1), inttime = (k %% 5 == 0), ties = (k %% 3 != 0), ...)
+  sd <- list(
+    list(sec = "d", id = "d01", seed = 1, sub = "choice", mk = list(kind = "two", n1 = 6, n2 = 5, N = 60), form = "alter(nd2$x, isTwoMode = TRUE)", opts = "alter(x)"),
+    list(sec = "d", id = "d02", seed = 2, sub = "rate", mk = list(kind = "two", n1 = 6, n2 = 5, N = 60), form = "ego(nd1$x, isTwoMode = TRUE)", opts = "ego(x)"),
+    list(sec = "d", id = "d03", seed = 3, sub = "rate", mk = list(kind = "two", n1 = 6, n2 = 5, N = 60), form = "1 + ego(nd1$x, isTwoMode = TRUE)", opts = "ego(x) intercept"),
+    list(sec = "d", id = "d04", seed = 4, sub = "choice", mk = list(kind = "two", n1 = 6, n2 = 5, N = 60), form = "four(net)", opts = "four"),
+    list(sec = "d", id = "d05", seed = 5, sub = "choice", mk = list(kind = "two", n1 = 6, n2 = 5, N = 60), form = "tertius(net, nd1$x)", opts = "tertius(x)"),
+    list(sec = "d", id = "d06", seed = 6, sub = "choice", mk = list(kind = "two", n1 = 6, n2 = 5, N = 60), form = "egoAlterInt(nd1$x, nd2$y)", opts = "egoalterint(x y)"))
+  sd2 <- randspecs("d", pd1, 30, 51, "choice", function(k) mk2(k), maxeff = 3, idoff = 10)
+  sd3 <- randspecs("d", pd2, 16, 52, "rate", function(k) mk2(k), maxeff = 2, icpt = TRUE, idoff = 50)
+  specs <- c(specs, sd, sd2, sd3)
 }
 for (sp in specs) runspec(sp)
 for (sec in secs) {

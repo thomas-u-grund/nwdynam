@@ -237,7 +237,7 @@ void dynam_check_presence(real matrix rows, real matrix events, string rowvector
 	if (rows(pin) > 0) pres[pin[., 2]] = pin[., 4]
 	p = 1
 	for (k = 1; k <= rows(chg); k++) {
-		if (chg[k, 1] > 7) continue
+		if (chg[k, 1] > 7 & chg[k, 1] != 15) continue
 		while (p <= rows(pc)) {
 			if (pc[p, 3] > chg[k, 3]) break
 			pres[pc[p, 2]] = pc[p, 4]
@@ -483,7 +483,7 @@ class DynamNat {
 	real scalar Pt       // number of parameters
 	real scalar isopen
 	string scalar origframe
-	real matrix chg      // change events: (covariate row 1..7, actor, time, new value) of time-varying covariates, sorted by time;
+	real matrix chg      // change events: (covariate row 1..7, or 15 = row 5 used by a windowed tertius only, actor, time, new value) of time-varying covariates, sorted by time;
 	                     // rows with code 8 = composition change (8, actor, time, 1 joins / 0 leaves), code 9 = presence at the start
 	                     // (9, actor, ., 0/1); unset = none
 
@@ -557,7 +557,7 @@ void DynamNat::setup(real scalar model, pointer(class DynamState scalar) scalar 
 	if (nev > 1) gend[1::(nev-1)] = ((*pS).gfirst[2::nev] :== (2::nev))
 	cvc = J(0, 4, 0); pc = J(0, 3, 0); pin = J(0, 2, 0)
 	if (cols(chg) == 4 & rows(chg) > 0) {
-		cvc = select(chg, chg[., 1] :<= 7)
+		cvc = select(chg, (chg[., 1] :<= 7) :| (chg[., 1] :== 15))
 		pc = select(chg, chg[., 1] :== 8)[., (2, 3, 4)]
 		pin = select(chg, chg[., 1] :== 9)[., (2, 4)]
 	}
