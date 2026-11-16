@@ -3,6 +3,16 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [1.8.1] - 2026-11-16
+
+### Fixed
+- `netterms()` with a network declared with `eventtime()`: the command re-indexed and sorted the network's own stored event list in place. The first fit was correct, but every later fit in the same session with the same event network gave wrong estimates, and sometimes an apparently unidentified term. Fits now work on a copy and are identical on every call. Earlier results are affected only if they came from a second or later fit with an event network whose actor order differs from that of the fitted network.
+- A static network in `netterms()` no longer has its missing cells overwritten by 0 in the stored network.
+- `estat changepoints, plot` stopped with "not found" and r(100). Fixed.
+- `submodel(choice_coordination)` with statistics of large values, for example `indeg`, stopped with "flat region", r(111), although the model is identified. Coordination fits now run a damped quasi-Newton pre-optimisation before the final optimisation; the estimates agree with goldfish 1.6.12.
+
+Tested on macOS with Stata 17 BE, Stata 18 BE and StataNow 19.5 MP (full test suite, including a new test for these fixes). Windows and Linux: not tested for this version; the compiled plugin is the one of 1.8.0.
+
 ## [1.8.0] - 2026-11-16
 
 ### Added
