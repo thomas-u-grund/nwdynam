@@ -3,47 +3,47 @@
 "b02","choice","netterms(cycle(x2))","one","x2=statdir",1e-06,1e-06
 "b03","choice","netterms(commonsender(x1))","one","x1=dyndir",1e-06,1e-06
 "b04","choice","netterms(commonreceiver(x2))","one","x2=statdir",1e-06,1e-06
+"b06","choice","netterms(four(x1))","one","x1=dyndir",1e-06,1e-06
+"b07","choice","netterms(four(x2))","one","x2=statdir",1e-06,1e-06
 "b11","choice","indeg netterms(trans(x2) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b12","choice","indeg netterms(trans(x1) cycle(x1))","one","x1=dyndir",1e-06,1e-06
-"b13","choice","netterms(trans(x2) cycle(x1) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b14","choice","inertia netterms(commonsender(x1) commonreceiver(x1))","one","x1=dyndir",1e-06,1e-06
-"b16","choice","indeg netterms(trans(x2) cycle(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b17","choice","inertia indeg netterms(cycle(x2))","one","x2=statdir",1e-06,1e-06
-"b18","choice","inertia netterms(cycle(x2) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b19","choice","indeg netterms(cycle(x2) commonsender(x2))","one","x2=statdir",1e-06,1e-06
-"b20","choice","netterms(trans(x2) commonsender(x2) commonreceiver(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b21","choice","inertia indeg netterms(trans(x1))","one","x1=dyndir",1e-06,1e-06
-"b22","choice","netterms(trans(x1) commonreceiver(x2) trans(net, ignorerep))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b23","choice","inertia indeg netterms(trans(x1))","one","x1=dyndir",1e-06,1e-06
-"b24","choice","netterms(trans(x1) trans(x2) cycle(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b25","choice","inertia netterms(trans(x1) trans(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b26","choice","inertia netterms(trans(x1) trans(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b27","choice","inertia netterms(trans(x1) trans(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b28","choice","indeg netterms(trans(x1) cycle(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b29","choice","netterms(cycle(x1) commonsender(x1) commonreceiver(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b30","choice","inertia netterms(trans(x2) cycle(x2))","one","x2=statdir",1e-06,1e-06
-"b31","choice","indeg netterms(trans(x1) cycle(x1))","one","x1=dyndir",1e-06,1e-06
-"b32","choice","netterms(trans(x1) cycle(x2) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b33","choice","inertia netterms(cycle(x1) commonsender(x1))","one","x1=dyndir",1e-06,1e-06
-"b34","choice","netterms(trans(x1) trans(x2) cycle(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b35","choice","indeg netterms(trans(x1) cycle(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b36","choice","indeg netterms(trans(x1) cycle(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b37","choice","indeg netterms(trans(x2) cycle(x2))","one","x2=statdir",1e-06,1e-06
-"b38","choice","inertia indeg netterms(commonsender(x1))","one","x1=dyndir",1e-06,1e-06
-"b39","choice","inertia netterms(trans(x2) cycle(x2))","one","x2=statdir",1e-06,1e-06
-"b40","choice","inertia netterms(trans(x1) trans(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b41","choice","inertia indeg netterms(cycle(x1))","one","x1=dyndir",1e-06,1e-06
-"b42","choice","inertia netterms(trans(x1) cycle(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b43","choice","netterms(trans(x2) cycle(x2) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b44","choice","netterms(trans(x1) trans(x2) commonsender(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b45","choice","indeg netterms(trans(x1) trans(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b46","choice","indeg netterms(trans(x1) trans(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b47","choice","inertia indeg netterms(trans(x1))","one","x1=dyndir",1e-06,1e-06
-"b48","choice","netterms(cycle(x2) commonreceiver(x2) trans(x1, window(4.5)))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b49","choice","indeg netterms(cycle(x1) cycle(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b50","choice","netterms(trans(x1) commonsender(x1) trans(x1, window(6)))","one","x1=dyndir",1e-06,1e-06
-"b51","choice","inertia netterms(trans(x1) trans(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b52","choice","inertia indeg netterms(cycle(x1))","one","x1=dyndir",1e-06,1e-06
-"b53","choice","inertia indeg netterms(trans(x1))","one","x1=dyndir",1e-06,1e-06
+"b12","choice","netterms(trans(x1) commonsender(x1, ignorerep) four(x1))","one","x1=dyndir",1e-06,1e-06
+"b13","choice","inertia indeg netterms(trans(x2))","one","x2=statdir",1e-06,1e-06
+"b15","choice","inertia netterms(cycle(x1) commonsender(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b16","choice","inertia netterms(cycle(x2) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b17","choice","inertia indeg netterms(trans(x2))","one","x2=statdir",1e-06,1e-06
+"b18","choice","inertia netterms(trans(x1) cycle(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b19","choice","netterms(trans(x1) commonreceiver(x2) trans(net, ignorerep))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b20","choice","inertia indeg netterms(trans(x1))","one","x1=dyndir",1e-06,1e-06
+"b21","choice","inertia indeg netterms(trans(x2))","one","x2=statdir",1e-06,1e-06
+"b22","choice","indeg netterms(trans(x1) trans(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b23","choice","netterms(cycle(x2) commonsender(x2) commonreceiver(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b24","choice","indeg netterms(trans(x1) cycle(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b25","choice","indeg netterms(cycle(x1) commonreceiver(x1))","one","x1=dyndir",1e-06,1e-06
+"b26","choice","indeg netterms(cycle(x1) commonsender(x1))","one","x1=dyndir",1e-06,1e-06
+"b27","choice","netterms(trans(x1) cycle(x2) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b28","choice","inertia netterms(trans(x1) cycle(x1))","one","x1=dyndir",1e-06,1e-06
+"b29","choice","indeg netterms(trans(x2) cycle(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b30","choice","indeg netterms(trans(x2) cycle(x2))","one","x2=statdir",1e-06,1e-06
+"b31","choice","inertia netterms(trans(x1) cycle(x1))","one","x1=dyndir",1e-06,1e-06
+"b32","choice","inertia netterms(cycle(x2) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b33","choice","netterms(trans(x1) trans(x2) cycle(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b34","choice","inertia indeg netterms(cycle(x1))","one","x1=dyndir",1e-06,1e-06
+"b35","choice","inertia indeg netterms(trans(x2))","one","x2=statdir",1e-06,1e-06
+"b36","choice","inertia indeg netterms(commonsender(x2))","one","x2=statdir",1e-06,1e-06
+"b37","choice","indeg netterms(trans(x1) trans(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b38","choice","netterms(trans(x1) cycle(x2) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b39","choice","netterms(trans(x1) commonreceiver(x1) trans(net, ignorerep))","one","x1=dyndir",1e-06,1e-06
+"b40","choice","indeg netterms(cycle(x1) cycle(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b42","choice","netterms(commonsender(x1) commonsender(x2) commonreceiver(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b43","choice","inertia netterms(trans(x2) cycle(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b44","choice","indeg netterms(trans(x1) cycle(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b45","choice","indeg netterms(trans(x1) cycle(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b46","choice","netterms(trans(x2) cycle(x1) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b47","choice","inertia netterms(trans(x1) cycle(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b48","choice","indeg netterms(trans(x2) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b49","choice","netterms(trans(x1) cycle(x1) cycle(x2))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b50","choice","inertia netterms(cycle(x2) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b52","choice","inertia indeg netterms(commonsender(x1))","one","x1=dyndir",1e-06,1e-06
+"b53","choice","inertia netterms(trans(x2) commonreceiver(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
 "b54","choice","inertia netterms(trans(x2) cycle(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
-"b55","choice","netterms(trans(x1) trans(x2) commonsender(x1))","one","x1=dyndir x2=statdir",1e-06,1e-06
+"b55","choice","inertia indeg netterms(cycle(x1))","one","x1=dyndir",1e-06,1e-06

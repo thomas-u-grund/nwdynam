@@ -49,6 +49,8 @@
 {opt opportunities(varlist)}
 {opt oppframe(framename)}
 {opt tie(netname)}
+{opt netterms(string)}
+{opt ignorerep(string)}
 {opt change(varname netname [...])}
 {opt increment}
 {opt present(varname)}
@@ -102,7 +104,9 @@
 {synopt:{opt oppframe(framename)}}the frame that holds the two variables of {opt opportunities()}, so that the covariates can stay in the dataset in memory{p_end}
 
 {syntab:Cross-network effects}
-{synopt:{opt tie(netname)}}choice and choice_coordination sub-models - presence in a SEPARATE, static exogenous network; see {bf:Description} below{p_end}
+{synopt:{opt tie(netname)}}choice and choice_coordination sub-models - presence in another network, an ordinary one or one that changes over time; see {bf:Description} below{p_end}
+{synopt:{opt netterms(terms)}}choice and choice_coordination sub-models - effects on other networks (tie, closure effects, mixed closures with two networks) and {opt tertiusdiff}, each with its own {opt window()}, {opt weighted} and {opt ignorerep}; see {bf:Effects on other networks} below{p_end}
+{synopt:{opt ignorerep(effects)}}choice and choice_coordination sub-models - the named effects are set to 0 for the pairs that already have a tie in the dependent network{p_end}
 
 {syntab:Time-varying covariates}
 {synopt:{opt change(varname netname [...])}}the covariate {it:varname} changes over time; {it:netname} holds its change events (pairs, one per changing covariate); see {bf:Time-varying covariates} below{p_end}
@@ -238,9 +242,8 @@ default. {opt recip}, {opt outdeg}, {opt cycle}, {opt commonsender}, {opt common
 {opt outdeg} because an undirected tie has no direction to reciprocate and in-degree/out-degree
 coincide; {opt cycle}, {opt commonsender}, and {opt commonreceiver} because {cmd:goldfish} itself does
 not register a {cmd:choice_coordination} version of them at all; {opt ego()} because it is
-{opt submodel(rate)}-only, matching {opt submodel(choice)}'s own scope exactly. {opt tertiusDiff()}
-remains real-goldfish-eligible but not yet wired - a real, disclosed gap rather than a blanket
-restriction.
+{opt submodel(rate)}-only, matching {opt submodel(choice)}'s own scope exactly. The terms of {opt netterms()} that
+{cmd:goldfish} offers for this sub-model are {cmd:tie}, {cmd:trans}, {cmd:four}, {cmd:mixedtrans} and {cmd:tertiusdiff}.
 {opt opportunities()}, {opt recipwindow()}, {opt outdegwindow()}, {opt weightedrecip}, {opt weightedoutdeg}
 and two-mode networks are not supported for {opt submodel(choice_coordination)}; {opt inertiawindow()},
 {opt indegwindow()}, {opt tertiuswindow()}, {opt weightedinertia} and {opt weightedindeg} are.
@@ -304,19 +307,15 @@ and name it in {opt oppframe(framename)}: the covariates stay in the dataset in 
 	{cmd:. nwdynam mynet, inertia opportunities(evvar actvar)}
 
 {pstd}
-{opt tie(netname)} reads whether a tie exists in a SEPARATE,
-already-declared network (a tie is present when its value is greater than 0; negative values are not ties) - goldfish's own {cmd:tie(network, ...)} effect, {it:s(i,j,t,x) = I(x_ij>0)},
-identical in shape to {opt inertia} but reading a fixed, exogenous matrix instead of the
-dependent network's own event history. {it:netname} must be an ORDINARY (non-{opt eventtime()})
-network with exactly the same number of actors as the network being fit, in the same row/index
-order (row/index correspondence, not label matching, the same convention {opt same()} and
-{opt diff()} already use). Valid under {opt submodel(choice)} and {opt submodel(choice_coordination)}
-(under the latter the exogenous matrix is used directly, with no further computation), matching {cmd:goldfish}'s own effect table exactly; rejected under
-{opt submodel(rate)}. Only a STATIC exogenous network is supported - {it:netname} cannot itself
-be an {opt eventtime()}-declared (dynamically evolving) network; {cmd:goldfish}'s own fuller
-generality, where the SECOND network can itself change over time, remains a real, disclosed
-follow-on. {opt weighted}, {opt window()}, and {opt ignoreRep} are likewise not yet supported for
-{opt tie()}.
+{opt tie(netname)} reads whether a tie exists in ANOTHER, already-declared network (a tie is present when its value is greater than 0;
+negative values are not ties) - goldfish's own {cmd:tie(network, ...)} effect, {it:s(i,j,t,x) = I(x_ij>0)},
+identical in shape to {opt inertia} but reading another network instead of the dependent network's own event history.
+{it:netname} is either an ORDINARY (non-{opt eventtime()}) network with exactly the same number of actors as the network being fit, in the
+same row/index order (row/index correspondence, not label matching, the same convention {opt same()} and {opt diff()} use), or a network
+declared with {opt eventtime()}, which starts empty and changes with its events, exactly like the dependent network (its actors are matched
+to the actors of the fitted network by label). Valid under {opt submodel(choice)} and {opt submodel(choice_coordination)}, matching
+{cmd:goldfish}'s own effect table; rejected under {opt submodel(rate)}. The value of the tie, a window and {opt ignorerep} are options of the
+term {cmd:tie()} in {opt netterms()}, see {bf:Effects on other networks}.
 
 	{cmd:. nwset, mat(staticmat) name(covnet) directed}
 	{cmd:. nwdynam mynet, tie(covnet)}
@@ -348,8 +347,8 @@ to{p_end}
 {pstd}
 {bf:submodel(choice)} two- and three-path closure effects - each counts paths through the
 DEPENDENT network itself linking the sender, the candidate, and a third actor ({cmd:goldfish}'s
-own default when no other network is named; using an exogenous network instead, or the two-network
-"mixed" variants {cmd:goldfish} also offers, is not yet supported by this command):
+own default when no other network is named; the same effects through another network, and the two-network
+"mixed" variants, are terms of {opt netterms()}, see {bf:Effects on other networks}):
 
 {p2colset 9 20 22 2}{...}
 {p2col:{bf:trans}}two-paths sender -> third actor -> candidate{p_end}
@@ -499,6 +498,48 @@ exactly one row. Without {bf:_nwnode} the dataset must have exactly one row per 
 Every effect is evaluated fresh at each event from the event history strictly prior to that
 event (no lookahead). The covariate effects use the covariate values of the dataset, which hold
 for the whole log unless {opt change()} lets them change over time (next section).
+
+{pstd}
+{bf:Effects on other networks.} {opt netterms(terms)} adds effects of {cmd:goldfish} that read other networks than the dependent network,
+or that have their own window, to the sub-models {bf:choice} and {bf:choice_coordination}. The terms are written as in {cmd:goldfish}, separated by
+spaces, each one {it:effect}({it:networks} [, {it:options}]); a network is the name of a network declared with {help nwset}: the fitted network
+itself (the same effect with its own window or {opt ignorerep}), an ordinary network, or a network declared with {opt eventtime()} that changes
+over time with its events (it starts empty; its actors are matched to the actors of the fitted network by label; an ordinary network must have the
+same actors in the same order as the fitted network). The coefficients of the terms follow those of the other effects, in the order of the
+terms, and are named after them ({cmd:trans_friends}, {cmd:tie_adv_wgt}, {cmd:mixedtrans_net_adv}, ...).
+
+{p2colset 9 38 40 2}{...}
+{p2col:{bf:tie}({it:net})}whether the tie {it:i}->{it:j} exists in {it:net} (option {opt weighted}: its value){p_end}
+{p2col:{bf:trans}({it:net})}two-paths {it:i}->{it:k}->{it:j} in {it:net}{p_end}
+{p2col:{bf:cycle}({it:net})}two-paths {it:j}->{it:k}->{it:i} (choice only){p_end}
+{p2col:{bf:commonsender}({it:net})}two-paths {it:i}<-{it:k}->{it:j} (choice only){p_end}
+{p2col:{bf:commonreceiver}({it:net})}two-paths {it:i}->{it:k}<-{it:j} (choice only){p_end}
+{p2col:{bf:four}({it:net})}three-paths {it:i}->{it:k}<-{it:l}->{it:j}{p_end}
+{p2col:{bf:mixedtrans}({it:net1 net2})}two-paths {it:i}->{it:k} in {it:net1} and {it:k}->{it:j} in {it:net2}{p_end}
+{p2col:{bf:mixedcycle}({it:net1 net2})}{it:k}->{it:i} in {it:net1} and {it:j}->{it:k} in {it:net2} (choice only){p_end}
+{p2col:{bf:mixedcommonsender}({it:net1 net2})}{it:k}->{it:i} in {it:net1} and {it:k}->{it:j} in {it:net2}, counted in both directions of the pair (choice only){p_end}
+{p2col:{bf:mixedcommonreceiver}({it:net1 net2})}{it:i}->{it:k} in {it:net1} and {it:j}->{it:k} in {it:net2}, counted in both directions of the pair (choice only){p_end}
+{p2col:{bf:tertiusdiff}({it:var} [{it:net}])}the absolute difference between the covariate of the sender and the mean covariate of the in-neighbours of the candidate in {it:net}
+(default: the fitted network); a candidate without in-neighbour gets the mean of the statistics of the others{p_end}
+{p2colreset}{...}
+
+{pstd}
+Options after a comma: {opt window(#)} counts only the events of the last # time units (as {opt inertiawindow()}); {opt weighted}
+(only {cmd:tie}) uses the value of the tie instead of its presence; {opt ignorerep} sets the statistic to 0 for the pairs that already have
+a tie in the dependent network (goldfish: {cmd:ignoreRep = TRUE}). A mixed term needs two different networks; either of them may be the fitted
+network, or both may be other networks. In {cmd:choice_coordination} only {cmd:tie}, {cmd:trans}, {cmd:four}, {cmd:mixedtrans} and
+{cmd:tertiusdiff} exist, as in {cmd:goldfish}. The effects of the dependent network that the other options give ({opt trans},
+{opt four}, ...) can be combined with {opt ignorerep(effects)}: the named effects are set to 0 for the pairs that already have a tie in the
+dependent network ({opt inertia} and the covariate effects have no such argument in {cmd:goldfish}; the rate sub-model is not available:
+{cmd:goldfish} accepts {cmd:ignoreRep} there but the statistic it then computes depends on an internal array layout).
+Events of other networks at the time of an event of the dependent network are seen by the following events only, as for covariate changes. With a window,
+{cmd:goldfish} starts the statistic at 0 whatever the network holds at the start, and so does {cmd:nwdynam}. The terms are not
+available for two-mode networks, with {opt submodel(rate)} or for a covariate with {opt change()}.
+
+	{cmd:. nwdynam chat, inertia netterms(tie(advice) trans(advice))}
+	{cmd:. nwdynam chat, inertia netterms(tie(advice, weighted window(30)) mixedtrans(chat advice))}
+	{cmd:. nwdynam chat, inertia netterms(tertiusdiff(dept) four(advice, ignorerep))}
+	{cmd:. nwdynam chat, indeg trans ignorerep(trans)}
 
 {marker tvc}{...}
 {pstd}

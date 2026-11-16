@@ -77,6 +77,7 @@ typedef int64_t nwint;
 #define XT_MCSEND 8
 #define XT_MCRECV 9
 #define XT_TDIFF 10
+#define XT_FOUR 11
 #define M_CHOICE 1
 #define M_RATE 2
 #define M_RATEINT 3
@@ -121,7 +122,7 @@ typedef struct {
 typedef struct {
 	nwint n;
 	XTState *xs;
-	int nxt;
+	int nxt, err;                      /* err: 1/2 = a situation in which goldfish's tertiusDiff stops with an error */
 	double *tv;                        /* tie values, n x n */
 	char *Ab;                          /* tv > 0 */
 	double *inS, *outS, *inV, *outV;   /* column / row sums of sign(tv) and of tv */
@@ -433,7 +434,7 @@ static int xt_init(const Spec *sp, State *st) {
 		}
 		x->C = (double *)calloc(nn, sizeof(double));
 		if (!x->C) return 909;
-		if (tdiff) {
+		if (tdiff || ts->type == XT_FOUR) {
 			x->S = (double *)calloc(nn, sizeof(double));
 			x->cv = (double *)calloc((size_t)n, sizeof(double));
 			if (!x->S || !x->cv) return 909;
@@ -493,6 +494,41 @@ static int xt_init(const Spec *sp, State *st) {
 				}
 			}
 			break;
+		case XT_FOUR: {
+			/* stat = (S S') S - diag(rowSums(S*S)) S - S diag(colSums(S*S)) + S, S = sign(network) without its diagonal */
+			double *T = (double *)calloc(nn, sizeof(double));
+			int allz = 1;
+			if (!T) { free(S1); return 909; }
+			for (i = 0; i < n; i++) S1[i * n + i] = 0.0;
+			for (i = 0; i < (nwint)nn; i++) if (S1[i] != 0.0) { allz = 0; break; }
+			if (!allz) {
+				for (i = 0; i < n; i++) for (k = 0; k < n; k++) {
+					double a = S1[i * n + k];
+					if (a == 0.0) continue;
+					for (j = 0; j < n; j++) T[i * n + j] += a * S1[j * n + k];
+				}
+				for (i = 0; i < n; i++) for (j = 0; j < n; j++) {
+					double a = T[i * n + j];
+					if (a == 0.0) continue;
+					for (k = 0; k < n; k++) x->C[i * n + k] += a * S1[j * n + k];
+				}
+				/* rowSums / colSums of S*S: S is 0/+-1 so S*S = |S| */
+				for (i = 0; i < n; i++) {
+					double rs = 0.0;
+					for (j = 0; j < n; j++) rs += S1[i * n + j] * S1[i * n + j];
+					for (j = 0; j < n; j++) x->C[i * n + j] -= rs * S1[i * n + j];
+				}
+				for (j = 0; j < n; j++) {
+					double cs = 0.0;
+					for (i = 0; i < n; i++) cs += S1[i * n + j] * S1[i * n + j];
+					for (i = 0; i < n; i++) x->C[i * n + j] -= S1[i * n + j] * cs;
+				}
+				for (i = 0; i < (nwint)nn; i++) x->C[i] += S1[i];
+			}
+			memcpy(x->S, x->C, nn * sizeof(double));
+			free(T);
+			break;
+		}
 		case XT_TDIFF: {
 			const double *at = sp->xattr[ts->attr - 1];
 			int allz = 1, any = 0;
@@ -532,13 +568,19 @@ static void xt_tdiff(const Spec *sp, State *st, XTState *x, const XTermSpec *ts,
 	int isEmpty = 1, isImpute, newval = sn - so, nchg = 0;
 	double sum = 0.0, val, imp;
 	nwint cnt = 0;
-	(void)st;
-	for (j = 0; j < n; j++) if (isnan(x->cv[j]) || x->cv[j] != 0.0) { isEmpty = 0; break; }
+	{
+		/* goldfish: isEmpty <- all(cache == 0), an NA when some cache is NaN and the others are all 0: "if (NA)" is an error */
+		int anynan = 0, anynz = 0;
+		for (j = 0; j < n; j++) { if (isnan(x->cv[j])) anynan = 1; else if (x->cv[j] != 0.0) anynz = 1; }
+		if (anynan && !anynz) { st->err = 2; return; }
+		isEmpty = !anynan && !anynz;
+	}
 	isImpute = 0;
 	for (j = 0; j < n; j++) if (isnan(x->cv[j])) { isImpute = 1; break; }
 	for (k = 0; k < n; k++) if (V[k * n + r] > 0.0 && !(newval != 1 && k == s)) { sum += at[k]; cnt++; }
 	if (newval == 1) { sum += at[s]; cnt++; }
 	val = cnt > 0 ? sum / (double)cnt : NAN;
+	if (isnan(val)) { st->err = 1; return; }   /* goldfish: the receiver has no in-neighbour left; its update then fails ("subscript out of bounds") */
 	if (!isImpute && isnan(val)) isImpute = 1;
 	x->cv[r] = val;
 	x->impute = isImpute;
@@ -597,6 +639,40 @@ static void xt_cell(const Spec *sp, State *st, int t, int m, nwint a, nwint b, d
 		return;
 	}
 	if (a == b || d == 0.0) { x->V[m][a * n + b] = nw; return; }
+	if (ts->type == XT_FOUR) {
+		/* goldfish update_DyNAM_choice_four: the paths are counted in the network after the change (as 0/1) */
+		double *tmpv = (double *)malloc((size_t)n * sizeof(double)), *tmpw = (double *)malloc((size_t)n * sizeof(double));
+		nwint i, j, l, pass;
+		double inc = 2.0 * sn - 1.0;
+		char *B = (char *)malloc((size_t)n * (size_t)n);
+		if (!tmpv || !tmpw || !B) { free(tmpv); free(tmpw); free(B); return; }
+		x->V[m][a * n + b] = nw;
+		for (i = 0; i < n * n; i++) B[i] = (char)(V0[i] > 0.0);
+		for (i = 0; i < n; i++) B[i * n + i] = 0;
+		for (pass = 0; pass < 2; pass++) {
+			/* pass 0 adds to the cache, pass 1 sets the statistic of the cells touched */
+			for (i = 0; i < n; i++) {
+				double v = 0.0, w = 0.0;
+				for (k = 0; k < n; k++) {
+					if (k != b && B[a * n + k] && B[i * n + k]) v += 1.0;
+					if (k != a && B[k * n + b] && B[k * n + i]) w += 1.0;
+				}
+				tmpv[i] = (i == a) ? 0.0 : v;
+				tmpw[i] = (i == b) ? 0.0 : w;
+			}
+			for (i = 0; i < n; i++) if (tmpv[i] > 0.0) { if (pass == 0) C[i * n + b] += inc * tmpv[i]; else x->S[i * n + b] = C[i * n + b] >= 0.0 ? C[i * n + b] : 0.0; }
+			for (j = 0; j < n; j++) if (tmpw[j] > 0.0) { if (pass == 0) C[a * n + j] += inc * tmpw[j]; else x->S[a * n + j] = C[a * n + j] >= 0.0 ? C[a * n + j] : 0.0; }
+			for (l = 0; l < n; l++) {
+				if (l == a || !B[l * n + b]) continue;
+				for (k = 0; k < n; k++) {
+					if (k == b || !B[a * n + k]) continue;
+					if (pass == 0) C[l * n + k] += inc; else x->S[l * n + k] = C[l * n + k] >= 0.0 ? C[l * n + k] : 0.0;
+				}
+			}
+		}
+		free(tmpv); free(tmpw); free(B);
+		return;
+	}
 	switch (ts->type) {
 	case XT_TRANS:
 		for (k = 0; k < n; k++) {
@@ -697,7 +773,7 @@ static int eff_ign(const Spec *sp, int e) { return e >= 100 ? sp->xt[e - 100].ig
 /* statistic of term t for the dyad (a,b) */
 static double xt_stat(const Spec *sp, const State *st, int t, nwint a, nwint b) {
 	const XTState *x = &st->xs[t];
-	double v = (sp->xt[t].type == XT_TDIFF) ? x->S[a * sp->n + b] : x->C[a * sp->n + b];
+	double v = (sp->xt[t].type == XT_TDIFF || sp->xt[t].type == XT_FOUR) ? x->S[a * sp->n + b] : x->C[a * sp->n + b];
 	if (isnan(v)) v = 0.0;
 	return v;
 }
@@ -813,7 +889,10 @@ static int eval_softmax(const Spec *sp, const double *theta, int todo, double *l
 		if (fresh) {
 			expire(sp, &st, gs, sp->ev[5 * i + 2]);
 			apply_changes(sp, &st, sp->ev[5 * i + 2]);
-			if (sp->nxt > 0) xadvance(sp, &st, gs, sp->ev[5 * i + 2]);
+			if (sp->nxt > 0) {
+				xadvance(sp, &st, gs, sp->ev[5 * i + 2]);
+				if (st.err) { SF_error("dynam_sim: tertiusdiff(): a candidate has no in-neighbour left in the network, where goldfish stops with an error\n"); rc = 198; goto done; }
+			}
 			if (!choice) rate_stats(sp, &st, X, 0);
 		}
 		if (st.pres) {
@@ -1080,7 +1159,10 @@ static int eval_coord(const Spec *sp, const double *theta, int todo, double *ll,
 		if (dirty) {
 			expire(sp, &st, gs, sp->ev[5 * i + 2]);
 			apply_changes(sp, &st, sp->ev[5 * i + 2]);
-			if (sp->nxt > 0) xadvance(sp, &st, gs, sp->ev[5 * i + 2]);
+			if (sp->nxt > 0) {
+				xadvance(sp, &st, gs, sp->ev[5 * i + 2]);
+				if (st.err) { SF_error("dynam_sim: tertiusdiff(): a candidate has no in-neighbour left in the network, where goldfish stops with an error\n"); rc = 198; goto done; }
+			}
 			if (four) {
 				/* AAtA = A * (A'A), recomputed when the tie matrix changed */
 				memset(AAtA, 0, (size_t)n * (size_t)n * sizeof(int32_t));
@@ -1211,7 +1293,7 @@ static int spec_read(Spec *sp, nwint L) {
 				if (p + 8 > xlen) return 198;
 				ts->type = (int)xb[p]; ts->la = (int)xb[p + 1]; ts->lb = (int)xb[p + 2]; ts->win = xb[p + 3]; ts->wgt = xb[p + 4];
 				ts->ign = (int)xb[p + 5]; ts->attr = (int)xb[p + 6]; p += 8;
-				if (ts->type < XT_TIE || ts->type > XT_TDIFF || ts->la < 0 || ts->la > nl || ts->lb > nl || ts->lb < -1) return 198;
+				if (ts->type < XT_TIE || ts->type > XT_FOUR || ts->la < 0 || ts->la > nl || ts->lb > nl || ts->lb < -1) return 198;
 				if (ts->type == XT_TDIFF && (ts->attr < 1 || ts->attr > na)) return 198;
 				if (sp->P >= 60) return 198;
 				sp->eff[sp->P++] = 100 + (int)t;

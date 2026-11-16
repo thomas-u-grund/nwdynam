@@ -734,6 +734,13 @@ program nwdynam, eclass
 	tempname __nwdynam_pinit
 	local __nwdynam_xvars ""
 	if `__nwdynam_nxt' > 0 mata: st_local("__nwdynam_xvars", invtokens(dynam_xt_vars(`__nwdynam_xt')))
+	foreach __nwdynam_xv of local __nwdynam_xvars {
+		local __nwdynam_ok : list posof "`__nwdynam_xv'" in __nwdynam_cvars
+		if `__nwdynam_ok' > 0 {
+			di as error "{p 0 0 2}change(): the covariate {bf:`__nwdynam_xv'} is used by tertiusdiff() in netterms(); a change of a covariate is not available for tertiusdiff().{p_end}"
+			error 198
+		}
+	}
 	if "`same'`diff'`sim'`ego'`alter'`tertius'`egoalterint'`present'`__nwdynam_xvars'" != "" {
 		unw_defs
 		capture confirm string variable `nw_nodename'

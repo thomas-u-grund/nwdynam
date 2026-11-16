@@ -168,13 +168,17 @@ if ("b" %in% secs) {
              list("commonSender(x1)", "commonsender(x1)", "x"), list("commonSender(x2)", "commonsender(x2)", "x"),
              list("commonReceiver(x1)", "commonreceiver(x1)", "x"), list("commonReceiver(x2)", "commonreceiver(x2)", "x"),
              list("trans(x1, window = %W)", "trans(x1, window(%W))", "x"), list("cycle(net, window = %W)", "cycle(net, window(%W))", "x"),
-             list("trans(net, ignoreRep = TRUE)", "trans(net, ignorerep)", "x"), list("commonSender(x1, ignoreRep = TRUE)", "commonsender(x1, ignorerep)", "x"))
+             list("trans(net, ignoreRep = TRUE)", "trans(net, ignorerep)", "x"), list("commonSender(x1, ignoreRep = TRUE)", "commonsender(x1, ignorerep)", "x"),
+             list("four(x1)", "four(x1)", "x"), list("four(x2)", "four(x2)", "x"), list("four(x1, window = %W)", "four(x1, window(%W))", "x"), list("four(net, window = %W)", "four(net, window(%W))", "x"),
+             list("four(x1, ignoreRep = TRUE)", "four(x1, ignorerep)", "x"))
   bb <- list(list("inertia(net)", "inertia", "b"), list("indeg(net)", "indeg", "b"))
   sb <- list(one("b", "b01", 1, "choice", list(n = 7, N = 50, exo = EXO["x1"]), "trans(x1)", "netterms(trans(x1))"),
              one("b", "b02", 2, "choice", list(n = 7, N = 50, exo = EXO["x2"]), "cycle(x2)", "netterms(cycle(x2))"),
              one("b", "b03", 3, "choice", list(n = 7, N = 50, exo = EXO["x1"]), "commonSender(x1)", "netterms(commonsender(x1))"),
              one("b", "b04", 4, "choice", list(n = 7, N = 50, exo = EXO["x2"]), "commonReceiver(x2)", "netterms(commonreceiver(x2))"),
-             one("b", "b05", 5, "choice", list(n = 7, N = 50), "trans(net, window = 6)", "netterms(trans(net, window(6)))"))
+             one("b", "b05", 5, "choice", list(n = 7, N = 50), "trans(net, window = 6)", "netterms(trans(net, window(6)))"),
+             one("b", "b06", 6, "choice", list(n = 7, N = 50, exo = EXO["x1"]), "four(x1)", "netterms(four(x1))"),
+             one("b", "b07", 7, "choice", list(n = 7, N = 50, exo = EXO["x2"]), "four(x2)", "netterms(four(x2))"))
   sb2 <- randspecs("b", c(bb, pb), 45, 21, "choice", function(k) list(n = sample(6:9, 1), N = sample(40:80, 1), exo = EXO, weights = (k %% 4 == 0),
          inttime = (k %% 5 == 0), ties = (k %% 3 != 0)), maxeff = 3, idoff = 10)
   specs <- c(specs, sb, sb2)
@@ -246,13 +250,18 @@ if ("f" %in% secs) {
   pf <- list(list("tie(x1)", "tie(x1)", "x"), list("tie(x2)", "tie(x2)", "x"), list("tie(x3, weighted = TRUE)", "tie(x3, weighted)", "x"), list("trans(x1)", "trans(x1)", "x"),
              list("trans(x2)", "trans(x2)", "x"), list("mixedTrans(list(net, x1), netUpdate = 1)", "mixedtrans(net x1)", "x"), list("mixedTrans(list(x2, net), netUpdate = 2)", "mixedtrans(x2 net)", "x"),
              list("tertiusDiff(net, nd$%s)", "tertiusdiff(%s)", "x", "xy"), list("tertiusDiff(x1, nd$x)", "tertiusdiff(x x1)", "x"), list("tie(x1, window = %W)", "tie(x1, window(%W))", "x"),
-             list("trans(net, ignoreRep = TRUE)", "trans(net, ignorerep)", "x"))
+             list("trans(net, ignoreRep = TRUE)", "trans(net, ignorerep)", "x"),
+             list("four(x1)", "four(x1)", "x"), list("four(x2)", "four(x2)", "x"), list("four(net, window = %W)", "four(net, window(%W))", "x"))
   bf <- list(list("inertia(net)", "inertia", "b"), list("indeg(net)", "indeg", "b"))
   sf <- list(one("f", "f01", 1, "choice_coordination", list(kind = "und", n = 7, N = 50, exo = EXOU["x1"]), "tie(x1)", "netterms(tie(x1))"),
              one("f", "f02", 2, "choice_coordination", list(kind = "und", n = 7, N = 50, exo = EXOU["x2"]), "tie(x2)", "netterms(tie(x2))"),
              one("f", "f03", 3, "choice_coordination", list(kind = "und", n = 7, N = 50, exo = EXOU["x1"]), "trans(x1)", "netterms(trans(x1))"),
              one("f", "f04", 4, "choice_coordination", list(kind = "und", n = 7, N = 50, exo = EXOU["x1"]), "mixedTrans(list(net, x1), netUpdate = 1)", "netterms(mixedtrans(net x1))"),
-             one("f", "f05", 5, "choice_coordination", list(kind = "und", n = 7, N = 50), "tertiusDiff(net, nd$x)", "netterms(tertiusdiff(x))"))
+             one("f", "f05", 5, "choice_coordination", list(kind = "und", n = 7, N = 50), "tertiusDiff(net, nd$x)", "netterms(tertiusdiff(x))"),
+             one("f", "f06", 6, "choice_coordination", list(kind = "und", n = 7, N = 50), "inertia(net) + indeg(net, ignoreRep = TRUE)", "inertia indeg ignorerep(indeg)"),
+             one("f", "f07", 7, "choice_coordination", list(kind = "und", n = 7, N = 50), "inertia(net) + trans(net, ignoreRep = TRUE)", "inertia trans ignorerep(trans)"),
+             one("f", "f08", 8, "choice_coordination", list(kind = "und", n = 8, N = 60), "inertia(net) + four(net, ignoreRep = TRUE)", "inertia four ignorerep(four)"),
+             one("f", "f09", 9, "choice_coordination", list(kind = "und", n = 8, N = 60), "indeg(net) + nodeTrans(net, ignoreRep = TRUE) + tertius(net, nd$x, ignoreRep = TRUE)", "indeg nodetrans tertius(x) ignorerep(nodetrans tertius)"))
   sf2 <- randspecs("f", c(bf, pf), 40, 61, "choice_coordination", function(k) list(kind = "und", n = sample(6:9, 1), N = sample(40:70, 1), exo = EXOU, weights = (k %% 4 == 0),
          inttime = (k %% 5 == 0), ties = (k %% 3 != 0)), maxeff = 2, idoff = 10)
   specs <- c(specs, sf, sf2)

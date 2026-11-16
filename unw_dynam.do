@@ -894,9 +894,9 @@ string matrix dynam_parse_terms(string scalar s, string scalar submodel, string 
 	real scalar i, j, depth, k, start, win, wgt, ign, nterm, two, ok
 	string rowvector choiceok, coordok, onenet, twonet
 
-	choiceok = ("tie", "trans", "cycle", "commonsender", "commonreceiver", "mixedtrans", "mixedcycle", "mixedcommonsender", "mixedcommonreceiver", "tertiusdiff")
-	coordok = ("tie", "trans", "mixedtrans", "tertiusdiff")
-	onenet = ("tie", "trans", "cycle", "commonsender", "commonreceiver")
+	choiceok = ("tie", "trans", "cycle", "commonsender", "commonreceiver", "four", "mixedtrans", "mixedcycle", "mixedcommonsender", "mixedcommonreceiver", "tertiusdiff")
+	coordok = ("tie", "trans", "four", "mixedtrans", "tertiusdiff")
+	onenet = ("tie", "trans", "cycle", "commonsender", "commonreceiver", "four")
 	twonet = ("mixedtrans", "mixedcycle", "mixedcommonsender", "mixedcommonreceiver")
 	out = J(0, 7, "")
 	s = strtrim(s)
@@ -945,8 +945,8 @@ string matrix dynam_parse_terms(string scalar s, string scalar submodel, string 
 		}
 		ok = any(nm :== (submodel == "choice" ? choiceok : coordok))
 		if (!ok) {
-			if (any(nm :== choiceok)) errprintf("{p 0 0 2}netterms(): {bf:%s} is not available with submodel(choice_coordination): goldfish's coordination model has only tie, trans, mixedtrans and tertiusdiff among these effects.{p_end}\n", nm)
-			else errprintf("{p 0 0 2}netterms(): unknown term {bf:%s}; the terms are tie, trans, cycle, commonsender, commonreceiver, mixedtrans, mixedcycle, mixedcommonsender, mixedcommonreceiver and tertiusdiff.{p_end}\n", nm)
+			if (any(nm :== choiceok)) errprintf("{p 0 0 2}netterms(): {bf:%s} is not available with submodel(choice_coordination): goldfish's coordination model has only tie, trans, four, mixedtrans and tertiusdiff among these effects.{p_end}\n", nm)
+			else errprintf("{p 0 0 2}netterms(): unknown term {bf:%s}; the terms are tie, trans, cycle, commonsender, commonreceiver, four, mixedtrans, mixedcycle, mixedcommonsender, mixedcommonreceiver and tertiusdiff.{p_end}\n", nm)
 			exit(198)
 		}
 		aw = tokens(args)
@@ -1112,7 +1112,7 @@ real colvector dynam_xblob(string matrix T, string rowvector xnames, transmorphi
 	real colvector b, terms, attrs, lay
 	real scalar i, la, lb, ty, na
 	string rowvector tys
-	tys = ("tie", "trans", "cycle", "commonsender", "commonreceiver", "mixedtrans", "mixedcycle", "mixedcommonsender", "mixedcommonreceiver", "tertiusdiff")
+	tys = ("tie", "trans", "cycle", "commonsender", "commonreceiver", "mixedtrans", "mixedcycle", "mixedcommonsender", "mixedcommonreceiver", "tertiusdiff", "four")
 	lay = J(0, 1, .)
 	for (i = 1; i <= cols(xnames); i++) lay = lay \ asarray(XL, xnames[i])
 	terms = J(0, 1, .)
