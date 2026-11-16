@@ -1,0 +1,39 @@
+"id","sub","opts","kind","chg","opp","inc","tolb","tolse"
+"e01","choice","same(g)","one","",1,0,1e-06,1e-06
+"e02","choice","inertia alter(x)","one","",1,0,1e-06,1e-06
+"e03","choice","egoalterint(x y)","one","",1,0,1e-06,1e-06
+"e11","choice","inertia same(g) diff(y)","one","",1,0,1e-06,1e-06
+"e12","choice","inertia same(g) sim(x)","one","",1,0,1e-06,1e-06
+"e13","choice","inertia indeg tertius(x) tertiuswindow(9)","one","",1,0,1e-06,1e-06
+"e14","choice","inertia diff(x) tertius(x)","one","",1,0,1e-06,1e-06
+"e15","choice","same(g) sim(x) alter(y)","one","",1,0,1e-06,1e-06
+"e16","choice","indeg egoalterint(x y) tertius(x) tertiuswindow(4.5)","one","",1,0,1e-06,1e-06
+"e17","choice","inertia sim(x)","one","",1,0,1e-06,1e-06
+"e18","choice","same(g) sim(y) egoalterint(x y)","one","",1,0,1e-06,1e-06
+"e19","choice","inertia indeg same(g)","one","",1,0,1e-06,1e-06
+"e20","choice","inertia indeg egoalterint(x y)","one","",1,0,1e-06,1e-06
+"e21","choice","inertia diff(y) alter(y)","one","",1,0,1e-06,1e-06
+"e23","choice","inertia indeg same(g)","one","",1,0,1e-06,1e-06
+"e24","choice","inertia indeg sim(y)","one","",1,0,1e-06,1e-06
+"e25","choice","inertia indeg same(g)","one","",1,0,1e-06,1e-06
+"e26","choice","inertia same(g) diff(y)","one","",1,0,1e-06,1e-06
+"e27","choice","same(g) diff(x) alter(x)","one","",1,0,1e-06,1e-06
+"e28","choice","indeg sim(y) alter(y)","one","",1,0,1e-06,1e-06
+"e29","choice","same(g) sim(x) alter(y)","one","",1,0,1e-06,1e-06
+"e30","choice","inertia same(g) alter(x)","one","",1,0,1e-06,1e-06
+"e31","choice","same(g) diff(x) egoalterint(x y)","one","",1,0,1e-06,1e-06
+"e32","choice","same(g) diff(y) alter(y)","one","",1,0,1e-06,1e-06
+"e34","choice","inertia diff(x) sim(y)","one","",1,0,1e-06,1e-06
+"e37","choice","inertia indeg same(g)","one","",1,0,1e-06,1e-06
+"e38","choice","diff(x) egoalterint(x y) tertius(x)","one","",1,0,1e-06,1e-06
+"e39","choice","inertia same(g) diff(x)","one","",1,0,1e-06,1e-06
+"e40","choice","inertia indeg sim(x)","one","",1,0,1e-06,1e-06
+"e41","choice","indeg sim(x) alter(x)","one","",1,0,1e-06,1e-06
+"e42","choice","inertia indeg sim(y)","one","",1,0,1e-06,1e-06
+"e43","choice","inertia indeg same(g)","one","",1,0,1e-06,1e-06
+"e44","choice","indeg diff(y) tertius(x)","one","",1,0,1e-06,1e-06
+"e45","choice","inertia indeg alter(x)","one","",1,0,1e-06,1e-06
+"e46","choice","indeg egoalterint(x y) tertius(x)","one","",1,0,1e-06,1e-06
+"e47","choice","inertia indeg same(g)","one","",1,0,1e-06,1e-06
+"e48","choice","egoalterint(x y)","one","",1,0,1e-06,1e-06
+"e50","choice","indeg same(g) sim(y)","one","",1,0,1e-06,1e-06

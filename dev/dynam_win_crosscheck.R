@@ -133,7 +133,7 @@ runspec <- function(sp) {
 }
 
 # ---- random specs from pieces: a piece = list(goldfish term, nwdynam option[, variable letters])
-randspecs <- function(sec, pieces, nrand, seed0, sub, mkargs, kind = "one", maxeff = 3, icpt = FALSE, idoff = 0, groups = NULL, must = NULL) {
+randspecs <- function(sec, pieces, nrand, seed0, sub, mkargs, kind = "one", maxeff = 3, icpt = FALSE, idoff = 0, groups = NULL, must = NULL, force = NULL) {
   set.seed(seed0)
   sp <- list()
   for (k in 1:nrand) {
@@ -141,6 +141,7 @@ randspecs <- function(sec, pieces, nrand, seed0, sub, mkargs, kind = "one", maxe
     if (length(take) == 0) take <- sample(length(pieces), 1)
     if (!is.null(groups)) take <- take[!duplicated(groups[take])]
     take <- take[seq_len(min(length(take), maxeff))]
+    if (!is.null(force)) take <- sort(unique(c(take, force)))
     forms <- character(); opts <- character()
     for (t in take) {
       pp <- pieces[[t]]
@@ -250,6 +251,33 @@ if ("d" %in% secs) {
   sd2 <- randspecs("d", pd1, 30, 51, "choice", function(k) mk2(k), maxeff = 3, idoff = 10)
   sd3 <- randspecs("d", pd2, 16, 52, "rate", function(k) mk2(k), maxeff = 2, icpt = TRUE, idoff = 50)
   specs <- c(specs, sd, sd2, sd3)
+}
+# ================= section e: opportunities() together with attribute effects (one-mode choice) =================
+pe <- list(list("inertia(net)", "inertia"), list("indeg(net)", "indeg"), list("same(nd$g)", "same(g)"), list("diff(nd$%s)", "diff(%s)", "xy"),
+           list("sim(nd$%s)", "sim(%s)", "xy"), list("alter(nd$%s)", "alter(%s)", "xy"),
+           list("egoAlterInt(nd$x, nd$y)", "egoalterint(x y)"), list("tertius(net, nd$x)", "tertius(x)"), list("tertius(net, nd$x, window = %W)", "tertius(x) tertiuswindow(%W)"))
+if ("e" %in% secs) {
+  se <- list(
+    list(sec = "e", id = "e01", seed = 1, sub = "choice", mk = list(n = 8, N = 60, opp = TRUE), form = "same(nd$g)", opts = "same(g)"),
+    list(sec = "e", id = "e02", seed = 2, sub = "choice", mk = list(n = 8, N = 60, opp = TRUE), form = "inertia(net) + alter(nd$x)", opts = "inertia alter(x)"),
+    list(sec = "e", id = "e03", seed = 3, sub = "choice", mk = list(n = 8, N = 60, opp = TRUE), form = "egoAlterInt(nd$x, nd$y)", opts = "egoalterint(x y)"))
+  se2 <- randspecs("e", pe, 40, 61, "choice", function(k) list(n = sample(6:9, 1), N = sample(40:90, 1), opp = TRUE, oppsize = sample(c(0.4, 0.6, 0.8), 1),
+         inttime = (k %% 5 == 0), ties = (k %% 3 != 0)), maxeff = 3, idoff = 10, groups = c(1, 2, 3, 4, 5, 6, 7, 8, 8))
+  specs <- c(specs, se, se2)
+}
+# ================= section f: time-varying covariates (change) in two-mode and together with opportunities =================
+if ("f" %in% secs) {
+  pf1 <- list(list("inertia(net)", "inertia"), list("indeg(net)", "indeg"), list("alter(nd2$x, isTwoMode = TRUE)", "alter(x)"), list("four(net)", "four"),
+              list("tertius(net, nd1$%s)", "tertius(%s)", "xy"))
+  pf2 <- list(list("outdeg(net)", "outdeg"), list("ego(nd1$x, isTwoMode = TRUE)", "ego(x)"))
+  mkf <- function(k) list(kind = "two", n1 = sample(5:8, 1), n2 = sample(4:7, 1), N = sample(45:90, 1), chg = c("x", "y"), nchg = 12, inc = (k %% 4 == 0),
+                          inttime = (k %% 5 == 0), ties = (k %% 3 != 0))
+  sf1 <- randspecs("f", pf1, 20, 71, "choice", mkf, maxeff = 3, idoff = 10, force = 3)
+  sf2 <- randspecs("f", pf2, 10, 72, "rate", mkf, maxeff = 2, icpt = TRUE, idoff = 40, force = 2)
+  pf3 <- pe[c(1, 2, 3, 4, 5, 6, 8)]
+  sf3 <- randspecs("f", pf3, 30, 73, "choice", function(k) list(n = sample(6:9, 1), N = sample(40:90, 1), opp = TRUE, chg = c("x", "y", "g"), nchg = 12, inc = (k %% 4 == 0),
+         inttime = (k %% 5 == 0)), maxeff = 3, idoff = 60)
+  specs <- c(specs, sf1, sf2, sf3)
 }
 for (sp in specs) runspec(sp)
 for (sec in secs) {

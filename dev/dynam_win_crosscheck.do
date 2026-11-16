@@ -45,7 +45,7 @@ program runcase
 		frame oppfr {
 			import delimited using `"$WINDIR/opp_`id'.csv"', clear varnames(1)
 		}
-		local oppopt "oppframe(oppfr)"
+		local oppopt "oppframe(oppfr) opportunities(event actor)"
 	}
 	rename _nwnode label
 	merge 1:1 label using `nodes', keep(match master) nogen

@@ -22,7 +22,7 @@ program nwdynam, eclass
 			exit
 		}
 	}
-	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(string) RECIPWINDOW(string) INDEGWINDOW(string) OUTDEGWINDOW(string) TERTIUSWINDOW(string) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(varlist numeric min=2 max=2) TIE(string) CHange(string) INCREMENT PResent(varname numeric) COMPchange(string) INTERCEPT SEED(string) SEQUENTIAL Level(cilevel)]
+	syntax [anything(name=netname)] [, SUBMODEL(string) INERTIA RECIP INDEG OUTDEG TRANS CYCLE COMMONSENDER COMMONRECEIVER FOUR NODETRANS SAME(varname numeric) DIFF(varname numeric) SIM(varname numeric) EGO(varname numeric) ALTER(varname numeric) TERTIUS(varname numeric) EGOALTERINT(varlist min=2 max=2) INERTIAWINDOW(string) RECIPWINDOW(string) INDEGWINDOW(string) OUTDEGWINDOW(string) TERTIUSWINDOW(string) WEIGHTEDINERTIA WEIGHTEDRECIP WEIGHTEDINDEG WEIGHTEDOUTDEG OPPORTUNITIES(string) TIE(string) CHange(string) INCREMENT PResent(varname numeric) COMPchange(string) OPPFRAME(string) INTERCEPT SEED(string) SEQUENTIAL Level(cilevel)]
 	// window options: a positive number when given (internally -1 = not given)
 	foreach __nwdynam_w in inertiawindow recipwindow indegwindow outdegwindow tertiuswindow {
 		if `"``__nwdynam_w''"' != "" {
@@ -63,8 +63,36 @@ program nwdynam, eclass
 		error 198
 	}
 	// opportunities() needs one row per (event, available actor); the covariate options need one row per actor
-	if "`opportunities'" != "" & "`same'`diff'`sim'`alter'`ego'`tertius'`egoalterint'" != "" {
-		di as error "{p 0 0 2}opportunities() cannot be combined with same(), diff(), sim(), alter(), ego(), tertius() or egoalterint(): opportunities() reads one row per event and available actor from the data in memory, the covariate options read one row per actor - see {help nwdynam}.{p_end}"
+	if "`oppframe'" != "" & "`opportunities'" == "" {
+		di as error "{p 0 0 2}oppframe() names the frame that holds the variables of opportunities(); give opportunities() too.{p_end}"
+		error 198
+	}
+	if "`oppframe'" != "" {
+		capture confirm frame `oppframe'
+		if _rc {
+			di as error "{p 0 0 2}oppframe(): frame {bf:`oppframe'} does not exist.{p_end}"
+			error 111
+		}
+	}
+	if "`opportunities'" != "" {
+		if `: word count `opportunities'' != 2 {
+			di as error "{p 0 0 2}opportunities() takes two variables: the event sequence number and the available actor.{p_end}"
+			error 198
+		}
+		if "`oppframe'" == "" {
+			capture unab opportunities : `opportunities'
+			if !_rc confirm numeric variable `opportunities'
+		}
+		else {
+			capture frame `oppframe': confirm numeric variable `opportunities'
+		}
+		if _rc {
+			di as error "{p 0 0 2}opportunities(): both variables must be numeric variables of the " cond("`oppframe'" == "", "current dataset", "frame `oppframe'") ".{p_end}"
+			error 111
+		}
+	}
+	if "`opportunities'" != "" & "`oppframe'" == "" & "`same'`diff'`sim'`alter'`ego'`tertius'`egoalterint'" != "" {
+		di as error "{p 0 0 2}opportunities() reads one row per event and available actor, the covariate options read one row per actor: with a covariate option, keep the covariates in memory and put the opportunities data in another frame, {bf:oppframe(}{it:framename}{bf:)} - see {help nwdynam}.{p_end}"
 		error 198
 	}
 
@@ -81,8 +109,8 @@ program nwdynam, eclass
 			di as error "{p 0 0 2}change() needs a covariate option (same(), diff(), sim(), ego(), alter(), tertius() or egoalterint()) that uses the variable.{p_end}"
 			error 198
 		}
-		if "`opportunities'" != "" {
-			di as error "{p 0 0 2}change() cannot be combined with opportunities(): both read the data in memory in a different layout - see {help nwdynam}.{p_end}"
+		if "`opportunities'" != "" & "`oppframe'" == "" {
+			di as error "{p 0 0 2}change() with opportunities() needs oppframe(): the covariates stay in memory, the opportunities data goes to another frame - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		local __nwdynam_nchgpairs = `__nwdynam_nw' / 2
@@ -418,6 +446,10 @@ program nwdynam, eclass
 		}
 		if "`weightedinertia'`weightedrecip'`weightedindeg'`weightedoutdeg'" != "" {
 			di as error "{p 0 0 2}weighted effects are not yet verified for two-mode (bipartite) networks - see {help nwdynam}.{p_end}"
+			error 198
+		}
+		if "`change'" != "" & "`egoalterint'" != "" {
+			di as error "{p 0 0 2}change() together with egoalterint() is not available for two-mode (bipartite) networks: goldfish itself updates this effect wrongly when an attribute changes in a two-mode network.{p_end}"
 			error 198
 		}
 		if "`tie'`opportunities'" != "" {
@@ -847,23 +879,25 @@ program nwdynam, eclass
 		}
 		local __nwdynam_oppev : word 1 of `opportunities'
 		local __nwdynam_oppact : word 2 of `opportunities'
-		quietly count if missing(`__nwdynam_oppev') | missing(`__nwdynam_oppact')
+		local __nwdynam_fpre ""
+		if "`oppframe'" != "" local __nwdynam_fpre "frame `oppframe':"
+		quietly `__nwdynam_fpre' count if missing(`__nwdynam_oppev') | missing(`__nwdynam_oppact')
 		if r(N) > 0 {
 			di as error "{p 0 0 2}opportunities(): `r(N)' row(s) have a missing value in `__nwdynam_oppev' or `__nwdynam_oppact'; drop them first.{p_end}"
 			error 416
 		}
-		capture assert `__nwdynam_oppev' >= 1 & `__nwdynam_oppev' <= `nevents' if !missing(`__nwdynam_oppev')
+		capture `__nwdynam_fpre' assert `__nwdynam_oppev' >= 1 & `__nwdynam_oppev' <= `nevents' if !missing(`__nwdynam_oppev')
 		if _rc {
 			di as error "{p 0 0 2}`__nwdynam_oppev' must be between 1 and `nevents' (the event sequence number, matching `netname''s own chronological event order) - see {help nwdynam}.{p_end}"
 			error 198
 		}
-		capture assert `__nwdynam_oppact' >= 1 & `__nwdynam_oppact' <= `nodes' if !missing(`__nwdynam_oppact')
+		capture `__nwdynam_fpre' assert `__nwdynam_oppact' >= 1 & `__nwdynam_oppact' <= `nodes' if !missing(`__nwdynam_oppact')
 		if _rc {
 			di as error "{p 0 0 2}`__nwdynam_oppact' must be between 1 and `nodes' (the actor ID, matching `netname''s own actor order) - see {help nwdynam}.{p_end}"
 			error 198
 		}
 		mata: `__nwdynam_oppmat' = J(`nevents', `nodes', 0)
-		mata: st_view(__nwdynam_oppview=., ., "`__nwdynam_oppev' `__nwdynam_oppact'")
+		`__nwdynam_fpre' mata: st_view(__nwdynam_oppview=., ., "`__nwdynam_oppev' `__nwdynam_oppact'")
 		mata: for (__nwdynam_oi=1; __nwdynam_oi<=rows(__nwdynam_oppview); __nwdynam_oi++) `__nwdynam_oppmat'[__nwdynam_oppview[__nwdynam_oi,1], __nwdynam_oppview[__nwdynam_oi,2]] = 1
 		mata: mata drop __nwdynam_oppview __nwdynam_oi
 		// as goldfish: the realised receiver of every event must be among its available actors (events in chronological
