@@ -1,0 +1,43 @@
+"id","sub","opts","directed","inc","tolb","tolse"
+"c1","choice","inertia alter(x)",1,0,1e-06,1e-06
+"c2","choice","inertia same(g) diff(x)",1,0,1e-06,1e-06
+"c3","choice","inertia alter(y) egoalterint(x y)",1,0,1e-06,1e-06
+"c4","choice","inertia indeg tertius(x)",1,0,1e-06,1e-06
+"c5","rate","indeg ego(x)",1,0,1e-06,1e-06
+"c6","rate","outdeg tertius(x)",1,0,1e-06,1e-06
+"c7","rate","indeg ego(x) intercept",1,0,1e-06,1e-06
+"c8","choice_coordination","inertia same(g) sim(x) alter(x) tertius(x)",0,0,1e-05,0.1
+"c9","choice","inertia diff(x) alter(y) egoalterint(x y)",1,1,1e-06,1e-06
+"c10","choice","inertiawindow(8) recip sim(x) alter(x)",1,0,1e-06,1e-06
+"c11","choice","inertia recip indeg same(g) sim(x) alter(x)",1,0,1e-06,1e-06
+"c12","rate","indeg ego(x) intercept",1,0,1e-06,1e-06
+"c13","rate","outdeg ego(x) intercept",1,0,1e-06,1e-06
+"c14","rate","indeg ego(x)",1,1,1e-06,1e-06
+"c15","choice","inertia sim(x) alter(x)",1,0,1e-06,1e-06
+"r01","choice","indeg same(g) sim(x) egoalterint(x y)",1,0,1e-06,1e-06
+"r03","rate","indeg ego(y) tertius(x)",1,0,1e-06,1e-06
+"r04","rate","ego(x) intercept",1,0,1e-06,1e-06
+"r05","choice_coordination","indeg same(g)",0,1,1e-05,0.1
+"r07","choice","inertia recip same(g) sim(y)",1,0,1e-06,1e-06
+"r09","rate","outdeg ego(y) tertius(y)",1,0,1e-06,1e-06
+"r10","rate","ego(x)",1,1,1e-06,1e-06
+"r13","choice","inertia same(g) diff(y) alter(x)",1,0,1e-06,1e-06
+"r14","choice","inertia indeg outdeg egoalterint(x y)",1,0,1e-06,1e-06
+"r15","rate","indeg ego(x)",1,1,1e-06,1e-06
+"r16","rate","indeg outdeg ego(y) tertius(x) intercept",1,0,1e-06,1e-06
+"r17","choice_coordination","alter(y) tertius(y) egoalterint(x y)",0,0,1e-05,0.1
+"r18","choice","sim(x) outdeg egoalterint(x y)",1,0,1e-06,1e-06
+"r19","choice","diff(y)",1,0,1e-06,1e-06
+"r20","choice","alter(x) outdeg",1,1,1e-06,1e-06
+"r21","rate","indeg ego(x)",1,0,1e-06,1e-06
+"r22","rate","ego(y)",1,0,1e-06,1e-06
+"r23","choice_coordination","inertia sim(y) tertius(y)",0,0,1e-05,0.1
+"r27","rate","outdeg ego(x)",1,0,1e-06,1e-06
+"r28","rate","indeg outdeg tertius(y) intercept",1,0,1e-06,1e-06
+"r29","choice_coordination","inertia indeg diff(y) alter(y)",0,0,1e-05,0.1
+"r30","choice","recip same(g) outdeg tertius(x)",1,1,1e-06,1e-06
+"r31","choice","recip indeg sim(y) outdeg",1,0,1e-06,1e-06
+"r32","choice","recip indeg sim(y) alter(x)",1,0,1e-06,1e-06
+"r33","rate","indeg ego(x)",1,0,1e-06,1e-06
+"r34","rate","tertius(y)",1,0,1e-06,1e-06
+"r36","choice","inertia alter(y) egoalterint(x y) tertius(y)",1,0,1e-06,1e-06

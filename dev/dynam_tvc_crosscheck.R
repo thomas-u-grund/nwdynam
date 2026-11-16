@@ -80,17 +80,76 @@ cases <- list(
   list(id = "c14", seed = 24, n = 8, N = 80, chg = "x", inc = TRUE, form = "indeg(net) + ego(nodes$x)", sub = "rate"),
   list(id = "c15", seed = 25, n = 7, N = 60, chg = "x", edge = FALSE, form = "inertia(net) + sim(nodes$x) + alter(nodes$x)", sub = "choice")
 )
+
+# nwdynam options of the fixed cases (same order of effects as the formula)
+nwopts <- c(c1 = "inertia alter(x)", c2 = "inertia same(g) diff(x)", c3 = "inertia alter(y) egoalterint(x y)",
+  c4 = "inertia indeg tertius(x)", c5 = "indeg ego(x)", c6 = "outdeg tertius(x)", c7 = "indeg ego(x) intercept",
+  c8 = "inertia same(g) sim(x) alter(x) tertius(x)", c9 = "inertia diff(x) alter(y) egoalterint(x y)",
+  c10 = "inertiawindow(8) recip sim(x) alter(x)", c11 = "inertia recip indeg same(g) sim(x) alter(x)",
+  c12 = "indeg ego(x) intercept", c13 = "outdeg ego(x) intercept", c14 = "indeg ego(x)", c15 = "inertia sim(x) alter(x)")
+for (i in seq_along(cases)) {
+  cases[[i]]$opts <- nwopts[[cases[[i]]$id]]
+}
+
+# random cases: random sub-model, random effects (in nwdynam's order), random variables, random changes
+pieces <- list(
+  choice = list(list("inertia(net)", "inertia"), list("recip(net)", "recip"), list("indeg(net)", "indeg"),
+    list("same(nodes$%s)", "same(%s)", "gx"), list("diff(nodes$%s)", "diff(%s)", "xy"), list("sim(nodes$%s)", "sim(%s)", "xy"),
+    list("alter(nodes$%s)", "alter(%s)", "xy"), list("outdeg(net)", "outdeg"), list("egoAlterInt(nodes$x, nodes$y)", "egoalterint(x y)", "", "xy"),
+    list("tertius(net, nodes$%s)", "tertius(%s)", "xy")),
+  rate = list(list("indeg(net)", "indeg"), list("outdeg(net)", "outdeg"), list("ego(nodes$%s)", "ego(%s)", "xy"),
+    list("tertius(net, nodes$%s)", "tertius(%s)", "xy")),
+  choice_coordination = list(list("inertia(net)", "inertia"), list("indeg(net)", "indeg"), list("same(nodes$%s)", "same(%s)", "gx"),
+    list("diff(nodes$%s)", "diff(%s)", "xy"), list("sim(nodes$%s)", "sim(%s)", "xy"), list("alter(nodes$%s)", "alter(%s)", "xy"),
+    list("tertius(net, nodes$%s)", "tertius(%s)", "xy"), list("egoAlterInt(nodes$x, nodes$y)", "egoalterint(x y)", "", "xy")))
+set.seed(2026)
+nrand <- 36
+for (k in 1:nrand) {
+  sub <- c("choice", "choice", "rate", "rate", "choice_coordination", "choice")[(k - 1) %% 6 + 1]
+  icpt <- (sub == "rate" && k %% 4 == 0)
+  pc <- pieces[[sub]]
+  take <- which(runif(length(pc)) < 0.45)
+  if (length(take) == 0) take <- sample(length(pc), 1)
+  take <- take[seq_len(min(length(take), 4))]
+  forms <- character(); opts <- character(); used <- character()
+  for (t in take) {
+    pp <- pc[[t]]
+    if (length(pp) == 2) { forms <- c(forms, pp[[1]]); opts <- c(opts, pp[[2]]) }
+    else if (length(pp) == 3) {
+      v <- sample(strsplit(pp[[3]], "")[[1]], 1)
+      forms <- c(forms, sprintf(pp[[1]], v)); opts <- c(opts, sprintf(pp[[2]], v)); used <- c(used, v)
+    } else { forms <- c(forms, pp[[1]]); opts <- c(opts, pp[[2]]); used <- c(used, "x", "y") }
+  }
+  used <- unique(used)
+  if (length(used) == 0) { forms <- c(forms, "alter(nodes$x)"); opts <- c(opts, "alter(x)"); used <- "x"
+    if (sub == "rate") { forms[length(forms)] <- "ego(nodes$x)"; opts[length(opts)] <- "ego(x)" }
+    if (sub == "choice_coordination") { forms[length(forms)] <- "alter(nodes$x)" } }
+  # effects must stay in nwdynam's order (appending alter/ego at the end is wrong for some): sort by the order of pieces
+  chg <- used[runif(length(used)) < 0.8]
+  if (length(chg) == 0) chg <- used[1]
+  inc <- (k %% 5 == 0)
+  n <- sample(6:12, 1); N <- sample(40:110, 1)
+  cases[[length(cases) + 1]] <- list(id = sprintf("r%02d", k), seed = 500 + k, n = n, N = N, chg = chg, inc = inc,
+    form = paste(c(if (icpt) "1", forms), collapse = " + "), sub = sub, directed = (sub != "choice_coordination"),
+    nchg = sample(8:30, 1), edge = (k %% 3 != 0), opts = paste(c(opts, if (icpt) "intercept"), collapse = " "))
+}
+
 res <- NULL
+cdf <- NULL
 for (cc in cases) {
   cs <- mkcase(cc$seed, cc$n, cc$N, cc$chg, inc = isTRUE(cc$inc), directed = !isFALSE(cc$directed),
                nchg = if (is.null(cc$nchg)) 15 else cc$nchg, edge = !isFALSE(cc$edge))
+  f <- tryCatch(fitgf(cs, cc$form, cc$sub), error = function(e) { cat(cc$id, "SKIPPED", conditionMessage(e), "\n"); NULL })
+  if (is.null(f) || any(!is.finite(f$se)) || max(abs(f$b[names(f$b) != "Intercept"])) > 8 || max(f$se) > 3) { if (!is.null(f)) cat(cc$id, "SKIPPED (unstable)\n"); next }
   write.csv(cs$ev[, c("time", "sender", "receiver")], file.path(out, paste0("events_", cc$id, ".csv")), row.names = FALSE)
   write.csv(cs$nodes[, c("label", "x", "y", "g")], file.path(out, paste0("nodes_", cc$id, ".csv")), row.names = FALSE)
   for (v in names(cs$chl)) write.csv(cs$chl[[v]], file.path(out, paste0("changes_", v, "_", cc$id, ".csv")), row.names = FALSE)
-  f <- tryCatch(fitgf(cs, cc$form, cc$sub), error = function(e) { cat(cc$id, "ERROR", conditionMessage(e), "\n"); NULL })
-  if (is.null(f)) next
   cat(cc$id, ":", paste(sprintf("%.8f", c(f$b, f$ll)), collapse = " "), "\n")
   nm <- names(f$b)
   res <- rbind(res, data.frame(case = cc$id, term = c(nm, "ll"), estimate = c(f$b, f$ll), se = c(f$se, NA)))
+  cdf <- rbind(cdf, data.frame(id = cc$id, sub = cc$sub, opts = cc$opts, directed = as.integer(!isFALSE(cc$directed)),
+    inc = as.integer(isTRUE(cc$inc)), tolb = if (cc$sub == "choice_coordination") 1e-5 else 1e-6,
+    tolse = if (cc$sub == "choice_coordination") 0.1 else 1e-6))
 }
 write.csv(res, file.path(out, "results.csv"), row.names = FALSE)
+write.csv(cdf, file.path(out, "cases.csv"), row.names = FALSE)

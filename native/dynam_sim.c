@@ -459,10 +459,12 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 	State st;
 	nwint n = sp->n, N = sp->N, i, gs = 0;
 	int Pt = sp->P + 1, k, rc = 0;
-	double *X = NULL, *Sx = NULL, *Sxx = NULL, L = 0.0, tprev = 0.0;
+	double *X = NULL, *Sx = NULL, *Sxx = NULL, L = 0.0, tprev = sp->ev[2];
 	int fresh = 1;
 
 	*overflow = 0;
+	/* goldfish observes from the earliest event of any list: a change before the first event starts the observation */
+	if (sp->C > 0 && sp->chg[2] < tprev) tprev = sp->chg[2];
 	if ((rc = state_init(sp, &st)) != 0) { state_free(&st); return rc; }
 	X = (double *)malloc((size_t)Pt * (size_t)n * sizeof(double));
 	Sx = (double *)malloc((size_t)Pt * sizeof(double));
@@ -479,8 +481,9 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 		if (fresh) {
 			expire(sp, &st, gs, tcur);
 			rate_stats(sp, &st, X, 1);
-			if (i > 0) {
-				/* periods ended by a change event earlier than this event */
+			{
+				/* periods ended by a change event earlier than this event (before the first event: the observation
+				   starts with the first change, as goldfish) */
 				double t0 = tprev;
 				while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] < tcur) {
 					double tc = sp->chg[4 * st.cpos + 2];
@@ -493,9 +496,8 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 				}
 				tprev = t0;
 			}
-			else apply_changes(sp, &st, tcur), rate_stats(sp, &st, X, 1);
 		}
-		w = (i > 0) ? tcur - tprev : 0.0;
+		w = tcur - tprev;
 		for (k = 0; k < Pt; k++) lps += theta[k] * X[(size_t)k * (size_t)n + s];
 		if (lps > 700.0) { *overflow = 1; goto done; }
 		L += lps;
@@ -511,6 +513,20 @@ static int eval_rateint(const Spec *sp, const double *theta, int todo, double *l
 			fresh = 1;
 		}
 		else fresh = 0;
+	}
+	/* ... and the last change after the last event ends it: the periods up to each remaining change count */
+	if (st.cpos < sp->C) {
+		double t0 = tprev;
+		rate_stats(sp, &st, X, 1);
+		while (st.cpos < sp->C) {
+			double tc = sp->chg[4 * st.cpos + 2];
+			if (tc > t0) {
+				if (rateint_exposure(sp, theta, todo, X, tc - t0, &L, g, H, Sx, Sxx)) { *overflow = 1; goto done; }
+				t0 = tc;
+			}
+			while (st.cpos < sp->C && sp->chg[4 * st.cpos + 2] == tc) apply_one_change(sp, &st);
+			rate_stats(sp, &st, X, 1);
+		}
 	}
 	*ll = L;
 done:

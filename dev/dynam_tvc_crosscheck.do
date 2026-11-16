@@ -70,3 +70,38 @@ program chkcase
 	}
 	di as result "PASS `id': estimates, SEs, ll agree with goldfish (worst " %9.2e `worst' " of the tolerance), ll " %12.6f e(ll)
 end
+
+* run every case of cases.csv (global TVALL = 1), or the cases named in the global TVONLY
+capture program drop runall
+program runall
+	preserve
+	import delimited using `"$TVDIR/cases.csv"', clear varnames(1) stringcols(1 2 3)
+	local nc = _N
+	forvalues i = 1/`nc' {
+		local id`i' = id[`i']
+		local sub`i' = sub[`i']
+		local opts`i' = opts[`i']
+		local dir`i' = directed[`i']
+		local inc`i' = inc[`i']
+		local tb`i' = tolb[`i']
+		local ts`i' = tolse[`i']
+	}
+	restore
+	local nfail 0
+	forvalues i = 1/`nc' {
+		if "$TVONLY" != "" & !strpos(" $TVONLY ", " `id`i'' ") continue
+		capture noisily runcase `id`i'' `sub`i'' "`opts`i''" `dir`i'' `inc`i''
+		if _rc {
+			di as error "`id`i'': nwdynam failed, r(" _rc ")"
+			local nfail = `nfail' + 1
+			continue
+		}
+		capture noisily chkcase `id`i'' `tb`i'' `ts`i''
+		if _rc local nfail = `nfail' + 1
+	}
+	if `nfail' > 0 {
+		di as error "`nfail' case(s) differ from goldfish"
+		exit 9
+	}
+	di as result "ALL OK: `nc' cases agree with goldfish"
+end
