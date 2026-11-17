@@ -1,4 +1,4 @@
-*! version 1.8.1  16nov2026 nwdynam_estat
+*! version 1.9.0  17nov2026 nwdynam_estat
 * Copyright (C) 2026 Thomas U. Grund
 * This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
 * The change point methods of estat changepoints are a port of the R package 'changepoint' (Rebecca Killick, Kaylea Haynes, Idris Eckley, Paul Fearnhead, Jamie Lee; GPL), see NOTICE.md.
