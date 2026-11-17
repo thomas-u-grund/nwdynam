@@ -8,7 +8,7 @@ nwdynam [netname] [, submodel(choice|rate|choice_coordination) effect options
                      tie(netname) netterms(terms) ignorerep(effects)
                      change(varname netname [...]) increment
                      present(varname) compchange(netname) intercept
-                     seed(#) level(#) sequential]
+                     seed(#) level(#) ci noci sequential]
 nwdynam version
 estat ic | eventlik | eventprob | outliers | changepoints  [, ...]
 \end{lstlisting}
@@ -20,7 +20,8 @@ estat ic | eventlik | eventprob | outliers | changepoints  [, ...]
   \item[\opt{submodel(string)}] The sub-model: \texttt{choice} (the default), \texttt{rate} or \texttt{choice\_coordination}. A value other than these three stops the command with error 198.
   \item[\opt{intercept}] With \texttt{submodel(rate)}: the continuous-time hazard model of Section~\ref{sec:ratemodel}, with an intercept. Error 198 with another sub-model.
   \item[\opt{sequential}] Processes events with identical times one after another instead of jointly (Section~\ref{sec:ties}).
-  \item[\opt{level(\#)}] The confidence level of the displayed intervals (default 95).
+  \item[\opt{level(\#)}] The confidence level of the displayed intervals (default 95). An explicit \opt{level()} also shows the intervals.
+  \item[\opt{ci}, \opt{noci}] The coefficient table shows the names of the effects in full (up to 32 characters). The interval columns are left out by default when \texttt{linesize} is below 100, where a long name does not fit next to them (the listings of this manual are made with \texttt{linesize} 80). \opt{ci} brings the intervals back; the names are then cut to fit. \opt{noci} leaves the intervals out at any line size. \opt{ci} together with \opt{noci} stops with error 198. \opt{nopvalues}, \opt{cformat()}, \opt{pformat()} and \opt{sformat()} are passed to the table.
   \item[\opt{seed(\#)}] A random-number seed, an integer between 0 and 2{,}147{,}483{,}647, set before the estimation. The optimizer starts from fixed values and runs without random numbers wherever the Newton iterations succeed; where they do not, further starting values are drawn at random, and the coordination sub-model always uses several starts (Section~\ref{sec:technewton}). The seed makes such fits reproducible.
 \end{description}
 

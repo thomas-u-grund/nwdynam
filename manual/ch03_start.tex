@@ -32,7 +32,9 @@ Actors who have written to many different people have a higher rate of writing (
 
 \section{Replay and stored results}
 
-\texttt{nwdynam} without arguments redisplays the last results; only \opt{level()} may be given. \texttt{estimates replay} works as well.
+\texttt{nwdynam} without arguments redisplays the last results; only \opt{level()}, \opt{ci} and \opt{noci} may be given. \texttt{estimates replay} works as well.
 \showlog{first_replay}
+By default the table has no interval columns at a line size below 100; an explicit \opt{level()} (as above) or \opt{ci} shows them, with the names cut to fit:
+\showlog{first_ci}
 The results are stored in \texttt{e()}; Section~\ref{sec:stored} describes every item.
 \showlog{first_ereturn}

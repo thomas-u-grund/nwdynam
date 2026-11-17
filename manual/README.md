@@ -7,10 +7,10 @@
 The manual's title and citation carry no version number; the title page states the series it describes (`\manualseries`, valid for 1.8.x). The exact version and date of the release that produced the listings are two more macros in `nwdynam_manual.tex`:
 
     \newcommand{\manualseries}{1.8}
-    \newcommand{\pkgversion}{1.8.1}
+    \newcommand{\pkgversion}{1.9.0}
     \newcommand{\pkgdate}{16 November 2026}
 
-`tools/set_version.py` of the package does not write these macros; change them by hand. Change `\manualseries` only for a new minor or major release whose documented behaviour changed. For a patch release change the last two lines, rerun the examples (`make examples`) if their output changes, rebuild (`make pdf`) and check. The tag in the installation example of `ch01_intro.tex` (`nwdynam/v1.8.1/`, inside a listing, so it cannot use the macro) is the only other place with the number.
+`tools/set_version.py` of the package does not write these macros; change them by hand. Change `\manualseries` only for a new minor or major release whose documented behaviour changed. For a patch release change the last two lines, rerun the examples (`make examples`) if their output changes, rebuild (`make pdf`) and check. The tag in the installation example of `ch01_intro.tex` (`nwdynam/v1.9.0/`, inside a listing, so it cannot use the macro) is the only other place with the number.
 
 ## Where the manual lives
 

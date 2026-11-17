@@ -37,6 +37,8 @@ nwdynam mail
 nwdynam mail, submodel(rate)
 *# first_replay
 nwdynam, level(90)
+*# first_ci
+nwdynam, ci
 *# first_ereturn
 ereturn list
 *# end
