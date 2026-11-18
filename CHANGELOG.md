@@ -3,6 +3,11 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [1.9.1] - 2026-11-18
+
+### Fixed
+- On a Mac, the console version of StataNow (19.5) reports `c(os)` as `Unix`, so the package looked for the Linux plugin and stopped with an error that the plugin was too old or could not be loaded. The platform is now taken from `c(machine_type)` as well, so a Mac always uses the macOS plugin.
+
 ## [1.9.0] - 2026-11-17
 
 ### Changed

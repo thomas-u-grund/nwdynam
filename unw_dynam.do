@@ -356,6 +356,8 @@ string scalar DynamNativePluginFilename(){
 	string scalar os
 
 	os = st_global("c(os)")
+	// console Stata on macOS reports c(os) = "Unix"; c(machine_type) still starts with "Mac"
+	if (os == "Unix" & substr(st_global("c(machine_type)"), 1, 3) == "Mac") os = "MacOSX"
 	if (os == "Windows") return("dynam_sim_windows.plugin")
 	if (os == "Unix") return("dynam_sim_unix.plugin")
 	return("dynam_sim_macos.plugin")
@@ -365,6 +367,8 @@ string scalar DynamNativePluginSubdir(){
 	string scalar os
 
 	os = st_global("c(os)")
+	// console Stata on macOS reports c(os) = "Unix"; c(machine_type) still starts with "Mac"
+	if (os == "Unix" & substr(st_global("c(machine_type)"), 1, 3) == "Mac") os = "MacOSX"
 	if (os == "Windows") return("windows")
 	if (os == "Unix") return("unix")
 	return("macos")
