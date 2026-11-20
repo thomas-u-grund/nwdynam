@@ -1,4 +1,23 @@
-. quietly estat outliers, window(50) plot name(ol)
+. estat outliers, window(50) plot name(ol) export(../fig/outliers.pdf) xsize(5.5
+> ) ysize(3.4)
 
-. graph export "../fig/outliers.pdf", name(ol) replace
-file ../fig/outliers.pdf saved as PDF format
+Outliers of the log likelihood of the events, method hampel, parameter 3, window
+>  50
+(619 missing values generated)
+
+  +----------------------------------------------------+
+  | event        time   sender   receiver           ll |
+  |----------------------------------------------------|
+  |    52   3.3072109      E47       E152    -2.342193 |
+  |    60   3.3102779      E77        E91   -2.7719107 |
+  |    62   3.3108101      E73       E136   -2.7097845 |
+  |    65    3.317894     E133       E136   -2.7106356 |
+  |    73    3.328438     E162        E77   -.80453111 |
+  |    77    3.329479      E77       E162   -1.1997626 |
+  |    84   3.3368061      E54       E166   -1.8882505 |
+  |    85   3.3370249      E54       E166   -.62081277 |
+  |   102   3.3448031      E17       E108   -1.2848734 |
+  |   565   4.5540051      E17       E155   -6.8962552 |
+  |   579   4.5671058      E47        E22   -7.2737644 |
+  |   581   4.5727429     E133       E161     -7.00351 |
+  +----------------------------------------------------+

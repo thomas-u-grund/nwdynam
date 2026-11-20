@@ -100,6 +100,10 @@ The package ships a native Stata plugin (dynam_sim.c) for macOS (universal), Lin
 
 `lib/build.do` rebuilds `lib/lnwdynam.mlib` from `unw_dynam.do` (run it from the repository root: `StataBE -e do lib/build.do`).
 
+## Manual
+
+A user manual (PDF in `manual/`, with the LaTeX source and the do-files of its examples) is archived at Zenodo: <https://doi.org/10.5281/zenodo.24398099> (all versions). Cite the manual by that address together with the package version printed by `nwdynam version`.
+
 ## License
 
 GNU General Public License version 3 (see `LICENSE`); see `NOTICE.md` for what the package is derived from and

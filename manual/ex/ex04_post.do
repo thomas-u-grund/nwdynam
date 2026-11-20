@@ -26,10 +26,18 @@ return list
 estat changepoints, moment(variance) method(binseg) window(20)
 matrix list r(cpts)
 *# po_plot
-quietly estat outliers, window(50) plot name(ol)
-graph export "../fig/outliers.pdf", name(ol) replace
+estat outliers, window(50) plot name(ol) export(../fig/outliers.pdf) xsize(5.5) ysize(3.4)
+*# po_choiceplot
+estat choiceplot, topk(1 3 5 10) name(cp) export(../fig/choiceplot.pdf) xsize(5.5) ysize(3.6) frame(cpf)
+return list
 *# po_rateint
 nwdynam mail, submodel(rate) intercept indeg outdeg
 estat eventlik, frame(evr)
 return list
+*# po_rateplot
+nwdynam mail, submodel(rate)
+estat rateplot, name(ra) export(../fig/rateplot_actor.pdf) xsize(4.5) ysize(4.4) frame(raf)
+return list
+nwdynam mail, submodel(rate) intercept indeg outdeg
+estat rateplot, over(time) periods(5) topactors(4) name(rt) export(../fig/rateplot_time.pdf) xsize(5.5) ysize(3.6)
 *# end

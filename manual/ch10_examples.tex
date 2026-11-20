@@ -2,7 +2,7 @@
 
 \section{How the output was produced}\label{sec:howproduced}
 
-All output in this chapter was produced by the do-files in the directory \texttt{manual/ex} of the repository, run with \nwdynam{}~\pkgversion{} and the \texttt{nwcommands} core~3.26.0 in Stata/BE~17 on macOS (Apple silicon), with the native plugin. Each do-file marks the pieces of its log with a line \texttt{*\# name}; the program \texttt{ex/mklistings.py} cuts the Stata logs at these markers into the listings that this manual includes. The data are the emails of a manufacturing company of Section~\ref{sec:datasets}, loaded from the web with \texttt{nwwebuse}, and the data of the comparison with \goldfish{}. Fits without a \opt{seed()} are deterministic here because the optimizer starts from fixed values. Nothing in this chapter is a substantive analysis; the models are chosen to show the commands, and the artificial data that some examples need (changes of a covariate, memberships, event values) are marked as such. The first example, with the declaration of the events, is in Chapter~\ref{ch:start}.
+All output in this chapter was produced by the do-files in the directory \texttt{manual/ex} of the repository, run with \nwdynam{}~\pkgversion{} and the \texttt{nwcommands} core~3.29.0 in Stata/BE~17 on macOS (Apple silicon), with the native plugin. Each do-file marks the pieces of its log with a line \texttt{*\# name}; the program \texttt{ex/mklistings.py} cuts the Stata logs at these markers into the listings that this manual includes. The data are the emails of a manufacturing company of Section~\ref{sec:datasets}, loaded from the web with \texttt{nwwebuse}, and the data of the comparison with \goldfish{}. Fits without a \opt{seed()} are deterministic here because the optimizer starts from fixed values. Nothing in this chapter is a substantive analysis; the models are chosen to show the commands, and the artificial data that some examples need (changes of a covariate, memberships, event values) are marked as such. The first example, with the declaration of the events, is in Chapter~\ref{ch:start}.
 
 \section{Effects and covariates}\label{sec:ex_effects}
 
@@ -89,9 +89,13 @@ The five events with the lowest log likelihood (\opt{method(top)}). The rolling 
 Change points in the mean of the log likelihood (PELT, minimum segment length 20 events), and in the variance by binary segmentation:
 \showlog{po_cpts}
 \showlog{po_cpts2}
-The plot of the outliers (Figure~\ref{fig:outliers}), and the log likelihood of every event after a rate model with intercept, whose log likelihood of $-1.4359$ is the sum of the records of Section~\ref{sec:ratemodel}:
+The plot of the outliers (Figure~\ref{fig:outliers}), exported to a PDF file in the same call, and the rank plot of the choice model (Figure~\ref{fig:choiceplot}; the table of the rank of every event is stored in a frame):
 \showlog{po_plot}
+\showlog{po_choiceplot}
+The log likelihood of every event after a rate model with intercept, whose log likelihood of $-1.4359$ is the sum of the records of Section~\ref{sec:ratemodel}:
 \showlog{po_rateint}
+The plots of the rate models: observed against expected number of emails sent by every actor after the rate model without intercept (Figure~\ref{fig:rateplot_actor}), and observed and expected emails per period after the rate model with intercept (Figure~\ref{fig:rateplot_time}):
+\showlog{po_rateplot}
 
 \section{Stored results}\label{sec:ex_ereturn}
 

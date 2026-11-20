@@ -813,6 +813,13 @@ produced the results is in {cmd:e(version)}; quote it when reporting an analysis
 {p_end}
 
 
+{title:Manual}
+
+{pstd}
+A user manual (PDF in the {cmd:manual} folder of the package source) is archived at Zenodo, {browse "https://doi.org/10.5281/zenodo.24398099":doi:10.5281/zenodo.24398099}, all versions. Please cite it by that address and report the package version printed by {cmd:nwdynam version}.
+{p_end}
+
+
 {title:Also see}
 
 {p 4 14 2}Help: {help nwdynam_estat}, {help nwset}, {help nwattime}, {help nwrem}, {help nwergm}, {help nwsaom}{p_end}

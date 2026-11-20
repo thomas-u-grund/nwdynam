@@ -1,0 +1,36 @@
+. estat choiceplot, topk(1 3 5 10) name(cp) export(../fig/choiceplot.pdf) xsize(
+> 5.5) ysize(3.6) frame(cpf)
+
+Rank of the realised receiver among the risk set by the fitted probability (rank
+>  1 = most probable), 631 events
+  Mean rank 19.349 median rank 4.0 expected mean rank if all risk-set members
+  were equally probable 77.000 mean risk-set size 153.00.
+
+-------------------------------------------------------------
+       Top k |       observed        uniform          model
+-------------+-----------------------------------------------
+           1 |         0.2058         0.0065         0.2504
+           3 |         0.4719         0.0196         0.4125
+           5 |         0.5771         0.0327         0.4710
+          10 |         0.6771         0.0654         0.5268
+-------------------------------------------------------------
+Table of the events in frame cpf: event, time, m (size of the risk set), rank, p
+> obs (fitted probability of the realised receiver).
+
+. return list
+
+scalars:
+       r(mean_riskset) =  153
+  r(mean_rank_relativ
+    e)                 =  .1264669629077199
+  r(mean_rank_uniform) =  77
+        r(median_rank) =  4
+          r(mean_rank) =  19.34944532488114
+                  r(N) =  631
+
+macros:
+              r(frame) : "cpf"
+
+matrices:
+              r(curve) :  20 x 4
+               r(topk) :  4 x 4

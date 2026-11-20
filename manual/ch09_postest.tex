@@ -1,6 +1,6 @@
 \chapter{Postestimation}\label{ch:postest}
 
-After \texttt{nwdynam}, five \texttt{estat} commands work for every sub-model. They offer what \goldfish{} offers after estimation, with the same definitions and defaults: the log likelihood of every event (\texttt{returnIntervalLogL}), the model probabilities of the events (\texttt{returnEventProbabilities}), \texttt{logLik}, \texttt{AIC} and \texttt{BIC}, \texttt{examineOutliers} and \texttt{examineChangepoints}. \goldfish{} has no goodness-of-fit or simulation function, and \nwdynam{} adds none. The commands are evaluated at the coefficients in \texttt{e(b)} by the same native code as the fit.
+After \texttt{nwdynam}, five \texttt{estat} commands work for every sub-model, and two plots work for the sub-models they are made for. They offer what \goldfish{} offers after estimation, with the same definitions and defaults: the log likelihood of every event (\texttt{returnIntervalLogL}), the model probabilities of the events (\texttt{returnEventProbabilities}), \texttt{logLik}, \texttt{AIC} and \texttt{BIC}, \texttt{examineOutliers} and \texttt{examineChangepoints}. \goldfish{} has no goodness-of-fit or simulation function, and \nwdynam{} adds none; the two plots \texttt{estat choiceplot} and \texttt{estat rateplot} (Section~\ref{sec:resultplots}) are extensions that show how well the fitted model describes whom the actors choose and who acts. The commands are evaluated at the coefficients in \texttt{e(b)} by the same native code as the fit.
 
 The data of the fit is kept in memory after \texttt{nwdynam}. It is replaced by the next fit and gone after \texttt{clear all}, and the commands stop with return code 498 when the estimation results on screen are not those of the fit in memory (for example after \texttt{estimates restore} of an earlier fit; the message is shown in Section~\ref{sec:limits_estat}). Standard Stata postestimation (\texttt{estimates}, \texttt{lrtest}, \texttt{test}, \texttt{lincom}) works on the usual \texttt{e(b)} and \texttt{e(V)}.
 
@@ -8,10 +8,16 @@ The data of the fit is kept in memory after \texttt{nwdynam}. It is replaced by 
 estat ic
 estat eventlik   [, frame(name) replace]
 estat eventprob  , frame(name) [replace maxrows(#)]
-estat outliers   [, method(hampel|iqr|top) parameter(#) window(#) frame(name) replace plot name(name)]
-estat changepoints [, moment(mean|variance) method(pelt|amoc|binseg) window(#) frame(name) replace plot name(name)]
+estat outliers   [, method(hampel|iqr|top) parameter(#) window(#) frame(name) replace
+                   plot name(name) saving(file) export(file[, opts]) twoway_options]
+estat changepoints [, moment(mean|variance) method(pelt|amoc|binseg) window(#) frame(name) replace
+                   plot name(name) saving(file) export(file[, opts]) twoway_options]
+estat choiceplot [, topk(numlist) maxrank(#) frame(name) replace noplot name(name)
+                   saving(file) export(file[, opts]) maxrows(#) twoway_options]
+estat rateplot   [, over(actor|time) periods(#) topactors(#) label(#) frame(name) replace noplot
+                   name(name) saving(file) export(file[, opts]) maxrows(#) twoway_options]
 \end{lstlisting}
-The option \opt{frame(name)} stores the table in a new frame and \opt{replace} overwrites an existing frame. All examples of this chapter are in Section~\ref{sec:ex_post}.
+The option \opt{frame(name)} stores the table in a new frame and \opt{replace} overwrites an existing frame. The graph options of the four plots are described together in Section~\ref{sec:graphopts}. All examples of this chapter are in Section~\ref{sec:ex_post}.
 
 \section{Information criteria}
 
@@ -42,7 +48,7 @@ In the rate model \emph{with} intercept the log likelihood is a sum over the per
   \item[\opt{method(iqr)}] flags log likelihoods below the median minus \opt{parameter()}/2 interquartile ranges.
   \item[\opt{method(top)}] flags the \opt{parameter()} events with the lowest log likelihood. Events whose log likelihoods agree to the last digits are ranked in an arbitrary order, so that \goldfish{} may name another of them.
 \end{description}
-\opt{plot} draws the log likelihood against time with the flagged events marked; \opt{name()} names the graph. The command stores \texttt{r(n\_outliers)}, \texttt{r(N)}, \texttt{r(parameter)}, \texttt{r(window)}, \texttt{r(method)} and the row vector \texttt{r(outliers)} of the event numbers in increasing order; with \opt{frame()} the table has an indicator \texttt{outlier}. Figure~\ref{fig:outliers} shows the plot of the example.
+\opt{plot} draws the log likelihood against time with the flagged events marked (the graph options are in Section~\ref{sec:graphopts}). The command stores \texttt{r(n\_outliers)}, \texttt{r(N)}, \texttt{r(parameter)}, \texttt{r(window)}, \texttt{r(method)} and the row vector \texttt{r(outliers)} of the event numbers in increasing order; with \opt{frame()} the table has an indicator \texttt{outlier}. Figure~\ref{fig:outliers} shows the plot of the example.
 \begin{figure}[ht]
 \centering\includegraphics[width=0.8\textwidth]{fig/outliers.pdf}
 \caption{\texttt{estat outliers, window(50) plot} after the choice model of Section~\ref{sec:ex_post}: the log likelihood of every event (the manufacturing emails), with the flagged events labelled sender--receiver.}\label{fig:outliers}
@@ -56,6 +62,60 @@ The change points are the events that end a regime: the log likelihood of the fo
 
 \paragraph{Credit.} The change point methods (PELT, AMOC and binary segmentation, for the mean and the variance of normal data, with a minimum segment length and the modified BIC penalty) are a port of the C code and of the penalty and cost functions of the R package \texttt{changepoint} (Rebecca Killick, Kaylea Haynes, Idris Eckley, Paul Fearnhead and Jamie Lee), so that \texttt{estat changepoints} gives the same change points as \goldfish{}.
 
+\section{Result plots: who is chosen and who acts}\label{sec:resultplots}
+
+The two commands of this section are extensions: \goldfish{} has no such plots. They use the model probabilities of \texttt{estat eventprob}, evaluated at \texttt{e(b)} by the same native code as the fit, and need the sub-model they are made for (return code 198 otherwise) and the fit in memory (return code 498, as for the other commands). They draw by default; \opt{noplot} gives the numbers without the graph, which is useful with \opt{frame()}.
+
+\subsection{estat choiceplot}
+
+\texttt{estat choiceplot} (sub-models \texttt{choice} and \texttt{choice\_coordination}) asks how high the model ranks the receiver (for the coordination model, the pair) that was actually chosen. In every event it ranks the members of the risk set by the fitted probability; rank~1 is the most probable one, and members with equal probability share the mid rank. The graph shows, for $k=1,2,\dots$, the share of events whose realised receiver is among the $k$ most probable candidates, together with two references: what a model without information gives (every member of the risk set equally probable) and the expectation under the fitted model (the mean over the events of the sum of the $k$ largest probabilities). A fitted model whose observed curve lies close to the model curve and well above the uniform one describes well who is chosen; an observed curve below the model curve means that the model is too confident. Figure~\ref{fig:choiceplot} shows the plot of the example.
+\begin{description}[style=nextline,nosep]
+  \item[\opt{topk(numlist)}] Lists, for every $k$ of the list, the share of events with rank at most $k$ (default 1 3 5 10), against the uniform and the model expectation.
+  \item[\opt{maxrank(\#)}] The largest $k$ of the graph (default 20; the curve ends where every risk set is covered).
+  \item[\opt{frame(name)}, \opt{replace}] The per-event table with the variables \texttt{event}, \texttt{time}, \texttt{m} (the size of the risk set), \texttt{rank} and \texttt{pobs} (the fitted probability of the realised receiver).
+  \item[\opt{maxrows(\#)}] As for \texttt{estat eventprob}.
+\end{description}
+The output also gives the mean and the median rank. The command stores \texttt{r(N)}, \texttt{r(mean\_rank)}, \texttt{r(median\_rank)}, \texttt{r(mean\_rank\_uniform)}, \texttt{r(mean\_rank\_relative)} (the mean of the rank divided by the size of the risk set), \texttt{r(mean\_riskset)}, the matrices \texttt{r(topk)} (columns $k$, observed, uniform, model) and \texttt{r(curve)} (the same for $k=1,2,\dots$) and \texttt{r(frame)}.
+\begin{figure}[ht]
+\centering\includegraphics[width=0.8\textwidth]{fig/choiceplot.pdf}
+\caption{\texttt{estat choiceplot} after the choice model of Section~\ref{sec:ex_post}: the share of the 631 emails whose receiver is among the $k$ most probable candidates of the model, against the expectation under the fitted model and against a uniform choice among the candidates.}\label{fig:choiceplot}
+\end{figure}
+
+\subsection{estat rateplot}
+
+\texttt{estat rateplot} (sub-model \texttt{rate}, with or without \texttt{intercept}) adds up, over the events, the probability that each actor is the sender; this is the expected number of events of the actor as sender. For the rate model with \opt{intercept} the probability is the share of the actor in the total hazard, $\exp(\text{lnrate})$ divided by the sum over the actors, so that the expected counts always add up to the observed number of events: the plot checks who acts, not how many events occur.
+\begin{description}[style=nextline,nosep]
+  \item[\opt{over(actor)}] (the default) plots the observed against the expected number of events of every actor as sender, with the 45 degree line (Figure~\ref{fig:rateplot_actor}), and labels the \opt{label(\#)} (default 5) actors that deviate most.
+  \item[\opt{over(time)}] cuts the log into \opt{periods(\#)} (default 10) periods of equal length in time and plots the observed and the expected number of events per period of the \opt{topactors(\#)} (default 5) actors with the largest expected count (Figure~\ref{fig:rateplot_time}).
+  \item[\opt{frame(name)}, \opt{replace}] The per-actor table with the variables \texttt{actorid}, \texttt{actor}, \texttt{observed} and \texttt{expected}; with \opt{over(time)} the table has one row for every actor and period and the variables \texttt{period}, \texttt{tlo} and \texttt{thi} in addition.
+  \item[\opt{maxrows(\#)}] As for \texttt{estat eventprob}.
+\end{description}
+The command stores \texttt{r(N)} (the events), \texttt{r(N\_actors)}, \texttt{r(corr)} (the correlation of observed and expected counts), \texttt{r(pearson)} (the sum of (observed $-$ expected)$^2$/expected over the actors, descriptive only, not a test), \texttt{r(over)} and \texttt{r(frame)}.
+\begin{figure}[ht]
+\centering\includegraphics[width=0.6\textwidth]{fig/rateplot_actor.pdf}
+\caption{\texttt{estat rateplot} after the rate model without intercept of Section~\ref{sec:ex_post}: observed against expected number of emails sent by every actor; the actors that deviate most are labelled.}\label{fig:rateplot_actor}
+\end{figure}
+\begin{figure}[ht]
+\centering\includegraphics[width=0.8\textwidth]{fig/rateplot_time.pdf}
+\caption{\texttt{estat rateplot, over(time) periods(5) topactors(4)} after the rate model with intercept: observed and expected emails per period of the four actors with the largest expected count.}\label{fig:rateplot_time}
+\end{figure}
+
+\section{Graph options of the plots}\label{sec:graphopts}
+
+\texttt{estat outliers} and \texttt{estat changepoints} draw with \opt{plot}, \texttt{estat choiceplot} and \texttt{estat rateplot} unless \opt{noplot} is given. The graph options are the same for all four. They need the graph helper of the \texttt{nwcommands} core, version 3.29.0 or later.
+\begin{description}[style=nextline,nosep]
+  \item[\opt{name(name)}] Names the graph in memory; a trailing \texttt{, replace} is accepted (an existing graph of the name is always replaced). The default names of \texttt{estat choiceplot} and \texttt{estat rateplot} are \texttt{choiceplot} and \texttt{rateplot}, so that \texttt{graph display choiceplot} works without \opt{name()}; \texttt{estat outliers} and \texttt{estat changepoints} draw the unnamed graph (Stata's \texttt{Graph}) when no name is given.
+  \item[\opt{saving(filename)}] Saves the graph as a \texttt{.gph} file (the extension is added; an existing file is replaced).
+  \item[\opt{export(filename [, options])}] Exports the graph with \texttt{graph export}; the extension sets the format (for example \texttt{.pdf} or \texttt{.png}), an existing file is replaced, and the options of \texttt{graph export} such as \texttt{width()} may follow a comma.
+  \item[\emph{twoway\_options}] Any option of \texttt{twoway} (\texttt{title()}, \texttt{xlabel()}, \texttt{ylabel()}, \texttt{scheme()}, \texttt{xsize()}, \texttt{ysize()}, \dots); they come last and override the defaults of the graph. The default titles are black; \texttt{title("")} removes the default title. Axes that count events have integer labels.
+\end{description}
+With \opt{plot} missing in \texttt{estat outliers} and \texttt{estat changepoints}, or \opt{noplot} given in the two plots, the options \opt{name()}, \opt{saving()}, \opt{export()} and the \texttt{twoway} options stop the command with return code 198 (only \opt{name()} alone is accepted without \opt{plot}). A mistyped graph name, or a file or directory that cannot be written, stops the command with a message before anything is computed. For example, the plot of Figure~\ref{fig:outliers} was exported to a PDF file in the same call:
+\begin{lstlisting}
+estat outliers, window(50) plot name(ol) export(fig/outliers.pdf)
+estat choiceplot, topk(1 3 5 10) title("") saving(choice) export(choice.png, width(900))
+graph display choiceplot
+\end{lstlisting}
+
 \section{How the postestimation tools were checked}
 
-Per-event log likelihoods and probabilities agree with \goldfish{} to 1e-13 on 90 random event logs (choice, rate, rate with intercept, coordination; with composition change, time-varying covariates, windows, two-mode networks, opportunities and effects of other networks); the outlier indices and the change points agree exactly (Chapter~\ref{ch:validation}).
+The two result plots are not part of this comparison, because \goldfish{} has none. Per-event log likelihoods and probabilities agree with \goldfish{} to 1e-13 on 90 random event logs (choice, rate, rate with intercept, coordination; with composition change, time-varying covariates, windows, two-mode networks, opportunities and effects of other networks); the outlier indices and the change points agree exactly (Chapter~\ref{ch:validation}).

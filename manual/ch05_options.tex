@@ -10,7 +10,7 @@ nwdynam [netname] [, submodel(choice|rate|choice_coordination) effect options
                      present(varname) compchange(netname) intercept
                      seed(#) level(#) ci noci sequential]
 nwdynam version
-estat ic | eventlik | eventprob | outliers | changepoints  [, ...]
+estat ic | eventlik | eventprob | outliers | changepoints | choiceplot | rateplot  [, ...]
 \end{lstlisting}
 \emph{netname} is the event network; without it the current network is used (\texttt{nwdynam} alone fits the default model of the current network). Typed without arguments, or with \opt{level()} only, after a fit, \texttt{nwdynam} redisplays the results; \texttt{estimates replay} works as well. The \texttt{estat} commands are described in Chapter~\ref{ch:postest}.
 
