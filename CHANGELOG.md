@@ -18,6 +18,8 @@ project uses [Semantic Versioning](https://semver.org/).
 - The graph options of the postestimation plots follow the common convention of the nw packages and use the graph helper of the core: **nwcommands (core) 3.29.0 or later is required** (asked when a graph is drawn; with an older core the plot stops with r(199) and a message, tables and all other commands are unaffected).
 - `estat outliers, plot` and `estat changepoints, plot`: new options `saving(filename)` (a `.gph` file, replaced if it exists, `, replace` accepted), `export(filename [, graph_export_options])` (`graph export` of this graph) and any `twoway` option, passed last so that it overrides the defaults. Options without `plot` stop with return code 198, except `name()` alone, which is still accepted. The default graph is unchanged (unnamed, the picture is byte-identical to 1.9.1).
 
+Tested on macOS with Stata 17 BE (plot tests, the ado test and the result-plot test, against core 3.29.0); on Linux and on Windows with StataNow 19.5 MP (the plot tests and the package tests of this version). Stata 18 on the Mac was not run for this version. The compiled plugin is the one of 1.9.1 (unchanged).
+
 ## [1.9.1] - 2026-11-18
 
 ### Fixed
