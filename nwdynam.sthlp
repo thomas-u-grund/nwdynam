@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.9.1  18nov2026 author: Thomas Grund}{...}
+{* *! version 1.10.0  20nov2026 author: Thomas Grund}{...}
 {marker topic}
 {helpb nwtopical##analysis_dynamicmodels:[NW-2.6.8] Dynamic & Event-Based Models}
 
@@ -828,4 +828,4 @@ If the plugin of your platform is missing (r(601)), older than the {cmd:.ado} fi
 {cmd:make} are needed) and installs the plugin; restart Stata afterwards. See {help nwinstall##buildplugin:nwinstall}.
 
 {hline}
-{pstd}{it:nwdynam version 1.9.1, 18 November 2026}{p_end}{* nwversion}
+{pstd}{it:nwdynam version 1.10.0, 20 November 2026}{p_end}{* nwversion}

@@ -5,11 +5,18 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-20
+
 ### Added
 - `estat choiceplot` (choice and choice_coordination): the rank of the realised receiver (pair) among the risk set of every event by the fitted probability. Graph of the share of events with rank at most k against the uniform expectation and the expectation under the fitted model; mean and median rank, and a table of top-k hits (`topk()`, `maxrank()`, `frame()`, `noplot`, `name()`, any `twoway` option). Ties share the mid rank.
 - `estat rateplot` (rate, with or without `intercept`): observed against expected number of events per actor as sender with the 45 degree line (`over(actor)`), and observed and expected events per period for the most active actors (`over(time)`, `periods()`, `topactors()`, any `twoway` option; count axes have integer labels). For the model with intercept the expected counts are the shares of the total hazard and add up to the observed number of events.
 - Both are extensions; goldfish has no such plots. They use the probabilities of the native evaluator (no Mata likelihood). Test `cscripts/test_nwdynam_resultplots.do` checks the numbers against an independent enumeration. The Mata library gains `dynam_post_rank()` and `dynam_post_rate()`; the plugin is unchanged.
-- The existing diagnostics (`estat ic`, `eventlik`, `eventprob`, `outliers`, `changepoints`) are unchanged.
+- Graph options of both: default graph names `choiceplot` and `rateplot` (`graph display choiceplot` works without `name()`); `name(name)` accepts a trailing `, replace`; `saving()` and `export()` as above; default titles and axis titles are black and `title("")` suppresses the default title; a mistyped graph name, a bad `saving()`/`export()` file or directory stops with a message before any computation. With `noplot`, `name()`, `saving()`, `export()` and `twoway` options give return code 198.
+- The tables and returned results of the existing diagnostics (`estat ic`, `eventlik`, `eventprob`, `outliers`, `changepoints`) are unchanged.
+
+### Changed
+- The graph options of the postestimation plots follow the common convention of the nw packages and use the graph helper of the core: **nwcommands (core) 3.29.0 or later is required** (asked when a graph is drawn; with an older core the plot stops with r(199) and a message, tables and all other commands are unaffected).
+- `estat outliers, plot` and `estat changepoints, plot`: new options `saving(filename)` (a `.gph` file, replaced if it exists, `, replace` accepted), `export(filename [, graph_export_options])` (`graph export` of this graph) and any `twoway` option, passed last so that it overrides the defaults. Options without `plot` stop with return code 198, except `name()` alone, which is still accepted. The default graph is unchanged (unnamed, the picture is byte-identical to 1.9.1).
 
 ## [1.9.1] - 2026-11-18
 

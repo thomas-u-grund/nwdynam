@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.9.1  18nov2026 author: Thomas Grund}{...}
+{* *! version 1.10.0  20nov2026 author: Thomas Grund}{...}
 {marker topic}
 {helpb nwtopical##analysis_dynamicmodels:[NW-2.6.8] Dynamic & Event-Based Models}
 
@@ -39,13 +39,13 @@ estimation results on screen are not those of the fit in memory (for example aft
 
 {p 8 16 2}{cmd:estat eventprob} {cmd:,} {opt fra:me(name)} [{opt replace} {opt maxr:ows(#)}]{p_end}
 
-{p 8 16 2}{cmd:estat outliers} [{cmd:,} {opt met:hod(hampel|iqr|top)} {opt par:ameter(#)} {opt win:dow(#)} {opt fra:me(name)} {opt replace} {opt plot} {opt na:me(name)}]{p_end}
+{p 8 16 2}{cmd:estat outliers} [{cmd:,} {opt met:hod(hampel|iqr|top)} {opt par:ameter(#)} {opt win:dow(#)} {opt fra:me(name)} {opt replace} {opt plot} {opt na:me(name)} {opt sav:ing(filename)} {opt exp:ort(filename [, options])} {it:twoway_options}]{p_end}
 
-{p 8 16 2}{cmd:estat changepoints} [{cmd:,} {opt mom:ent(mean|variance)} {opt met:hod(pelt|amoc|binseg)} {opt win:dow(#)} {opt fra:me(name)} {opt replace} {opt plot} {opt na:me(name)}]{p_end}
+{p 8 16 2}{cmd:estat changepoints} [{cmd:,} {opt mom:ent(mean|variance)} {opt met:hod(pelt|amoc|binseg)} {opt win:dow(#)} {opt fra:me(name)} {opt replace} {opt plot} {opt na:me(name)} {opt sav:ing(filename)} {opt exp:ort(filename [, options])} {it:twoway_options}]{p_end}
 
-{p 8 16 2}{cmd:estat choiceplot} [{cmd:,} {opt top:k(numlist)} {opt maxran:k(#)} {opt fra:me(name)} {opt replace} {opt nopl:ot} {opt na:me(name)} {opt maxr:ows(#)} {it:twoway_options}]{p_end}
+{p 8 16 2}{cmd:estat choiceplot} [{cmd:,} {opt top:k(numlist)} {opt maxran:k(#)} {opt fra:me(name)} {opt replace} {opt nopl:ot} {opt na:me(name)} {opt sav:ing(filename)} {opt exp:ort(filename [, options])} {opt maxr:ows(#)} {it:twoway_options}]{p_end}
 
-{p 8 16 2}{cmd:estat rateplot} [{cmd:,} {opt ov:er(actor|time)} {opt per:iods(#)} {opt topa:ctors(#)} {opt lab:el(#)} {opt fra:me(name)} {opt replace} {opt nopl:ot} {opt na:me(name)} {opt maxr:ows(#)} {it:twoway_options}]{p_end}
+{p 8 16 2}{cmd:estat rateplot} [{cmd:,} {opt ov:er(actor|time)} {opt per:iods(#)} {opt topa:ctors(#)} {opt lab:el(#)} {opt fra:me(name)} {opt replace} {opt nopl:ot} {opt na:me(name)} {opt sav:ing(filename)} {opt exp:ort(filename [, options])} {opt maxr:ows(#)} {it:twoway_options}]{p_end}
 
 
 {title:Options}
@@ -65,7 +65,12 @@ half the number of events minus 1, as in goldfish, which tests only the middle e
 (default), {bf:amoc} (at most one change) or {bf:binseg} (binary segmentation, up to 5 changes); {opt window()} is the minimum segment length in events (the default is the largest number of events that share a time point, as in
 goldfish). The penalty is the modified Bayesian information criterion and the test statistic is the normal one.{p_end}
 
-{phang}{opt plot} draws the log likelihood against time with the flagged events or the change points; {opt name()} names the graph.{p_end}
+{phang}{opt plot} draws the log likelihood against time with the flagged events or the change points (estat outliers and estat changepoints). {opt noplot} (estat choiceplot and estat rateplot, which draw by default) suppresses the graph, which is useful with {opt frame()}.{p_end}
+
+{phang}{opt name(name)} names the graph in memory; a trailing {cmd:, replace} is accepted and ignored (an existing graph of that name is always replaced). The defaults are {bf:choiceplot} and {bf:rateplot}; {cmd:estat outliers} and {cmd:estat changepoints} draw the unnamed graph (Stata's {bf:Graph}) when no name is given.
+{opt saving(filename)} saves the graph as a {bf:.gph} file ({bf:.gph} is added, an existing file is replaced). {opt export(filename [, options])} exports the graph with {helpb graph export}; the extension sets the format, an existing file is replaced, and the options of {cmd:graph export} such as {opt width()} may follow a comma.
+{opt name()}, {opt saving()}, {opt export()} and {it:twoway_options} need {opt plot} in estat outliers and estat changepoints (only {opt name()} alone is accepted without it), and need that the graph is drawn (no {opt noplot}) in estat choiceplot and estat rateplot; otherwise the command stops with return code 198.
+The plots need the graph helper of nwcommands (core) 3.29.0 or later.{p_end}
 
 {phang}{opt topk(numlist)} (estat choiceplot) lists the share of events whose realised receiver is among the k most probable candidates, for each k of the list (default 1 3 5 10).
 {opt maxrank(#)} is the largest k of the graph (default 20; the curve ends where every risk set is covered). {opt noplot} gives the numbers without the graph.{p_end}
@@ -75,7 +80,7 @@ the {opt label(#)} (default 5) actors that deviate most; {bf:time} cuts the log 
 period of the {opt topactors(#)} (default 5) actors with the largest expected count.{p_end}
 
 {phang}With {opt frame(name)} the commands store the per-event table (estat choiceplot) or the per-actor table, or the actor by period table with {cmd:over(time)} (estat rateplot). {opt maxrows()} is as in {cmd:estat eventprob}.{p_end}
-{phang}{it:twoway_options} (estat choiceplot and estat rateplot) are passed to {helpb twoway}, for example {cmd:title()}, {cmd:xlabel()}, {cmd:ylabel()} or {cmd:scheme()}; they come last and override the defaults of the graph. Counts are labelled with integer axis formats.{p_end}
+{phang}{it:twoway_options} are passed to {helpb twoway}, for example {cmd:title()}, {cmd:xlabel()}, {cmd:ylabel()} or {cmd:scheme()}; they come last and override the defaults of the graph. The default titles of estat choiceplot and estat rateplot are black; {cmd:title("")} suppresses the default title. Counts are labelled with integer axis formats.{p_end}
 
 
 {title:Remarks}
@@ -112,6 +117,14 @@ Both commands need the sub-model they are made for (error 198 otherwise) and the
 {cmd:examineChangepoints} calls; {bf:estat ic} and the other tools follow goldfish (Hollway, Stadtfeld, Hoffman, Uzaheta and contributors; GPL >= 3).
 
 
+{title:Examples}
+
+{phang2}{cmd:. nwdynam toy, submodel(choice) inertia}{p_end}
+{phang2}{cmd:. estat choiceplot, topk(1 3 5) title("Rank of the realised receiver") export(choice.png, width(900))}{p_end}
+{phang2}{cmd:. estat outliers, method(iqr) parameter(1) plot saving(outliers) ylabel(, angle(0))}{p_end}
+{phang2}{cmd:. graph display choiceplot}{p_end}
+
+
 {title:Stored results}
 
 {pstd}{cmd:estat ic} stores in {cmd:r()}: {bf:r(ll)}, {bf:r(ll_per_event)}, {bf:r(N)} (the records of the log likelihood, as goldfish counts), {bf:r(N_events)} (the events), {bf:r(df)}, {bf:r(aic)}, {bf:r(bic)} and the matrix {bf:r(S)}.{p_end}
@@ -135,4 +148,4 @@ The frame has event, origevent (the row of the event in the data), time, sender,
 {p 4 14 2}Help: {help nwdynam}{p_end}
 
 {hline}
-{pstd}{it:nwdynam version 1.9.1, 18 November 2026}{p_end}{* nwversion}
+{pstd}{it:nwdynam version 1.10.0, 20 November 2026}{p_end}{* nwversion}

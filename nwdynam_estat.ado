@@ -1,4 +1,4 @@
-*! version 1.9.1  18nov2026 nwdynam_estat
+*! version 1.10.0  20nov2026 nwdynam_estat
 * Copyright (C) 2026 Thomas U. Grund
 * This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
 * The change point methods of estat changepoints are a port of the R package 'changepoint' (Rebecca Killick, Kaylea Haynes, Idris Eckley, Paul Fearnhead, Jamie Lee; GPL), see NOTICE.md.
@@ -52,6 +52,21 @@ program define nwdynam_estat, rclass
 	else {
 		// estat vce, estat summarize ... : Stata's defaults; anything else is refused with r(321)
 		estat_default `0'
+	}
+end
+
+* the graph helper of the core (version 3.29.0 or later); asked at plot time only, so that the other subcommands run with an older core
+capture program drop _nwdynam_gcheck
+program define _nwdynam_gcheck
+	args cmd
+	capture _nw_gfinish version
+	if _rc | "`r(api)'" == "" {
+		di as err "{p 0 0 2}estat `cmd', plot options need nwcommands (core) 3.29.0 or later; the installed core is older or the helper is missing. Update: {bf:ado update nwcommands}, or {bf:nwinstall}.{p_end}"
+		exit 199
+	}
+	if r(api) < 1 {
+		di as err "{p 0 0 2}estat `cmd': the installed nwcommands (core) is older than 3.29.0. Update: {bf:ado update nwcommands}, or {bf:nwinstall}.{p_end}"
+		exit 199
 	}
 end
 
@@ -225,8 +240,19 @@ end
 * ---------------------------------------------------------------------------------------------------------------------
 capture program drop nwdynam_estat_outliers
 program define nwdynam_estat_outliers, rclass
-	syntax [, METhod(string) PARameter(real 3) WINdow(string) FRAme(name) REPLACE PLOT NAme(string)]
+	syntax [, METhod(string) PARameter(real 3) WINdow(string) FRAme(name) REPLACE PLOT NAme(string) SAVing(string asis) EXPort(string asis) *]
+	local twopt `options'
 	_nwdynam_estat_check
+	local gnm ""
+	local gsv ""
+	local gex ""
+	if `"`plot'`saving'`export'`twopt'"' != "" {
+		_nwdynam_gcheck outliers
+		_nw_gfinish check, plot(`plot') name(`name') saving(`saving') export(`export') gopts(`"`twopt'"') cmd(estat outliers) nameok
+		local gnm `"`r(name)'"'
+		local gsv `"`r(saving)'"'
+		local gex `"`r(export)'"'
+	}
 	if "`method'" == "" local method hampel
 	local method = lower("`method'")
 	if !inlist("`method'", "hampel", "iqr", "top") {
@@ -304,11 +330,13 @@ program define nwdynam_estat_outliers, rclass
 	if "`plot'" != "" & `nout' >= 0 {
 		frame `tab' {
 			capture generate strL label = sender + "-" + receiver if flag
-			local gname = cond("`name'" != "", "name(`name', replace)", "")
+			local gname = cond(`"`gnm'"' != "", "name(`gnm', replace)", "")
 			twoway (line ll time, lcolor(black)) (scatter ll time if !flag, mcolor(black) msize(small)) ///
 				(scatter ll time if flag, mcolor(red) msize(small) mlabel(label) mlabcolor(red) mlabsize(vsmall) mlabposition(6)), ///
-				legend(off) xtitle("") ytitle("Interval log likelihood") `gname'
+				legend(off) xtitle("") ytitle("Interval log likelihood") `gname' `twopt'
 		}
+		// the graph as drawn (unnamed: the current graph, Graph)
+		_nw_gfinish save, name(`=cond(`"`gnm'"' != "", `"`gnm'"', "Graph")') saving(`"`gsv'"') export(`"`gex'"')
 	}
 	if "`frame'" != "" {
 		frame `tab': capture drop label
@@ -323,8 +351,19 @@ end
 * ---------------------------------------------------------------------------------------------------------------------
 capture program drop nwdynam_estat_changepoints
 program define nwdynam_estat_changepoints, rclass
-	syntax [, MOMent(string) METhod(string) WINdow(string) FRAme(name) REPLACE PLOT NAme(string)]
+	syntax [, MOMent(string) METhod(string) WINdow(string) FRAme(name) REPLACE PLOT NAme(string) SAVing(string asis) EXPort(string asis) *]
+	local twopt `options'
 	_nwdynam_estat_check
+	local gnm ""
+	local gsv ""
+	local gex ""
+	if `"`plot'`saving'`export'`twopt'"' != "" {
+		_nwdynam_gcheck changepoints
+		_nw_gfinish check, plot(`plot') name(`name') saving(`saving') export(`export') gopts(`"`twopt'"') cmd(estat changepoints) nameok
+		local gnm `"`r(name)'"'
+		local gsv `"`r(saving)'"'
+		local gex `"`r(export)'"'
+	}
 	if "`moment'" == "" local moment mean
 	local moment = lower("`moment'")
 	if !inlist("`moment'", "mean", "variance") {
@@ -418,10 +457,11 @@ program define nwdynam_estat_changepoints, rclass
 	return local moment "`moment'"
 	if "`plot'" != "" {
 		frame `tab' {
-			local gname = cond("`name'" != "", "name(`name', replace)", "")
+			local gname = cond(`"`gnm'"' != "", "name(`gnm', replace)", "")
 			twoway (line ll time, lcolor(black)) (scatter ll time, mcolor(black) msize(small)), ///
-				legend(off) xtitle("") ytitle("Interval log likelihood") `=cond("`xl'" != "", "xline(`xl', lcolor(red))", "")' `gname'
+				legend(off) xtitle("") ytitle("Interval log likelihood") `=cond("`xl'" != "", "xline(`xl', lcolor(red))", "")' `gname' `twopt'
 		}
+		_nw_gfinish save, name(`=cond(`"`gnm'"' != "", `"`gnm'"', "Graph")') saving(`"`gsv'"') export(`"`gex'"')
 	}
 	if "`frame'" != "" {
 		frame `tab' {
@@ -439,8 +479,16 @@ end
 * Extension (goldfish has no such plot): where does the realised receiver (pair) rank among the risk set of its event by the fitted probability
 capture program drop nwdynam_estat_choiceplot
 program define nwdynam_estat_choiceplot, rclass
-	syntax [, TOPk(numlist integer >=1 sort) MAXRANk(integer 20) FRAme(name) REPLACE NOPLOT NAme(string) MAXRows(real 200000000) *]
+	syntax [, TOPk(numlist integer >=1 sort) MAXRANk(integer 20) FRAme(name) REPLACE NOPLOT NAme(string) SAVing(string asis) EXPort(string asis) MAXRows(real 200000000) *]
 	local twopt `options'
+	local doplot = cond("`noplot'" == "", "plot", "")
+	if `"`doplot'`name'`saving'`export'`twopt'"' != "" {
+		_nwdynam_gcheck choiceplot
+		_nw_gfinish check, plot(`doplot') name(`name') saving(`saving') export(`export') gopts(`"`twopt'"') default(choiceplot) cmd(estat choiceplot)
+		local gnm `"`r(name)'"'
+		local gsv `"`r(saving)'"'
+		local gex `"`r(export)'"'
+	}
 	_nwdynam_estat_check
 	if !inlist("`e(submodel)'", "choice", "choice_coordination") {
 		di as err "{p 0 0 2}estat choiceplot needs the sub-model {bf:choice} or {bf:choice_coordination} (the last fit is {bf:`e(submodel)'}); use {bf:estat rateplot} after the rate model.{p_end}"
@@ -528,18 +576,23 @@ program define nwdynam_estat_choiceplot, rclass
 				quietly replace uniform = `curve'[`j', 3] in `j'
 				quietly replace model = `curve'[`j', 4] in `j'
 			}
-			local gname = cond("`name'" != "", "name(`name', replace)", "")
 			local what = cond("`e(submodel)'" == "choice", "receiver", "pair")
+			_nw_gfinish title "Fitted probability of the realised `what': rank in the risk set", gopts(`"`twopt'"') size(medsmall)
+			local gtit `"`r(t)'"'
+			_nw_gfinish blk "Rank k of the realised `what'", kind(xtitle) gopts(`"`twopt'"')
+			local gxt `"`r(t)'"'
+			_nw_gfinish blk "Share of events with rank {&le} k", kind(ytitle) gopts(`"`twopt'"')
+			local gyt `"`r(t)'"'
 			twoway (line uniform k, lcolor(gs10) lpattern(dash) lwidth(medthick)) ///
 				(line model k, lcolor(cranberry) lpattern(shortdash) lwidth(medthick)) ///
 				(connected observed k, lcolor(navy) mcolor(navy) msize(small) lwidth(medthick)), ///
 				ylabel(0(.2)1, angle(0) grid glcolor(gs14)) xlabel(, grid glcolor(gs14) format(%9.0f)) ///
-				xtitle("Rank k of the realised `what'") ytitle("Share of events with rank {&le} k") ///
+				`gxt' `gyt' ///
 				legend(order(3 "Observed" 2 "Model expectation" 1 "Uniform (all equally probable)") rows(1) size(vsmall) symxsize(5)) ///
-				title("Fitted probability of the realised `what': rank in the risk set", size(medsmall)) ///
-				graphregion(color(white)) plotregion(margin(small)) `gname' `twopt'
+				`gtit' graphregion(color(white)) plotregion(margin(small)) name(`gnm', replace) `twopt'
 		}
 		capture frame drop `cm'
+		_nw_gfinish save, name(`gnm') saving(`"`gsv'"') export(`"`gex'"')
 	}
 	return scalar N = `N'
 	return scalar mean_rank = `mrank'
@@ -564,8 +617,16 @@ end
 * Extension (goldfish has no such plot): observed and expected number of events per actor as sender, and per period
 capture program drop nwdynam_estat_rateplot
 program define nwdynam_estat_rateplot, rclass
-	syntax [, OVer(string) PERiods(integer 10) TOPActors(integer 5) LABel(integer 5) FRAme(name) REPLACE NOPLOT NAme(string) MAXRows(real 200000000) *]
+	syntax [, OVer(string) PERiods(integer 10) TOPActors(integer 5) LABel(integer 5) FRAme(name) REPLACE NOPLOT NAme(string) SAVing(string asis) EXPort(string asis) MAXRows(real 200000000) *]
 	local twopt `options'
+	local doplot = cond("`noplot'" == "", "plot", "")
+	if `"`doplot'`name'`saving'`export'`twopt'"' != "" {
+		_nwdynam_gcheck rateplot
+		_nw_gfinish check, plot(`doplot') name(`name') saving(`saving') export(`export') gopts(`"`twopt'"') default(rateplot) cmd(estat rateplot)
+		local gnm `"`r(name)'"'
+		local gsv `"`r(saving)'"'
+		local gex `"`r(export)'"'
+	}
 	_nwdynam_estat_check
 	if "`e(submodel)'" != "rate" {
 		di as err "{p 0 0 2}estat rateplot needs the sub-model {bf:rate} (the last fit is {bf:`e(submodel)'}); use {bf:estat choiceplot} after the choice model.{p_end}"
@@ -639,14 +700,19 @@ program define nwdynam_estat_rateplot, rclass
 				local mx = r(max)
 				quietly summarize expected
 				local mx = max(`mx', r(max))
-				local gname = cond("`name'" != "", "name(`name', replace)", "")
+				_nw_gfinish title "Sender activity: observed against expected under the model", gopts(`"`twopt'"') size(medsmall)
+				local gtit `"`r(t)'"'
+				_nw_gfinish blk "Expected number of events as sender", kind(xtitle) gopts(`"`twopt'"')
+				local gxt `"`r(t)'"'
+				_nw_gfinish blk "Observed number of events as sender", kind(ytitle) gopts(`"`twopt'"')
+				local gyt `"`r(t)'"'
 				twoway (function y = x, range(0 `mx') lcolor(gs10) lpattern(dash) lwidth(medthick)) ///
 					(scatter observed expected, mcolor(navy%60) msize(small) mlabel(__lab) mlabcolor(navy) mlabsize(vsmall) mlabposition(1)), ///
-					aspectratio(1) xtitle("Expected number of events as sender") ytitle("Observed number of events as sender") ///
+					aspectratio(1) `gxt' `gyt' ///
 					xlabel(, grid glcolor(gs14) format(%9.0f)) ylabel(, angle(0) grid glcolor(gs14) format(%9.0f)) legend(off) ///
-					title("Sender activity: observed against expected under the model", size(medsmall)) ///
-					graphregion(color(white)) `gname' `twopt'
+					`gtit' graphregion(color(white)) name(`gnm', replace) `twopt'
 			}
+			_nw_gfinish save, name(`gnm') saving(`"`gsv'"') export(`"`gex'"')
 		}
 	}
 	else {
@@ -672,15 +738,20 @@ program define nwdynam_estat_rateplot, rclass
 			format expected %9.2f
 			list period tlo thi observed expected, noobs sep(0) abbreviate(12)
 			if "`noplot'" == "" {
-				local gname = cond("`name'" != "", "name(`name', replace)", "")
+				_nw_gfinish title "The `ntop' most active actors, events per period", gopts(`"`twopt'"') size(medsmall)
+				local gtit `"`r(t)'"'
+				_nw_gfinish blk "Time (mid point of the period)", kind(xtitle) gopts(`"`twopt'"')
+				local gxt `"`r(t)'"'
+				_nw_gfinish blk "Number of events as sender", kind(ytitle) gopts(`"`twopt'"')
+				local gyt `"`r(t)'"'
 				twoway (line expected tmid, lcolor(cranberry) lwidth(medthick)) ///
 					(connected observed tmid, lcolor(navy) mcolor(navy) msize(small) lwidth(medthick)), ///
-					xtitle("Time (mid point of the period)") ytitle("Number of events as sender") ///
+					`gxt' `gyt' ///
 					xlabel(, grid glcolor(gs14)) ylabel(, angle(0) grid glcolor(gs14) format(%9.0f)) ///
 					legend(order(2 "Observed" 1 "Expected under the model") rows(1) size(small)) ///
-					title("The `ntop' most active actors, events per period", size(medsmall)) ///
-					graphregion(color(white)) `gname' `twopt'
+					`gtit' graphregion(color(white)) name(`gnm', replace) `twopt'
 			}
+			_nw_gfinish save, name(`gnm') saving(`"`gsv'"') export(`"`gex'"')
 		}
 		capture frame drop `pc'
 	}

@@ -276,3 +276,10 @@ about 15 minutes; test `cscripts/test_nwdynam_combinations.do`).
 - Options `MAXRows` and `MAXRANk` need distinct minimal abbreviations (`maxro`, `maxran`).
 - Mata rank code and the tests use binary ties for `inertia` and `indeg` (goldfish's default, not the counts of events); an enumeration that counts events does not match.
 - `r()` is cleared by `graph describe` and similar: read the returned values straight after `estat`.
+
+## Plot options and the core helper `_nw_gfinish` (1.10.0, 2026-11-20)
+
+- All plot code goes through `_nw_gfinish` of the core (3.29.0 or later): `check` first, then `title`/`blk`, then `save` after the `twoway`. `_nwdynam_gcheck` (in `nwdynam_estat.ado`) turns a missing or older core into r(199) at plot time only; the helper is called only when a plot or a graph option is present, so tables run with an older core. A test stubs `_nw_gfinish` to check this.
+- A guard like `if "`plot'`saving'`export'`twopt'" != ""` breaks when `saving()` or `export()` contain quotes (r(111) "var not found"); write it with compound quotes: `` if `"..."' != "" ``.
+- `estat outliers` and `estat changepoints` (released in 1.9.1) draw an UNNAMED graph by default and keep it: the default name stays as it was, `_nw_gfinish check` is called with `nameok` (name() alone without `plot` is still accepted) and `save` uses the graph name `Graph`. The released default pictures have no title and plain axis titles, so no black-title logic is applied there; the PNG of the default call must stay byte-identical to 1.9.1 (`cscripts/nwdynam_plots_defaults.do`, reference in `NWDYNAM_PLOT_REF`, produced after `cscript`; PNG bytes depend on the rendering state).
+- `estat choiceplot` / `rateplot` are new in 1.10.0, so they take the canonical spelling: default names `choiceplot` / `rateplot` (both `over()` variants of rateplot use `rateplot`), black titles, `noplot` plus a graph option gives r(198).
