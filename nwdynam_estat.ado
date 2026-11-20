@@ -439,7 +439,8 @@ end
 * Extension (goldfish has no such plot): where does the realised receiver (pair) rank among the risk set of its event by the fitted probability
 capture program drop nwdynam_estat_choiceplot
 program define nwdynam_estat_choiceplot, rclass
-	syntax [, TOPk(numlist integer >=1 sort) MAXRANk(integer 20) FRAme(name) REPLACE NOPLOT NAme(string) MAXRows(real 200000000)]
+	syntax [, TOPk(numlist integer >=1 sort) MAXRANk(integer 20) FRAme(name) REPLACE NOPLOT NAme(string) MAXRows(real 200000000) *]
+	local twopt `options'
 	_nwdynam_estat_check
 	if !inlist("`e(submodel)'", "choice", "choice_coordination") {
 		di as err "{p 0 0 2}estat choiceplot needs the sub-model {bf:choice} or {bf:choice_coordination} (the last fit is {bf:`e(submodel)'}); use {bf:estat rateplot} after the rate model.{p_end}"
@@ -532,11 +533,11 @@ program define nwdynam_estat_choiceplot, rclass
 			twoway (line uniform k, lcolor(gs10) lpattern(dash) lwidth(medthick)) ///
 				(line model k, lcolor(cranberry) lpattern(shortdash) lwidth(medthick)) ///
 				(connected observed k, lcolor(navy) mcolor(navy) msize(small) lwidth(medthick)), ///
-				ylabel(0(.2)1, angle(0) grid glcolor(gs14)) xlabel(, grid glcolor(gs14)) ///
+				ylabel(0(.2)1, angle(0) grid glcolor(gs14)) xlabel(, grid glcolor(gs14) format(%9.0f)) ///
 				xtitle("Rank k of the realised `what'") ytitle("Share of events with rank {&le} k") ///
 				legend(order(3 "Observed" 2 "Model expectation" 1 "Uniform (all equally probable)") rows(1) size(vsmall) symxsize(5)) ///
 				title("Fitted probability of the realised `what': rank in the risk set", size(medsmall)) ///
-				graphregion(color(white)) plotregion(margin(small)) `gname'
+				graphregion(color(white)) plotregion(margin(small)) `gname' `twopt'
 		}
 		capture frame drop `cm'
 	}
@@ -563,7 +564,8 @@ end
 * Extension (goldfish has no such plot): observed and expected number of events per actor as sender, and per period
 capture program drop nwdynam_estat_rateplot
 program define nwdynam_estat_rateplot, rclass
-	syntax [, OVer(string) PERiods(integer 10) TOPActors(integer 5) LABel(integer 5) FRAme(name) REPLACE NOPLOT NAme(string) MAXRows(real 200000000)]
+	syntax [, OVer(string) PERiods(integer 10) TOPActors(integer 5) LABel(integer 5) FRAme(name) REPLACE NOPLOT NAme(string) MAXRows(real 200000000) *]
+	local twopt `options'
 	_nwdynam_estat_check
 	if "`e(submodel)'" != "rate" {
 		di as err "{p 0 0 2}estat rateplot needs the sub-model {bf:rate} (the last fit is {bf:`e(submodel)'}); use {bf:estat choiceplot} after the choice model.{p_end}"
@@ -641,9 +643,9 @@ program define nwdynam_estat_rateplot, rclass
 				twoway (function y = x, range(0 `mx') lcolor(gs10) lpattern(dash) lwidth(medthick)) ///
 					(scatter observed expected, mcolor(navy%60) msize(small) mlabel(__lab) mlabcolor(navy) mlabsize(vsmall) mlabposition(1)), ///
 					aspectratio(1) xtitle("Expected number of events as sender") ytitle("Observed number of events as sender") ///
-					xlabel(, grid glcolor(gs14)) ylabel(, angle(0) grid glcolor(gs14)) legend(off) ///
+					xlabel(, grid glcolor(gs14) format(%9.0f)) ylabel(, angle(0) grid glcolor(gs14) format(%9.0f)) legend(off) ///
 					title("Sender activity: observed against expected under the model", size(medsmall)) ///
-					graphregion(color(white)) `gname'
+					graphregion(color(white)) `gname' `twopt'
 			}
 		}
 	}
@@ -674,10 +676,10 @@ program define nwdynam_estat_rateplot, rclass
 				twoway (line expected tmid, lcolor(cranberry) lwidth(medthick)) ///
 					(connected observed tmid, lcolor(navy) mcolor(navy) msize(small) lwidth(medthick)), ///
 					xtitle("Time (mid point of the period)") ytitle("Number of events as sender") ///
-					xlabel(, grid glcolor(gs14)) ylabel(, angle(0) grid glcolor(gs14)) ///
+					xlabel(, grid glcolor(gs14)) ylabel(, angle(0) grid glcolor(gs14) format(%9.0f)) ///
 					legend(order(2 "Observed" 1 "Expected under the model") rows(1) size(small)) ///
 					title("The `ntop' most active actors, events per period", size(medsmall)) ///
-					graphregion(color(white)) `gname'
+					graphregion(color(white)) `gname' `twopt'
 			}
 		}
 		capture frame drop `pc'

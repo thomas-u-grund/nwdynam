@@ -83,7 +83,7 @@ mata: EV = st_data(., "sender receiver")
 nwdynam toy, submodel(choice) inertia
 matrix b = e(b)
 mata: enum_test(EV, 6, 1, st_matrix("b"), 20)
-estat choiceplot, topk(1 3 5) name(gchoice) frame(rkf)
+estat choiceplot, topk(1 3 5) name(gchoice) frame(rkf) title("Passed title") xlabel(1(1)5) scheme(s2color)
 assert abs(r(mean_rank) - E_mean) < 1e-10
 assert abs(r(median_rank) - E_median) < 1e-10
 assert abs(r(mean_rank_uniform) - E_uniform) < 1e-10
@@ -133,7 +133,7 @@ di as result "PASS choice plot numbers agree with the enumeration"
 nwdynam toy, submodel(rate) indeg
 matrix b = e(b)
 mata: enum_test(EV, 6, 2, st_matrix("b"), 1)
-estat rateplot, name(grate) frame(raf) label(2)
+estat rateplot, name(grate) frame(raf) label(2) title("Passed title") xtitle("Passed x")
 assert r(N) == 60
 assert r(N_actors) == 6
 assert "`r(over)'" == "actor"
@@ -154,7 +154,7 @@ forvalues a = 1/6 {
 	frame raf: assert observed[`a'] == r(N)
 }
 graph describe grate
-estat rateplot, over(time) periods(4) topactors(3) name(gtime) frame(rpf)
+estat rateplot, over(time) periods(4) topactors(3) name(gtime) frame(rpf) ylabel(, format(%9.1f)) xtitle("Passed x")
 graph describe gtime
 frame rpf {
 	assert _N == 6 * 4

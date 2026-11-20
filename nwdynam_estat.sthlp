@@ -43,9 +43,9 @@ estimation results on screen are not those of the fit in memory (for example aft
 
 {p 8 16 2}{cmd:estat changepoints} [{cmd:,} {opt mom:ent(mean|variance)} {opt met:hod(pelt|amoc|binseg)} {opt win:dow(#)} {opt fra:me(name)} {opt replace} {opt plot} {opt na:me(name)}]{p_end}
 
-{p 8 16 2}{cmd:estat choiceplot} [{cmd:,} {opt top:k(numlist)} {opt maxran:k(#)} {opt fra:me(name)} {opt replace} {opt nopl:ot} {opt na:me(name)} {opt maxr:ows(#)}]{p_end}
+{p 8 16 2}{cmd:estat choiceplot} [{cmd:,} {opt top:k(numlist)} {opt maxran:k(#)} {opt fra:me(name)} {opt replace} {opt nopl:ot} {opt na:me(name)} {opt maxr:ows(#)} {it:twoway_options}]{p_end}
 
-{p 8 16 2}{cmd:estat rateplot} [{cmd:,} {opt ov:er(actor|time)} {opt per:iods(#)} {opt topa:ctors(#)} {opt lab:el(#)} {opt fra:me(name)} {opt replace} {opt nopl:ot} {opt na:me(name)} {opt maxr:ows(#)}]{p_end}
+{p 8 16 2}{cmd:estat rateplot} [{cmd:,} {opt ov:er(actor|time)} {opt per:iods(#)} {opt topa:ctors(#)} {opt lab:el(#)} {opt fra:me(name)} {opt replace} {opt nopl:ot} {opt na:me(name)} {opt maxr:ows(#)} {it:twoway_options}]{p_end}
 
 
 {title:Options}
@@ -75,6 +75,7 @@ the {opt label(#)} (default 5) actors that deviate most; {bf:time} cuts the log 
 period of the {opt topactors(#)} (default 5) actors with the largest expected count.{p_end}
 
 {phang}With {opt frame(name)} the commands store the per-event table (estat choiceplot) or the per-actor table, or the actor by period table with {cmd:over(time)} (estat rateplot). {opt maxrows()} is as in {cmd:estat eventprob}.{p_end}
+{phang}{it:twoway_options} (estat choiceplot and estat rateplot) are passed to {helpb twoway}, for example {cmd:title()}, {cmd:xlabel()}, {cmd:ylabel()} or {cmd:scheme()}; they come last and override the defaults of the graph. Counts are labelled with integer axis formats.{p_end}
 
 
 {title:Remarks}
