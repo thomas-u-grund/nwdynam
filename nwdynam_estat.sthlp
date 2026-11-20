@@ -26,6 +26,8 @@ estimation results on screen are not those of the fit in memory (for example aft
 {p2col :{cmd:estat eventprob}}model probabilities of every event{p_end}
 {p2col :{cmd:estat outliers}}events with an unusually low log likelihood{p_end}
 {p2col :{cmd:estat changepoints}}change points in the log likelihood of the event sequence{p_end}
+{p2col :{cmd:estat choiceplot}}rank of the realised receiver by the fitted probability (choice sub-models){p_end}
+{p2col :{cmd:estat rateplot}}observed and expected events per actor and per period (rate sub-model){p_end}
 {p2colreset}{...}
 
 
@@ -40,6 +42,10 @@ estimation results on screen are not those of the fit in memory (for example aft
 {p 8 16 2}{cmd:estat outliers} [{cmd:,} {opt met:hod(hampel|iqr|top)} {opt par:ameter(#)} {opt win:dow(#)} {opt fra:me(name)} {opt replace} {opt plot} {opt na:me(name)}]{p_end}
 
 {p 8 16 2}{cmd:estat changepoints} [{cmd:,} {opt mom:ent(mean|variance)} {opt met:hod(pelt|amoc|binseg)} {opt win:dow(#)} {opt fra:me(name)} {opt replace} {opt plot} {opt na:me(name)}]{p_end}
+
+{p 8 16 2}{cmd:estat choiceplot} [{cmd:,} {opt top:k(numlist)} {opt maxran:k(#)} {opt fra:me(name)} {opt replace} {opt nopl:ot} {opt na:me(name)} {opt maxr:ows(#)}]{p_end}
+
+{p 8 16 2}{cmd:estat rateplot} [{cmd:,} {opt ov:er(actor|time)} {opt per:iods(#)} {opt topa:ctors(#)} {opt lab:el(#)} {opt fra:me(name)} {opt replace} {opt nopl:ot} {opt na:me(name)} {opt maxr:ows(#)}]{p_end}
 
 
 {title:Options}
@@ -61,6 +67,15 @@ goldfish). The penalty is the modified Bayesian information criterion and the te
 
 {phang}{opt plot} draws the log likelihood against time with the flagged events or the change points; {opt name()} names the graph.{p_end}
 
+{phang}{opt topk(numlist)} (estat choiceplot) lists the share of events whose realised receiver is among the k most probable candidates, for each k of the list (default 1 3 5 10).
+{opt maxrank(#)} is the largest k of the graph (default 20; the curve ends where every risk set is covered). {opt noplot} gives the numbers without the graph.{p_end}
+
+{phang}{opt over(actor|time)} (estat rateplot) chooses the graph: {bf:actor} (default) plots the observed against the expected number of events of every actor as sender with the 45 degree line, and labels
+the {opt label(#)} (default 5) actors that deviate most; {bf:time} cuts the log into {opt periods(#)} (default 10) periods of equal length in time and plots the observed and expected number of events per
+period of the {opt topactors(#)} (default 5) actors with the largest expected count.{p_end}
+
+{phang}With {opt frame(name)} the commands store the per-event table (estat choiceplot) or the per-actor table, or the actor by period table with {cmd:over(time)} (estat rateplot). {opt maxrows()} is as in {cmd:estat eventprob}.{p_end}
+
 
 {title:Remarks}
 
@@ -77,6 +92,16 @@ the part after the last event is in {cmd:r(ll_trailing)}. {cmd:estat ic} uses th
 are those present or available. Rate without intercept: one row per event and present actor, the probability that the actor is the sender. Rate with intercept: goldfish returns
 for each actor the linear predictor minus the exposure of the period that ends at the event; this is not a probability and is stored as {cmd:lnrate}. Choice_coordination: one row per event
 and pair of actors (actor1 < actor2); {cmd:p} is goldfish's matrix entry, twice the probability of the pair, so the entries of an event sum to 1.
+
+{pstd}
+{bf:Result plots (extensions).} goldfish has no such plots; the two commands are additions of this package and use the probabilities of {cmd:estat eventprob}, evaluated by the same native code.
+{cmd:estat choiceplot} ranks, in every event, the realised receiver (for {bf:choice_coordination} the realised pair) among the members of the risk set by the fitted probability (rank 1 = most probable;
+members with an equal probability share the mid rank, and a tie group that straddles k counts with the fraction of its places up to k). The graph shows the share of events with rank at most k, against
+what a model without information would give (every member of the risk set equally probable) and against the expectation under the fitted model (the mean over the events of the sum of the k largest
+probabilities); a fitted model whose observed curve lies close to the model curve and well above the uniform one describes who is chosen well. The output also gives the mean and the median rank.
+{cmd:estat rateplot} adds up, over the events, the probability that each actor is the sender, giving the expected number of events of the actor; for the rate model with {opt intercept} the probability is the
+actor's share of the total hazard, exp(lnrate) divided by the sum over the actors, so the expected counts always add up to the observed number of events (the plot checks who acts, not how many events occur).
+Both commands need the sub-model they are made for (error 198 otherwise) and the fit in memory (error 498 as for the other commands).
 
 {pstd}
 {bf:Ties.} With {cmd:top}, events whose log likelihoods agree to the last digits are ranked in an arbitrary order; goldfish may then name another of them.
@@ -96,6 +121,10 @@ The frame has event, origevent (the row of the event in the data), time, sender,
 {pstd}{cmd:estat eventprob}: {bf:r(N_rows)}, {bf:r(frame)}. The frame has event, time, actor and actorid (actor1, actor2 and their ids for choice_coordination), observed and {bf:p} ({bf:lnrate} for the rate model with intercept).{p_end}
 
 {pstd}{cmd:estat outliers}: {bf:r(n_outliers)}, {bf:r(N)}, {bf:r(parameter)}, {bf:r(window)}, {bf:r(method)} and the row vector {bf:r(outliers)} of the event numbers in increasing order.{p_end}
+
+{pstd}{cmd:estat choiceplot}: {bf:r(N)}, {bf:r(mean_rank)}, {bf:r(median_rank)}, {bf:r(mean_rank_uniform)}, {bf:r(mean_rank_relative)} (mean of rank divided by risk-set size), {bf:r(mean_riskset)}, the matrices {bf:r(topk)} (k, observed, uniform, model) and {bf:r(curve)} (the same for k = 1, 2, ...), {bf:r(frame)}. The frame has event, time, m (size of the risk set), rank and pobs.{p_end}
+
+{pstd}{cmd:estat rateplot}: {bf:r(N)} (events), {bf:r(N_actors)}, {bf:r(corr)} (correlation of observed and expected counts), {bf:r(pearson)} (sum of (observed - expected)^2 / expected over the actors, descriptive only), {bf:r(over)}, {bf:r(frame)}. The frame has actorid, actor, observed and expected (with {cmd:over(time)} also period, tlo and thi, for every actor and period).{p_end}
 
 {pstd}{cmd:estat changepoints}: {bf:r(n_cpts)}, {bf:r(N)}, {bf:r(window)}, {bf:r(method)}, {bf:r(moment)} and the row vector {bf:r(cpts)} with the last event of every regime (the last entry is always the number of events, as in the R package).{p_end}
 

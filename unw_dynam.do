@@ -62,6 +62,8 @@ capture mata: mata drop dynam_post_run()
 capture mata: mata drop dynam_post_ic()
 capture mata: mata drop dynam_post_table()
 capture mata: mata drop dynam_post_prob()
+capture mata: mata drop dynam_post_rank()
+capture mata: mata drop dynam_post_rate()
 capture mata: mata drop dynam_post_series()
 capture mata: mata drop dynam_post_plugin()
 capture mata: mata drop dynam_fit_id()
@@ -1453,6 +1455,126 @@ void dynam_post_prob(string scalar outframe, real scalar nrec) {
 	}
 	junk = st_addvar("byte", "observed"); st_store((1::rows(keep)), "observed", obs[keep])
 	junk = st_addvar("double", (model == 3 ? "lnrate" : "p")); st_store((1::rows(keep)), (model == 3 ? "lnrate" : "p"), pr[keep])
+	st_framecurrent(orig)
+}
+
+// choice and choice_coordination: rank of the realised receiver (pair) among the risk set of every event by the fitted probability.
+// Frame rankframe: event, time, m (size of the risk set), rank (1 = most probable, ties get the mid rank), pobs (probability of the
+// realised receiver). The matrix named curvename has K rows: k, share of events with rank <= k (members with an equal probability are
+// ranked in random order: a tie group that straddles k counts with the fraction of its places up to k), uniform expectation, model expectation
+// (mean over events of the sum of the k largest probabilities). Needs dynam_post_run(2, .) before.
+void dynam_post_rank(string scalar rankframe, string scalar curvename, real scalar nrec, real scalar K) {
+	string scalar orig
+	real scalar L, N, n, ps, model, start, i, a, b, s, r, kobs, pobs, gr, eq, m, k, junk
+	real colvector pr, rk, mm, po, pv, srt, cs
+	real matrix E, curve, ev
+
+	orig = st_framecurrent()
+	st_framecurrent("__nwdynam_fit")
+	L = strtoreal(st_global("_dta[bloblen]"))
+	model = strtoreal(st_global("_dta[model]"))
+	N = st_numscalar("e(N)"); n = st_numscalar("e(nodes)")
+	E = colshape(st_data(((41 + 1)::(41 + 5 * N)), 1)', 5)
+	ps = (model == 4 ? n * (n - 1) / 2 : n)
+	start = L + 3 * nrec
+	pr = st_data(((start + 1)::(start + N * ps)), 1)
+	rk = J(N, 1, .); mm = J(N, 1, .); po = J(N, 1, .)
+	curve = J(K, 4, 0)
+	for (k = 1; k <= K; k++) curve[k, 1] = k
+	for (i = 1; i <= N; i++) {
+		pv = pr[((i - 1) * ps + 1)::(i * ps)]
+		if (model == 4) {
+			a = min((E[i, 1], E[i, 2])); b = max((E[i, 1], E[i, 2]))
+			kobs = (a - 1) * n - a * (a - 1) / 2 + (b - a)
+		}
+		else kobs = E[i, 2]
+		pobs = pv[kobs]
+		pv = select(pv, pv :< .)
+		m = rows(pv)
+		if (pobs >= . | m == 0) continue
+		gr = sum(pv :> pobs * (1 + 1e-12))
+		eq = sum(abs(pv :- pobs) :<= 1e-12 * pobs)
+		rk[i] = 1 + gr + (eq - 1) / 2
+		mm[i] = m; po[i] = pobs
+		srt = sort(pv, -1)
+		cs = runningsum(srt)
+		for (k = 1; k <= K; k++) {
+			curve[k, 3] = curve[k, 3] + min((k, m)) / m
+			curve[k, 4] = curve[k, 4] + cs[min((k, m))]
+			curve[k, 2] = curve[k, 2] + min((1, max((0, (k - gr) / eq))))
+		}
+	}
+	junk = sum(rk :< .)
+	if (junk > 0) curve[., 2..4] = curve[., 2..4] / junk
+	st_matrix(curvename, curve)
+	st_framecurrent(rankframe)
+	st_addobs(N)
+	junk = st_addvar("double", "event");  st_store((1::N), "event", (1::N))
+	junk = st_addvar("double", "time"); st_store((1::N), "time", E[., 3])
+	junk = st_addvar("double", "m"); st_store((1::N), "m", mm)
+	junk = st_addvar("double", "rank"); st_store((1::N), "rank", rk)
+	junk = st_addvar("double", "pobs"); st_store((1::N), "pobs", po)
+	st_framecurrent(orig)
+}
+
+// rate sub-model (without or with intercept): the expected number of events of every actor as the sum over the events of the
+// probability that the actor is the sender (with intercept: the share exp(lnrate) / sum exp(lnrate), the same conditional
+// probability). Frame actframe: actorid, actor, observed, expected. Frame perframe: actorid, actor, period, tlo, thi, observed,
+// expected, the events being cut into nper periods of equal length in time. Needs dynam_post_run(2, .) before.
+void dynam_post_rate(string scalar actframe, string scalar perframe, real scalar nrec, real scalar nper) {
+	string scalar orig
+	real scalar L, N, n, model, start, i, a, per, tmin, tmax, junk, rmax, tot
+	real colvector pr, pv, obs, ex, tm, pj, aid, pid, ob2, ex2, lo, hi
+	real matrix E, O, X
+	string colvector nm
+
+	orig = st_framecurrent()
+	st_framecurrent("__nwdynam_fit")
+	L = strtoreal(st_global("_dta[bloblen]"))
+	model = strtoreal(st_global("_dta[model]"))
+	N = st_numscalar("e(N)"); n = st_numscalar("e(nodes)")
+	nm = st_sdata((1::n), "nm")
+	E = colshape(st_data(((41 + 1)::(41 + 5 * N)), 1)', 5)
+	start = L + 3 * nrec
+	pr = st_data(((start + 1)::(start + N * n)), 1)
+	tm = E[., 3]
+	tmin = min(tm); tmax = max(tm)
+	O = J(n, nper, 0); X = J(n, nper, 0)
+	for (i = 1; i <= N; i++) {
+		pv = pr[((i - 1) * n + 1)::(i * n)]
+		pj = (pv :< .)
+		if (model == 3) {
+			rmax = max(select(pv, pj))
+			pv = exp(pv :- rmax) :* pj
+		}
+		else pv = editmissing(pv, 0)
+		tot = sum(pv)
+		if (tot <= 0) continue
+		pv = pv / tot
+		per = (tmax > tmin ? min((nper, 1 + floor((tm[i] - tmin) / (tmax - tmin) * nper))) : 1)
+		X[., per] = X[., per] + pv
+		O[E[i, 1], per] = O[E[i, 1], per] + 1
+	}
+	obs = rowsum(O); ex = rowsum(X)
+	st_framecurrent(actframe)
+	st_addobs(n)
+	junk = st_addvar("double", "actorid"); st_store((1::n), "actorid", (1::n))
+	junk = st_addvar("strL", "actor"); st_sstore((1::n), "actor", nm)
+	junk = st_addvar("double", "observed"); st_store((1::n), "observed", obs)
+	junk = st_addvar("double", "expected"); st_store((1::n), "expected", ex)
+	st_framecurrent(perframe)
+	st_addobs(n * nper)
+	aid = (1::n) # J(nper, 1, 1)
+	pid = J(n, 1, 1) # (1::nper)
+	lo = tmin :+ (pid :- 1) * (tmax - tmin) / nper
+	hi = tmin :+ pid * (tmax - tmin) / nper
+	junk = st_addvar("double", "actorid"); st_store((1::(n * nper)), "actorid", aid)
+	junk = st_addvar("strL", "actor"); st_sstore((1::(n * nper)), "actor", nm[aid])
+	junk = st_addvar("double", "period"); st_store((1::(n * nper)), "period", pid)
+	junk = st_addvar("double", "tlo"); st_store((1::(n * nper)), "tlo", lo)
+	junk = st_addvar("double", "thi"); st_store((1::(n * nper)), "thi", hi)
+	junk = st_addvar("double", "observed"); st_store((1::(n * nper)), "observed", vec(O'))
+	junk = st_addvar("double", "expected"); st_store((1::(n * nper)), "expected", vec(X'))
 	st_framecurrent(orig)
 }
 

@@ -7,7 +7,7 @@
 * that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
 * or FITNESS FOR A PARTICULAR PURPOSE. See the file LICENSE for the full text.
 
-* Postestimation of nwdynam: estat ic, estat eventlik, estat eventprob, estat outliers, estat changepoints.
+* Postestimation of nwdynam: estat ic, estat eventlik, estat eventprob, estat outliers, estat changepoints, and (extensions, not in goldfish) estat choiceplot and estat rateplot.
 * What goldfish offers after estimation and nothing beyond it: logLik / AIC / BIC, the estimation options returnIntervalLogL
 * (estat eventlik) and returnEventProbabilities (estat eventprob), examineOutliers (estat outliers), examineChangepoints
 * (estat changepoints).
@@ -39,6 +39,14 @@ program define nwdynam_estat, rclass
 	}
 	else if "`subcmd'" == "changepoints" {
 		nwdynam_estat_changepoints `rest'
+		return add
+	}
+	else if "`subcmd'" == "choiceplot" {
+		nwdynam_estat_choiceplot `rest'
+		return add
+	}
+	else if "`subcmd'" == "rateplot" {
+		nwdynam_estat_rateplot `rest'
 		return add
 	}
 	else {
@@ -425,4 +433,266 @@ program define nwdynam_estat_changepoints, rclass
 		return local frame "`frame'"
 	}
 	capture frame drop `tab'
+end
+
+* ---------------------------------------------------------------------------------------------------------------------
+* Extension (goldfish has no such plot): where does the realised receiver (pair) rank among the risk set of its event by the fitted probability
+capture program drop nwdynam_estat_choiceplot
+program define nwdynam_estat_choiceplot, rclass
+	syntax [, TOPk(numlist integer >=1 sort) MAXRANk(integer 20) FRAme(name) REPLACE NOPLOT NAme(string) MAXRows(real 200000000)]
+	_nwdynam_estat_check
+	if !inlist("`e(submodel)'", "choice", "choice_coordination") {
+		di as err "{p 0 0 2}estat choiceplot needs the sub-model {bf:choice} or {bf:choice_coordination} (the last fit is {bf:`e(submodel)'}); use {bf:estat rateplot} after the rate model.{p_end}"
+		exit 198
+	}
+	if `maxrank' < 1 {
+		di as err "maxrank() must be 1 or more"
+		exit 198
+	}
+	if "`topk'" == "" local topk "1 3 5 10"
+	if "`frame'" != "" _nwdynam_estat_frame `frame' `replace'
+	local K = `maxrank'
+	foreach k of local topk {
+		if `k' > `K' local K = `k'
+	}
+	local fr = c(frame)
+	tempname rk curve
+	frame create `rk'
+	capture noisily {
+		mata: st_local("__nwdynam_nrec", strofreal(dynam_post_run(2, `maxrows'), "%18.0f"))
+		mata: dynam_post_rank("`rk'", "`curve'", `__nwdynam_nrec', `K')
+	}
+	if _rc {
+		local rc = _rc
+		capture frame change `fr'
+		capture frame drop `rk'
+		exit `rc'
+	}
+	capture frame change `fr'
+	frame `rk' {
+		quietly count if rank < .
+		local N = r(N)
+		quietly summarize rank, detail
+		local mrank = r(mean)
+		local medrank = r(p50)
+		quietly generate double __u = (m + 1) / 2 if rank < .
+		quietly summarize __u
+		local urank = r(mean)
+		quietly summarize m
+		local mrisk = r(mean)
+		local maxm = r(max)
+		quietly generate double __ratio = rank / m
+		quietly summarize __ratio
+		local mrel = r(mean)
+		drop __u __ratio
+	}
+	if `N' == 0 {
+		capture frame drop `rk'
+		di as err "no event with a defined risk set"
+		exit 198
+	}
+	di
+	di as txt "Rank of the realised " cond("`e(submodel)'" == "choice", "receiver", "pair") " among the risk set by the fitted probability (rank 1 = most probable), " as res `N' as txt " events"
+	di as txt "{p 2 2 2}Mean rank " as res %9.3f `mrank' as txt "   median rank " as res %7.1f `medrank' as txt "   expected mean rank if all risk-set members were equally probable " as res %9.3f `urank' as txt "   mean risk-set size " as res %9.2f `mrisk' as txt ".{p_end}"
+	di
+	di as txt "{hline 13}{c TT}{hline 47}"
+	di as txt %12s "Top k" " {c |}" %15s "observed" %15s "uniform" %15s "model"
+	di as txt "{hline 13}{c +}{hline 47}"
+	tempname T
+	local nt : word count `topk'
+	matrix `T' = J(`nt', 4, .)
+	local row 0
+	foreach k of local topk {
+		local ++row
+		matrix `T'[`row', 1] = `k'
+		matrix `T'[`row', 2] = `curve'[`k', 2]
+		matrix `T'[`row', 3] = `curve'[`k', 3]
+		matrix `T'[`row', 4] = `curve'[`k', 4]
+		di as txt %12.0f `k' " {c |}" as res %15.4f `curve'[`k', 2] %15.4f `curve'[`k', 3] %15.4f `curve'[`k', 4]
+	}
+	di as txt "{hline 13}{c BT}{hline 47}"
+	matrix colnames `T' = k observed uniform model
+	if "`noplot'" == "" {
+		local kp = min(`maxrank', max(`maxm', 1))
+		tempname cm
+		frame create `cm'
+		frame `cm' {
+			quietly set obs `kp'
+			quietly generate double k = _n
+			quietly generate double observed = .
+			quietly generate double uniform = .
+			quietly generate double model = .
+			forvalues j = 1/`kp' {
+				quietly replace observed = `curve'[`j', 2] in `j'
+				quietly replace uniform = `curve'[`j', 3] in `j'
+				quietly replace model = `curve'[`j', 4] in `j'
+			}
+			local gname = cond("`name'" != "", "name(`name', replace)", "")
+			local what = cond("`e(submodel)'" == "choice", "receiver", "pair")
+			twoway (line uniform k, lcolor(gs10) lpattern(dash) lwidth(medthick)) ///
+				(line model k, lcolor(cranberry) lpattern(shortdash) lwidth(medthick)) ///
+				(connected observed k, lcolor(navy) mcolor(navy) msize(small) lwidth(medthick)), ///
+				ylabel(0(.2)1, angle(0) grid glcolor(gs14)) xlabel(, grid glcolor(gs14)) ///
+				xtitle("Rank k of the realised `what'") ytitle("Share of events with rank {&le} k") ///
+				legend(order(3 "Observed" 2 "Model expectation" 1 "Uniform (all equally probable)") rows(1) size(vsmall) symxsize(5)) ///
+				title("Fitted probability of the realised `what': rank in the risk set", size(medsmall)) ///
+				graphregion(color(white)) plotregion(margin(small)) `gname'
+		}
+		capture frame drop `cm'
+	}
+	return scalar N = `N'
+	return scalar mean_rank = `mrank'
+	return scalar median_rank = `medrank'
+	return scalar mean_rank_uniform = `urank'
+	return scalar mean_rank_relative = `mrel'
+	return scalar mean_riskset = `mrisk'
+	return matrix topk = `T'
+	tempname C
+	matrix `C' = `curve'
+	matrix colnames `C' = k observed uniform model
+	return matrix curve = `C'
+	if "`frame'" != "" {
+		frame copy `rk' `frame'
+		di as txt "Table of the events in frame " as res "`frame'" as txt ": event, time, m (size of the risk set), rank, pobs (fitted probability of the realised " cond("`e(submodel)'" == "choice", "receiver", "pair") ")."
+		return local frame "`frame'"
+	}
+	capture frame drop `rk'
+end
+
+* ---------------------------------------------------------------------------------------------------------------------
+* Extension (goldfish has no such plot): observed and expected number of events per actor as sender, and per period
+capture program drop nwdynam_estat_rateplot
+program define nwdynam_estat_rateplot, rclass
+	syntax [, OVer(string) PERiods(integer 10) TOPActors(integer 5) LABel(integer 5) FRAme(name) REPLACE NOPLOT NAme(string) MAXRows(real 200000000)]
+	_nwdynam_estat_check
+	if "`e(submodel)'" != "rate" {
+		di as err "{p 0 0 2}estat rateplot needs the sub-model {bf:rate} (the last fit is {bf:`e(submodel)'}); use {bf:estat choiceplot} after the choice model.{p_end}"
+		exit 198
+	}
+	if "`over'" == "" local over actor
+	local over = lower("`over'")
+	if !inlist("`over'", "actor", "time") {
+		di as err "over() must be actor or time"
+		exit 198
+	}
+	if `periods' < 1 {
+		di as err "periods() must be 1 or more"
+		exit 198
+	}
+	if `topactors' < 1 | `label' < 0 {
+		di as err "topactors() must be 1 or more and label() 0 or more"
+		exit 198
+	}
+	if "`frame'" != "" _nwdynam_estat_frame `frame' `replace'
+	local fr = c(frame)
+	tempname act per
+	frame create `act'
+	frame create `per'
+	capture noisily {
+		mata: st_local("__nwdynam_nrec", strofreal(dynam_post_run(2, `maxrows'), "%18.0f"))
+		mata: dynam_post_rate("`act'", "`per'", `__nwdynam_nrec', `periods')
+	}
+	if _rc {
+		local rc = _rc
+		capture frame change `fr'
+		capture frame drop `act'
+		capture frame drop `per'
+		exit `rc'
+	}
+	capture frame change `fr'
+	local hasint = (strpos("`e(effects)'", "Intercept") > 0)
+	frame `act' {
+		quietly count
+		local n = r(N)
+		quietly summarize observed
+		local tobs = r(sum)
+		quietly correlate observed expected
+		local corr = cond(r(N) > 1 & r(rho) < ., r(rho), .)
+		quietly generate double __d = abs(observed - expected)
+		quietly generate double __sd = (observed - expected) / sqrt(max(expected, 1e-12))
+		quietly summarize __sd
+		quietly generate double __chi = __sd^2
+		quietly summarize __chi if expected > 0
+		local chi = r(sum)
+		local nchi = r(N)
+	}
+	di
+	di as txt "Observed and expected number of events per actor as sender, " as res `n' as txt " actors, " as res trim(string(`tobs', "%12.0fc")) as txt " events"
+	di as txt "{p 2 2 2}Correlation of observed and expected counts " as res %7.4f `corr' as txt "   Pearson statistic sum (obs-exp)^2/exp " as res %10.2f `chi' as txt " over " as res `nchi' as txt " actors (descriptive only, not a test).{p_end}"
+	if `hasint' di as txt "{p 2 2 2}Rate model with intercept: the expected count of an actor is the sum over the events of its share of the total hazard, exp(lnrate) divided by the sum over the actors; the expected counts add up to the observed number of events, so the plot checks who acts, not how many events occur.{p_end}"
+	if "`over'" == "actor" {
+		frame `act' {
+			gsort -expected
+			local kk = min(`label', `n')
+			format observed %9.0f
+			format expected %9.2f
+			list actor observed expected in 1/`=min(10, `n')', noobs sep(0) abbreviate(14)
+		}
+		if "`noplot'" == "" {
+			frame `act' {
+				quietly generate strL __lab = ""
+				gsort -__d
+				if `kk' > 0 quietly replace __lab = actor in 1/`kk'
+				quietly summarize observed
+				local mx = r(max)
+				quietly summarize expected
+				local mx = max(`mx', r(max))
+				local gname = cond("`name'" != "", "name(`name', replace)", "")
+				twoway (function y = x, range(0 `mx') lcolor(gs10) lpattern(dash) lwidth(medthick)) ///
+					(scatter observed expected, mcolor(navy%60) msize(small) mlabel(__lab) mlabcolor(navy) mlabsize(vsmall) mlabposition(1)), ///
+					aspectratio(1) xtitle("Expected number of events as sender") ytitle("Observed number of events as sender") ///
+					xlabel(, grid glcolor(gs14)) ylabel(, angle(0) grid glcolor(gs14)) legend(off) ///
+					title("Sender activity: observed against expected under the model", size(medsmall)) ///
+					graphregion(color(white)) `gname'
+			}
+		}
+	}
+	else {
+		local ids ""
+		frame `act' {
+			gsort -expected
+			forvalues j = 1/`=min(`topactors', `n')' {
+				local ids "`ids' `=actorid[`j']'"
+			}
+		}
+		local ntop : word count `ids'
+		tempname pc
+		frame copy `per' `pc'
+		frame `pc' {
+			quietly generate byte __in = 0
+			foreach id of local ids {
+				quietly replace __in = 1 if actorid == `id'
+			}
+			quietly collapse (sum) observed expected (min) tlo thi if __in, by(period)
+			quietly generate double tmid = (tlo + thi) / 2
+			format tlo thi %9.3f
+			format observed %9.0f
+			format expected %9.2f
+			list period tlo thi observed expected, noobs sep(0) abbreviate(12)
+			if "`noplot'" == "" {
+				local gname = cond("`name'" != "", "name(`name', replace)", "")
+				twoway (line expected tmid, lcolor(cranberry) lwidth(medthick)) ///
+					(connected observed tmid, lcolor(navy) mcolor(navy) msize(small) lwidth(medthick)), ///
+					xtitle("Time (mid point of the period)") ytitle("Number of events as sender") ///
+					xlabel(, grid glcolor(gs14)) ylabel(, angle(0) grid glcolor(gs14)) ///
+					legend(order(2 "Observed" 1 "Expected under the model") rows(1) size(small)) ///
+					title("The `ntop' most active actors, events per period", size(medsmall)) ///
+					graphregion(color(white)) `gname'
+			}
+		}
+		capture frame drop `pc'
+	}
+	return scalar N = `tobs'
+	return scalar N_actors = `n'
+	return scalar corr = `corr'
+	return scalar pearson = `chi'
+	return local over "`over'"
+	if "`frame'" != "" {
+		if "`over'" == "actor" frame copy `act' `frame'
+		else frame copy `per' `frame'
+		di as txt "Table in frame " as res "`frame'" as txt cond("`over'" == "actor", ": actorid, actor, observed, expected.", ": actorid, actor, period, tlo, thi, observed, expected (every actor and period).")
+		return local frame "`frame'"
+	}
+	capture frame drop `act'
+	capture frame drop `per'
 end

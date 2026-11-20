@@ -3,6 +3,14 @@
 All notable changes to nwdynam are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `estat choiceplot` (choice and choice_coordination): the rank of the realised receiver (pair) among the risk set of every event by the fitted probability. Graph of the share of events with rank at most k against the uniform expectation and the expectation under the fitted model; mean and median rank, and a table of top-k hits (`topk()`, `maxrank()`, `frame()`, `noplot`, `name()`). Ties share the mid rank.
+- `estat rateplot` (rate, with or without `intercept`): observed against expected number of events per actor as sender with the 45 degree line (`over(actor)`), and observed and expected events per period for the most active actors (`over(time)`, `periods()`, `topactors()`). For the model with intercept the expected counts are the shares of the total hazard and add up to the observed number of events.
+- Both are extensions; goldfish has no such plots. They use the probabilities of the native evaluator (no Mata likelihood). Test `cscripts/test_nwdynam_resultplots.do` checks the numbers against an independent enumeration. The Mata library gains `dynam_post_rank()` and `dynam_post_rate()`; the plugin is unchanged.
+- The existing diagnostics (`estat ic`, `eventlik`, `eventprob`, `outliers`, `changepoints`) are unchanged.
+
 ## [1.9.1] - 2026-11-18
 
 ### Fixed

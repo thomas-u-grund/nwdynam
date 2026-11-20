@@ -627,7 +627,8 @@ or in the change network stop the command with error 198. {opt compchange()} and
 {bf:Postestimation.} After {cmd:nwdynam}, {cmd:estat ic} reports the log likelihood, the log likelihood per event, AIC and BIC;
 {cmd:estat eventlik} and {cmd:estat eventprob} give the log likelihood and the model probabilities of every event;
 {cmd:estat outliers} flags events with an unusually low log likelihood; {cmd:estat changepoints} looks for regime changes in the
-log likelihood over the event sequence. They offer what goldfish offers after estimation ({cmd:logLik}, {cmd:AIC}, {cmd:BIC},
+log likelihood over the event sequence; {cmd:estat choiceplot} and {cmd:estat rateplot} draw how well the fitted model predicts who is chosen as receiver
+(rank of the realised receiver among the risk set) and who sends (observed against expected events per actor and per period); these two are additions of this package. The others offer what goldfish offers after estimation ({cmd:logLik}, {cmd:AIC}, {cmd:BIC},
 {cmd:returnIntervalLogL}, {cmd:returnEventProbabilities}, {cmd:examineOutliers}, {cmd:examineChangepoints}), with the same definitions and
 defaults, and everything is computed natively. See {help nwdynam_estat}. The change point methods (PELT, AMOC, binary segmentation) follow
 the R package {it:changepoint} (Killick, Haynes, Eckley, Fearnhead and Lee; GPL).

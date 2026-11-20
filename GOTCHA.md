@@ -269,3 +269,10 @@ about 15 minutes; test `cscripts/test_nwdynam_combinations.do`).
 - A Mata function that sorts, re-indexes or edits one of its arguments changes the CALLER's object. `nwdynam.ado` passes `*(netobj->get_eventlist())` and `*(netobj->get_matrix())` of the network behind `netterms()` straight into `dynam_xlayer()`, which used to sort the event list and replace the actor indices in place: the first fit was right, every later fit with the same event network re-mapped the already mapped indices (log likelihoods between -2272 and -2307 instead of -2297.04, a term near -28). Copy such arguments into locals first. The same holds for any new glue that hands a network's own matrix or list to a function.
 - choice_coordination (no Hessian, BFGS in Mata): the first BFGS step is the whole gradient. With a statistic of large values (indeg counts up to about 100) it overshoots, exp() overflows, the log likelihood is missing and `optimize()` reports "flat region" (r(111)); the later restarts do not help. `dynam_nat_warm()` runs a damped quasi-Newton ascent (backtracking, missing = failed step) before each start, `optimize()` then polishes and gives the variance. goldfish: indeg alone 0.09896, ll -5250.96 (first 631 emails as undirected contacts).
 - `estat changepoints, plot` used the matrix `idx` after `return matrix cpts = idx` had moved it away; compute everything that needs a returned matrix before the `return matrix` line.
+
+## estat choiceplot / rateplot: syntax traps (found 2026-11-20)
+
+- `syntax` option `NOPLOT` leaves the local empty or "noplot": test `"`noplot'" == ""`, never `!`noplot'` (invalid syntax, r(198)). `name()` is taken as a string and `replace` is added by the command: pass `name(g1)`, not `name(g1, replace)`.
+- Options `MAXRows` and `MAXRANk` need distinct minimal abbreviations (`maxro`, `maxran`).
+- Mata rank code and the tests use binary ties for `inertia` and `indeg` (goldfish's default, not the counts of events); an enumeration that counts events does not match.
+- `r()` is cleared by `graph describe` and similar: read the returned values straight after `estat`.
