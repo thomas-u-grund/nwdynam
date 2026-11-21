@@ -32,7 +32,7 @@ The reference implementation of DyNAMs is the R package \goldfish{}~\cite{goldfi
 
 \section{Installation and requirements}\label{sec:install}
 
-\nwdynam{} needs the \texttt{nwcommands} core package (version 3.29.0 or later; the examples of this manual were run with core 3.29.0), which provides the network objects, \texttt{nwset} and the data-handling commands, and Stata 17 or later. Install the core first and then \nwdynam{}:
+\nwdynam{} needs the \texttt{nwcommands} core package (version 3.29.0 or later; the examples of this manual were run with core 3.33.0), which provides the network objects, \texttt{nwset} and the data-handling commands, and Stata 17 or later. Install the core first and then \nwdynam{}:
 \begin{lstlisting}
 . net install nwcommands, from(https://nwcommands.org/net/) replace
 . nwinstall, all
@@ -44,7 +44,7 @@ The reference implementation of DyNAMs is the R package \goldfish{}~\cite{goldfi
 \end{lstlisting}
 This installs the state of the main branch. A specific release is installed from its tag, for example
 \begin{lstlisting}
-. net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/v1.10.0/) replace
+. net install nwdynam, from(https://raw.githubusercontent.com/thomas-u-grund/nwdynam/v1.11.0/) replace
 \end{lstlisting}
 \texttt{net describe nwdynam} shows the version and distribution date installed, \texttt{nwdynam version} the version of the package, of the core, the plugin in use and the version of \goldfish{} the results were compared with (see Chapter~\ref{ch:start}), and \texttt{e(version)} holds the version that produced a set of results. \nwdynam{} checks the core when it starts, and also whether the Mata library of the core and that of \nwdynam{} fit together, and says how to reinstall if they do not.
 

@@ -4,17 +4,17 @@
 
 ## Bumping the version (one-line change)
 
-The manual's title and citation carry no version number; the title page states the series it describes (`\manualseries`, valid for 1.10.x). The exact version and date of the release that produced the listings are two more macros in `nwdynam_manual.tex`:
+The manual's title and citation carry no version number; the title page states the series it describes (`\manualseries`, valid for 1.11.x). The exact version and date of the release that produced the listings are two more macros in `nwdynam_manual.tex`:
 
-    \newcommand{\manualseries}{1.10}
-    \newcommand{\pkgversion}{1.10.0}
-    \newcommand{\pkgdate}{20 November 2026}
+    \newcommand{\manualseries}{1.11}
+    \newcommand{\pkgversion}{1.11.0}
+    \newcommand{\pkgdate}{21 November 2026}
 
-`tools/set_version.py` of the package does not write these macros; change them by hand. Change `\manualseries` only for a new minor or major release whose documented behaviour changed. For a patch release change the last two lines, rerun the examples (`make examples`) if their output changes, rebuild (`make pdf`) and check. The tag in the installation example of `ch01_intro.tex` (`nwdynam/v1.10.0/`, inside a listing, so it cannot use the macro) is the only other place with the number.
+`tools/set_version.py` of the package does not write these macros; change them by hand. Change `\manualseries` only for a new minor or major release whose documented behaviour changed. For a patch release change the last two lines, rerun the examples (`make examples`) if their output changes, rebuild (`make pdf`) and check. The tag in the installation example of `ch01_intro.tex` (`nwdynam/v1.11.0/`, inside a listing, so it cannot use the macro) is the only other place with the number.
 
 ## Where the manual lives
 
-The PDF is published on the website (https://nwcommands.org/nwdynam/nwdynam_manual.pdf; page `nwdynam/manual.md` of the website sources in the core repository). It has no DOI (no Zenodo record exists as of 2026-11-20; a new record needs the steps in the ZENODO_METADATA.md of the manual delivery: Reserve DOI, fill a `\manualdoi` macro, rebuild). Copy the rebuilt PDF to `website/nwdynam/` after a new minor series.
+The PDF is published on the website (https://nwcommands.org/nwdynam/nwdynam_manual.pdf) and on Zenodo (all-versions DOI 10.5281/zenodo.24398099, `\manualdoi` in `nwdynam_manual.tex`; a new minor series is uploaded as a new file version of that record). Copy the rebuilt PDF to `website/nwdynam/` after a new minor series.
 
 ## Building
 

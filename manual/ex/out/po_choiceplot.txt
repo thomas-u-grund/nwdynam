@@ -14,8 +14,14 @@ Rank of the realised receiver among the risk set by the fitted probability (rank
            5 |         0.5771         0.0327         0.4710
           10 |         0.6771         0.0654         0.5268
 -------------------------------------------------------------
-Table of the events in frame cpf: event, time, m (size of the risk set), rank, p
-> obs (fitted probability of the realised receiver).
+Ties: in 288 of the 631 events the realised receiver shares its fitted
+probability with other members of the risk set. The rank is then the mid rank
+of the tie group; a top-k share counts the fraction of the tie group's places
+up to k (the exact expectation under a random order within the group; no
+random numbers are used).
+Table of the events in frame cpf: event, time, m (size of the risk set), rank (m
+> id rank for ties), pobs (fitted probability of the realised receiver), nties (
+> number of risk-set members with that probability, 1 = no tie).
 
 . return list
 
@@ -26,6 +32,7 @@ scalars:
   r(mean_rank_uniform) =  77
         r(median_rank) =  4
           r(mean_rank) =  19.34944532488114
+             r(N_ties) =  288
                   r(N) =  631
 
 macros:
