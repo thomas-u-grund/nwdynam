@@ -6,8 +6,8 @@ authors:
   - family-names: Grund
     given-names: Thomas U.
     affiliation: RWTH Aachen University
-version: 1.10.0
-date-released: '2026-11-20'
+version: 1.11.0
+date-released: '2026-11-21'
 license: GPL-3.0-only
 repository-code: "https://github.com/thomas-u-grund/nwdynam"
 preferred-citation:

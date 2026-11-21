@@ -1,4 +1,4 @@
-*! version 1.10.0  20nov2026 nwdynam_estat
+*! version 1.11.0  21nov2026 nwdynam_estat
 * Copyright (C) 2026 Thomas U. Grund
 * This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
 * The change point methods of estat changepoints are a port of the R package 'changepoint' (Rebecca Killick, Kaylea Haynes, Idris Eckley, Paul Fearnhead, Jamie Lee; GPL), see NOTICE.md.
@@ -533,6 +533,8 @@ program define nwdynam_estat_choiceplot, rclass
 		quietly generate double __ratio = rank / m
 		quietly summarize __ratio
 		local mrel = r(mean)
+		quietly count if nties > 1 & nties < .
+		local nties = r(N)
 		drop __u __ratio
 	}
 	if `N' == 0 {
@@ -560,6 +562,9 @@ program define nwdynam_estat_choiceplot, rclass
 		di as txt %12.0f `k' " {c |}" as res %15.4f `curve'[`k', 2] %15.4f `curve'[`k', 3] %15.4f `curve'[`k', 4]
 	}
 	di as txt "{hline 13}{c BT}{hline 47}"
+	if `nties' > 0 {
+		di as txt "{p 0 0 2}Ties: in " as res `nties' as txt " of the " as res `N' as txt " events the realised " cond("`e(submodel)'" == "choice", "receiver", "pair") " shares its fitted probability with other members of the risk set. The rank is then the mid rank of the tie group; a top-k share counts the fraction of the tie group's places up to k (the exact expectation under a random order within the group; no random numbers are used).{p_end}"
+	}
 	matrix colnames `T' = k observed uniform model
 	if "`noplot'" == "" {
 		local kp = min(`maxrank', max(`maxm', 1))
@@ -595,6 +600,7 @@ program define nwdynam_estat_choiceplot, rclass
 		_nw_gfinish save, name(`gnm') saving(`"`gsv'"') export(`"`gex'"')
 	}
 	return scalar N = `N'
+	return scalar N_ties = `nties'
 	return scalar mean_rank = `mrank'
 	return scalar median_rank = `medrank'
 	return scalar mean_rank_uniform = `urank'
@@ -607,7 +613,7 @@ program define nwdynam_estat_choiceplot, rclass
 	return matrix curve = `C'
 	if "`frame'" != "" {
 		frame copy `rk' `frame'
-		di as txt "Table of the events in frame " as res "`frame'" as txt ": event, time, m (size of the risk set), rank, pobs (fitted probability of the realised " cond("`e(submodel)'" == "choice", "receiver", "pair") ")."
+		di as txt "Table of the events in frame " as res "`frame'" as txt ": event, time, m (size of the risk set), rank (mid rank for ties), pobs (fitted probability of the realised " cond("`e(submodel)'" == "choice", "receiver", "pair") "), nties (number of risk-set members with that probability, 1 = no tie)."
 		return local frame "`frame'"
 	}
 	capture frame drop `rk'

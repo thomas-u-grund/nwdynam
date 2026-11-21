@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.10.0  20nov2026 author: Thomas Grund}{...}
+{* *! version 1.11.0  21nov2026 author: Thomas Grund}{...}
 {marker topic}
 {helpb nwtopical##analysis_dynamicmodels:[NW-2.6.8] Dynamic & Event-Based Models}
 
@@ -102,7 +102,10 @@ and pair of actors (actor1 < actor2); {cmd:p} is goldfish's matrix entry, twice 
 {pstd}
 {bf:Result plots (extensions).} goldfish has no such plots; the two commands are additions of this package and use the probabilities of {cmd:estat eventprob}, evaluated by the same native code.
 {cmd:estat choiceplot} ranks, in every event, the realised receiver (for {bf:choice_coordination} the realised pair) among the members of the risk set by the fitted probability (rank 1 = most probable;
-members with an equal probability share the mid rank, and a tie group that straddles k counts with the fraction of its places up to k). The graph shows the share of events with rank at most k, against
+members with an equal probability, the realised one included, form a tie group). The rank of the realised member, and so the mean and the median rank, is the mid rank of its tie group, the mean of the places the
+group occupies. A top-k share counts, for an event whose realised member ties with m-1 others for places g+1 to g+m, the fraction (k-g)/m (limited to 0 and 1) of the places up to k, which is the exact expectation of
+the share under a random order within the tie group, so the result is the same in every run and uses no random numbers (the mid rank would count the event as a hit only when the middle of the group lies within k).
+When ties occurred, a line under the table gives the number of events with a tie; the returned scalar {cmd:r(N_ties)} holds it and the variable {cmd:nties} of {opt frame()} the size of each tie group. The graph shows the share of events with rank at most k, against
 what a model without information would give (every member of the risk set equally probable) and against the expectation under the fitted model (the mean over the events of the sum of the k largest
 probabilities); a fitted model whose observed curve lies close to the model curve and well above the uniform one describes who is chosen well. The output also gives the mean and the median rank.
 {cmd:estat rateplot} adds up, over the events, the probability that each actor is the sender, giving the expected number of events of the actor; for the rate model with {opt intercept} the probability is the
@@ -136,7 +139,7 @@ The frame has event, origevent (the row of the event in the data), time, sender,
 
 {pstd}{cmd:estat outliers}: {bf:r(n_outliers)}, {bf:r(N)}, {bf:r(parameter)}, {bf:r(window)}, {bf:r(method)} and the row vector {bf:r(outliers)} of the event numbers in increasing order.{p_end}
 
-{pstd}{cmd:estat choiceplot}: {bf:r(N)}, {bf:r(mean_rank)}, {bf:r(median_rank)}, {bf:r(mean_rank_uniform)}, {bf:r(mean_rank_relative)} (mean of rank divided by risk-set size), {bf:r(mean_riskset)}, the matrices {bf:r(topk)} (k, observed, uniform, model) and {bf:r(curve)} (the same for k = 1, 2, ...), {bf:r(frame)}. The frame has event, time, m (size of the risk set), rank and pobs.{p_end}
+{pstd}{cmd:estat choiceplot}: {bf:r(N)}, {bf:r(N_ties)} (events whose realised member ties with others), {bf:r(mean_rank)}, {bf:r(median_rank)}, {bf:r(mean_rank_uniform)}, {bf:r(mean_rank_relative)} (mean of rank divided by risk-set size), {bf:r(mean_riskset)}, the matrices {bf:r(topk)} (k, observed, uniform, model) and {bf:r(curve)} (the same for k = 1, 2, ...), {bf:r(frame)}. The frame has event, time, m (size of the risk set), rank (mid rank), pobs and nties (size of the tie group of the realised member).{p_end}
 
 {pstd}{cmd:estat rateplot}: {bf:r(N)} (events), {bf:r(N_actors)}, {bf:r(corr)} (correlation of observed and expected counts), {bf:r(pearson)} (sum of (observed - expected)^2 / expected over the actors, descriptive only), {bf:r(over)}, {bf:r(frame)}. The frame has actorid, actor, observed and expected (with {cmd:over(time)} also period, tlo and thi, for every actor and period).{p_end}
 
@@ -148,4 +151,4 @@ The frame has event, origevent (the row of the event in the data), time, sender,
 {p 4 14 2}Help: {help nwdynam}{p_end}
 
 {hline}
-{pstd}{it:nwdynam version 1.10.0, 20 November 2026}{p_end}{* nwversion}
+{pstd}{it:nwdynam version 1.11.0, 21 November 2026}{p_end}{* nwversion}

@@ -1460,13 +1460,15 @@ void dynam_post_prob(string scalar outframe, real scalar nrec) {
 
 // choice and choice_coordination: rank of the realised receiver (pair) among the risk set of every event by the fitted probability.
 // Frame rankframe: event, time, m (size of the risk set), rank (1 = most probable, ties get the mid rank), pobs (probability of the
-// realised receiver). The matrix named curvename has K rows: k, share of events with rank <= k (members with an equal probability are
-// ranked in random order: a tie group that straddles k counts with the fraction of its places up to k), uniform expectation, model expectation
+// realised receiver), nties (number of risk-set members with the same probability as the realised one, itself included; 1 = no tie).
+// The matrix named curvename has K rows: k, share of events with rank <= k (the exact expectation under a uniformly random order within
+// a tie group: the realised member holds each of the places gr+1..gr+eq with probability 1/eq, so a tie group that straddles k counts
+// with the fraction (k - gr) / eq of its places up to k; deterministic, no random numbers), uniform expectation, model expectation
 // (mean over events of the sum of the k largest probabilities). Needs dynam_post_run(2, .) before.
 void dynam_post_rank(string scalar rankframe, string scalar curvename, real scalar nrec, real scalar K) {
 	string scalar orig
 	real scalar L, N, n, ps, model, start, i, a, b, s, r, kobs, pobs, gr, eq, m, k, junk
-	real colvector pr, rk, mm, po, pv, srt, cs
+	real colvector pr, rk, mm, po, pv, srt, cs, nt
 	real matrix E, curve, ev
 
 	orig = st_framecurrent()
@@ -1478,7 +1480,7 @@ void dynam_post_rank(string scalar rankframe, string scalar curvename, real scal
 	ps = (model == 4 ? n * (n - 1) / 2 : n)
 	start = L + 3 * nrec
 	pr = st_data(((start + 1)::(start + N * ps)), 1)
-	rk = J(N, 1, .); mm = J(N, 1, .); po = J(N, 1, .)
+	rk = J(N, 1, .); mm = J(N, 1, .); po = J(N, 1, .); nt = J(N, 1, .)
 	curve = J(K, 4, 0)
 	for (k = 1; k <= K; k++) curve[k, 1] = k
 	for (i = 1; i <= N; i++) {
@@ -1495,7 +1497,7 @@ void dynam_post_rank(string scalar rankframe, string scalar curvename, real scal
 		gr = sum(pv :> pobs * (1 + 1e-12))
 		eq = sum(abs(pv :- pobs) :<= 1e-12 * pobs)
 		rk[i] = 1 + gr + (eq - 1) / 2
-		mm[i] = m; po[i] = pobs
+		mm[i] = m; po[i] = pobs; nt[i] = eq
 		srt = sort(pv, -1)
 		cs = runningsum(srt)
 		for (k = 1; k <= K; k++) {
@@ -1514,6 +1516,7 @@ void dynam_post_rank(string scalar rankframe, string scalar curvename, real scal
 	junk = st_addvar("double", "m"); st_store((1::N), "m", mm)
 	junk = st_addvar("double", "rank"); st_store((1::N), "rank", rk)
 	junk = st_addvar("double", "pobs"); st_store((1::N), "pobs", po)
+	junk = st_addvar("double", "nties"); st_store((1::N), "nties", nt)
 	st_framecurrent(orig)
 }
 

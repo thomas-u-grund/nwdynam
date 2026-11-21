@@ -5,6 +5,13 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-21
+
+### Changed
+- `estat choiceplot`: ties in the fitted probabilities are handled in one stated way. The rank of the realised receiver (pair), and so the mean and the median rank, is the mid rank of its tie group. A top-k share counts, for an event whose realised member ties with others for places g+1 to g+m, the fraction (k-g)/m (between 0 and 1) of the places up to k: the exact expectation of the share under a random order within the tie group. It is deterministic (no random numbers) and differs from counting the mid rank as a hit only for events whose tie group straddles k (manufacturing emails, k = 1: .1480, a mid-rank count would give .1432). The numbers of 1.10.0 are unchanged; the help now says which rule applies to which statistic (the 1.10.0 note "ties share the mid rank" holds for the rank only). goldfish has no such statistic, so there is no reference convention to follow.
+- When ties occurred, a line under the table gives the number of events whose realised member ties and the rule; new returned scalar `r(N_ties)` and new variable `nties` (size of the tie group) in the frame of `frame()`.
+- The estimates and every other command are unchanged; the compiled plugin is the one of 1.9.1 (the Mata library is rebuilt). New test `cscripts/test_nwdynam_choiceties.do`.
+
 ## [1.10.0] - 2026-11-20
 
 ### Added

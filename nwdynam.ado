@@ -1,4 +1,4 @@
-*! version 1.10.0  20nov2026 nwdynam
+*! version 1.11.0  21nov2026 nwdynam
 * Copyright (C) 2026 Thomas U. Grund
 * This file is part of nwdynam, a Stata package derived from the R package 'goldfish' (James Hollway, Christoph Stadtfeld, Marion Hoffman, Alvaro Uzaheta and contributors; GPL (>= 3)).
 * nwdynam is free software: you can redistribute it and/or modify it under the terms of the GNU General
@@ -1155,7 +1155,7 @@ program nwdynam, eclass
 
 	ereturn post `b' `V', obs(`nevents')
 	ereturn local cmd "nwdynam"
-	ereturn local version "1.10.0"
+	ereturn local version "1.11.0"
 	ereturn local title "`__nwdynam_title'"
 	ereturn local depvar "`netname'"
 	ereturn local submodel "`submodel'"
