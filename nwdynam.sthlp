@@ -336,6 +336,26 @@ per-effect-flag convention. An effect option that does not apply to the chosen {
 is rejected with a clear error rather than silently ignored.
 
 {pstd}
+{bf:Definitions of the default statistics}: let {it:A}(i,j) be 1 if the tie from i to j exists at the time of the event (some earlier event from i to j has not been
+cancelled; within a window, an event of that pair within the window) and 0 otherwise. The statistics of the unweighted effects are built from these 0/1 tie indicators, as in {cmd:goldfish}. They are
+{bf:not} counts of earlier events: a pair that interacted five times has the same {opt inertia} and {opt recip} as a pair that interacted once.
+
+{p2colset 9 24 26 2}{...}
+{p2col:{bf:inertia}}{it:A}(sender, candidate): 1 or 0 (an indicator){p_end}
+{p2col:{bf:recip}}{it:A}(candidate, sender): 1 or 0 (an indicator){p_end}
+{p2col:{bf:indeg}}sum over actors h of {it:A}(h, candidate): the number of {it:distinct} actors with a tie to the candidate, not the number of events; in the rate sub-model the candidate is the actor itself{p_end}
+{p2col:{bf:outdeg}}sum over actors h of {it:A}(candidate, h): the number of distinct actors the candidate has a tie to{p_end}
+{p2col:{bf:trans}, {bf:cycle}, {bf:commonsender}, {bf:commonreceiver}}the number of third actors k that complete the two-path (for {bf:trans}, the sum over k of {it:A}(sender, k) {it:A}(k, candidate)): a count of paths of tie indicators, so
+0, 1, 2, ...; {bf:four} counts the three-paths through two distinct third actors in the same way{p_end}
+{p2col:{bf:nodetrans}}for the candidate, the number of its ties that are closed by a two-path from the same actor (a count of transitive triads in which the candidate is the source){p_end}
+{p2colreset}{...}
+
+{pstd}
+Each effect is a count of ties, never of events, until a weighted option is given: {opt weightedinertia}, {opt weightedrecip}, {opt weightedindeg} and {opt weightedoutdeg} replace the 0/1 indicator
+{it:A}(i,j) of that one effect by the tie value, the sum of the values of the earlier events of the pair (every event has the value 1 when no event values are given, so the weighted effect then counts
+the earlier events). The closure effects have no weighted form. A tie with a negative value counts -1 in the unweighted {opt indeg} and {opt outdeg}; see {bf:Event values}.
+
+{pstd}
 {bf:submodel(choice)} structural effects - given the realized sender, a conditional logit over
 every other actor as the candidate receiver:
 

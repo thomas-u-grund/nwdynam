@@ -5,6 +5,9 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Help: `nwdynam.sthlp` states the definitions of the default statistics plainly: `inertia` and `recip` are 0/1 tie indicators, not event counts; `indeg` and `outdeg` count distinct actors with a tie; the closure effects count paths of tie indicators; `nodetrans`; what the weighted options change; the closure effects have no weighted form.
+
 ## [1.11.0] - 2026-11-21
 
 ### Changed
