@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.11.0  21nov2026 author: Thomas Grund}{...}
+{* *! version 1.11.1  22nov2026 author: Thomas Grund}{...}
 {marker topic}
 {helpb nwtopical##analysis_dynamicmodels:[NW-2.6.8] Dynamic & Event-Based Models}
 
@@ -151,4 +151,4 @@ The frame has event, origevent (the row of the event in the data), time, sender,
 {p 4 14 2}Help: {help nwdynam}{p_end}
 
 {hline}
-{pstd}{it:nwdynam version 1.11.0, 21 November 2026}{p_end}{* nwversion}
+{pstd}{it:nwdynam version 1.11.1, 22 November 2026}{p_end}{* nwversion}
