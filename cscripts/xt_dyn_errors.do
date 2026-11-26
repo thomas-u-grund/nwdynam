@@ -65,9 +65,9 @@ end
 * networks used below
 nwclear
 xt_w40
-nwset sender receiver, eventtime(t) directed name(w40)
+nwset sender receiver, eventtime(t) directed name(w40) dropvars
 xt_w40
-nwset sender receiver, eventtime(t) undirected name(wu)
+nwset sender receiver, eventtime(t) undirected name(wu) dropvars
 set seed 3
 nwrandom 4, prob(.5) name(static)
 matrix XB5 = J(5, 5, 0)
@@ -77,12 +77,12 @@ import delimited "dev/dynam_crosscheck_twomode_events.csv", clear varnames(1)
 * numeric codes: string ids P../O.. hit CONFIRMED BUG N3 (core: mode split does not match the node order)
 encode sender, gen(sn)
 encode receiver, gen(rn)
-nwset sn rn, twomode eventtime(time) name(tm)
+nwset sn rn, twomode eventtime(time) name(tm) dropvars
 clear
 input long sender long receiver double t
 1 2 1
 end
-nwset sender receiver, eventtime(t) directed name(one)
+nwset sender receiver, eventtime(t) directed name(one) dropvars
 clear
 input long sender long receiver double t
 1 2 1
@@ -93,9 +93,9 @@ input long sender long receiver double t
 end
 tempfile loopdata
 quietly save `loopdata'
-nwset sender receiver, eventtime(t) directed name(loop)
+nwset sender receiver, eventtime(t) directed name(loop) dropvars
 use `loopdata', clear
-nwset sender receiver, eventtime(t) undirected name(loopu)
+nwset sender receiver, eventtime(t) undirected name(loopu) dropvars
 
 * a valid fit whose e() must survive every error below; covariate dataset of w40 in memory
 nwload w40, xvars

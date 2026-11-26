@@ -61,7 +61,7 @@ import delimited "dev/dynam_crosscheck_twomode_events.csv", clear varnames(1)
 encode sender, gen(sendernum)
 encode receiver, gen(receivernum)
 gen eventtime = time
-nwset sendernum receivernum, twomode eventtime(eventtime) name(afftest)
+nwset sendernum receivernum, twomode eventtime(eventtime) name(afftest) dropvars
 
 di as text "{hline 60}"
 di as text "Test: nwdynam fits successfully on a two-mode event network (choice, default)"

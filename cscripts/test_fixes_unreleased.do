@@ -31,7 +31,7 @@ input long sender long receiver long eventtime
 4 1 9
 5 2 10
 end
-nwset sender receiver, eventtime(eventtime) name(oppsmall)
+nwset sender receiver, eventtime(eventtime) name(oppsmall) dropvars
 
 * opportunities() with a covariate option is refused before any data are read
 clear
@@ -74,7 +74,7 @@ import delimited "dev/dynam_crosscheck_twomode_events.csv", clear varnames(1)
 encode sender, gen(sendernum)
 encode receiver, gen(receivernum)
 gen eventtime = time
-nwset sendernum receivernum, twomode eventtime(eventtime) name(afftest)
+nwset sendernum receivernum, twomode eventtime(eventtime) name(afftest) dropvars
 nwdynam afftest
 assert _rc == 0
 nwsummarize afftest

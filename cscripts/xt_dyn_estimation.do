@@ -85,7 +85,7 @@ di as text "Block A: seed - native engines do not use it, the multi engine repro
 di as text "{hline 60}"
 nwclear
 xt_w40
-nwset sender receiver, eventtime(t) directed name(w40)
+nwset sender receiver, eventtime(t) directed name(w40) dropvars
 * default choice and rate sets run on the native unit1 engines with fixed starts: identical for any seed
 nwdynam w40, seed(1)
 matrix C1 = e(b)
@@ -156,7 +156,7 @@ assert "`: colnames e(b)'" == "Intercept indeg outdeg"
 nwclear
 xt_w40
 replace t = ceil(t / 4)
-nwset sender receiver, eventtime(t) directed name(wq)
+nwset sender receiver, eventtime(t) directed name(wq) dropvars
 nwdynam wq, seed(1)
 assert "`e(ties)'" == "simultaneous" & e(ntimes) == 10 & e(N) == 40
 nwdynam wq, sequential seed(1)
@@ -164,7 +164,7 @@ assert "`e(ties)'" == "sequential" & e(ntimes) == 10
 * sequential on distinct times: e(ties) stays none
 nwclear
 xt_w40
-nwset sender receiver, eventtime(t) directed name(w40)
+nwset sender receiver, eventtime(t) directed name(w40) dropvars
 nwdynam w40, sequential seed(1)
 assert "`e(ties)'" == "none"
 assert mreldif(e(b), C1) == 0
@@ -203,7 +203,7 @@ lincom Intercept
 assert abs(r(estimate) - (-1.259479036)) < 2e-3
 nwclear
 xt_w40
-nwset sender receiver, eventtime(t) undirected name(wu)
+nwset sender receiver, eventtime(t) undirected name(wu) dropvars
 nwdynam wu, submodel(choice_coordination) inertia indeg seed(1)
 assert "`e(submodel)'" == "choice_coordination"
 assert "`e(title)'" == "Dynamic Network Actor Model, choice_coordination sub-model (multinomial-multinomial, MLE)"
@@ -213,7 +213,7 @@ import delimited "dev/dynam_crosscheck_twomode_events.csv", clear varnames(1)
 * numeric codes: string ids P../O.. hit CONFIRMED BUG N3 (core: mode split does not match the node order)
 encode sender, gen(sn)
 encode receiver, gen(rn)
-nwset sn rn, twomode eventtime(time) name(tm)
+nwset sn rn, twomode eventtime(time) name(tm) dropvars
 nwdynam tm, seed(1)
 assert e(nodes) == 10
 xt_post "two-mode choice"
@@ -227,7 +227,7 @@ di as text "Block E: a fit leaves data, frame, event list and name space unchang
 di as text "{hline 60}"
 nwclear
 xt_w40
-nwset sender receiver, eventtime(t) directed name(w40)
+nwset sender receiver, eventtime(t) directed name(w40) dropvars
 nwload w40, xvars
 gen double z = _n^2
 gen double g = mod(_n, 2)

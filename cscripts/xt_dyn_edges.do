@@ -58,7 +58,7 @@ di as text "Block A: W40 reference fits (choice native engine, rate native engin
 di as text "{hline 60}"
 nwclear
 xt_w40
-nwset sender receiver, eventtime(t) directed name(w40)
+nwset sender receiver, eventtime(t) directed name(w40) dropvars
 nwdynam w40, seed(1)
 assert "`e(effects)'" == "inertia recip indeg"
 assert "`e(ties)'" == "none" & e(ntimes) == 40
@@ -94,7 +94,7 @@ foreach texp in "t" "t - 20" "t - 1" "t * 1000" "t^3" "exp(t/10)" "-1/t" {
 	set seed 4
 	gen double u = runiform()
 	sort u
-	nwset sender receiver, eventtime(t) directed name(wt`k')
+	nwset sender receiver, eventtime(t) directed name(wt`k') dropvars
 	nwdynam wt`k', seed(1)
 	xt_same "choice, rows shuffled, time = `texp'" 1e-12 C
 	nwdynam wt`k', submodel(rate) seed(1)
@@ -104,7 +104,7 @@ foreach texp in "t" "t - 20" "t - 1" "t * 1000" "t^3" "exp(t/10)" "-1/t" {
 nwclear
 xt_w40
 quietly replace t = t + 1000
-nwset sender receiver, eventtime(t) directed name(wshift)
+nwset sender receiver, eventtime(t) directed name(wshift) dropvars
 nwdynam wshift, submodel(rate) intercept seed(1)
 xt_same "rate intercept, times + 1000" 1e-10 I
 
@@ -117,7 +117,7 @@ xt_w40
 quietly replace t = ceil(t/4)
 tempfile tq
 quietly save `tq'
-nwset sender receiver, eventtime(t) directed name(wq)
+nwset sender receiver, eventtime(t) directed name(wq) dropvars
 nwdynam wq, seed(1)
 assert e(ntimes) == 10 & e(N) == 40
 assert "`e(ties)'" == "simultaneous"
@@ -136,7 +136,7 @@ use `tq', clear
 set seed 12
 gen double u = runiform()
 sort t u
-nwset sender receiver, eventtime(t) directed name(wqs)
+nwset sender receiver, eventtime(t) directed name(wqs) dropvars
 nwdynam wqs, seed(1)
 xt_same "choice, ties, rows shuffled within time points" 1e-9 TC
 nwdynam wqs, submodel(rate) seed(1)
@@ -145,7 +145,7 @@ xt_same "rate, ties, rows shuffled within time points" 1e-9 TR
 nwclear
 use `tq', clear
 sort row
-nwset sender receiver, eventtime(t) directed name(wqq)
+nwset sender receiver, eventtime(t) directed name(wqq) dropvars
 nwdynam wqq, sequential seed(1)
 assert "`e(ties)'" == "sequential"
 xt_same "sequential ties = distinct times" 1e-12 C
@@ -153,7 +153,7 @@ nwdynam wqq, submodel(rate) sequential seed(1)
 xt_same "rate, sequential ties = distinct times" 1e-12 R
 * sequential on data WITHOUT ties changes nothing (w40 was cleared by an nwclear above: declare it again)
 xt_w40
-nwset sender receiver, eventtime(t) directed name(w40)
+nwset sender receiver, eventtime(t) directed name(w40) dropvars
 nwdynam w40, sequential seed(1)
 assert "`e(ties)'" == "none"
 xt_same "sequential without ties" 1e-12 C
@@ -169,7 +169,7 @@ di as text "{hline 60}"
 nwclear
 xt_w40
 quietly replace t = 0
-nwset sender receiver, eventtime(t) directed name(wzero)
+nwset sender receiver, eventtime(t) directed name(wzero) dropvars
 foreach sm in choice rate {
 	capture noisily nwdynam wzero, submodel(`sm') seed(1)
 	local rc = _rc
@@ -193,13 +193,13 @@ nwclear
 xt_w40
 gen str3 ss = "A" + string(sender)
 gen str3 rs = "A" + string(receiver)
-nwset ss rs, eventtime(t) directed name(wstr)
+nwset ss rs, eventtime(t) directed name(wstr) dropvars
 nwdynam wstr, seed(1)
 xt_same "string ids" 1e-12 C
 nwclear
 xt_w40
 gen str1 rs = string(receiver)
-nwset sender rs, eventtime(t) directed name(wmix)
+nwset sender rs, eventtime(t) directed name(wmix) dropvars
 nwdynam wmix, seed(1)
 xt_same "numeric sender, string receiver" 1e-12 C
 local k 0
@@ -211,7 +211,7 @@ foreach map in "100 + @" "cond(@==1,1,cond(@==2,5,cond(@==3,17,1000)))" "1000000
 	local er = subinstr("`map'", "@", "receiver", .)
 	quietly replace sender = `es'
 	quietly replace receiver = `er'
-	nwset sender receiver, eventtime(t) directed name(wid`k')
+	nwset sender receiver, eventtime(t) directed name(wid`k') dropvars
 	if `k' == 3 {
 		// CORE BUG S1 (not nwdynam): ids of 8+ digits -> core nwset labels events with %9.0g ("n1.00e+07"), index 0;
 		// nwdynam refuses such events cleanly (r(416)) until the core is fixed
@@ -233,7 +233,7 @@ nwclear
 xt_w40
 gen str1 ss = word("d c b a", sender)
 gen str1 rs = word("d c b a", receiver)
-nwset ss rs, eventtime(t) directed name(wperm)
+nwset ss rs, eventtime(t) directed name(wperm) dropvars
 nwdynam wperm, seed(1)
 xt_same "actor permutation, choice" 1e-6 C
 nwdynam wperm, submodel(rate) seed(1)
@@ -246,7 +246,7 @@ di as text "{hline 60}"
 nwclear
 xt_w40
 gen double w = mod(_n, 3) + 1
-nwset sender receiver w, eventtime(t) directed name(wval)
+nwset sender receiver w, eventtime(t) directed name(wval) dropvars
 nwdynam wval, seed(1)
 xt_same "valued event network, choice" 1e-12 C
 
@@ -262,7 +262,7 @@ quietly save `tm'
 * reference: numeric codes (as test_nwdynam_twomode_ado.do)
 encode sender, gen(sn)
 encode receiver, gen(rn)
-nwset sn rn, twomode eventtime(time) name(tmref)
+nwset sn rn, twomode eventtime(time) name(tmref) dropvars
 nwdynam tmref, seed(1)
 assert e(nodes) == 10
 assert abs(el(e(b),1,1) - (-0.73342)) < 0.001
@@ -275,7 +275,7 @@ scalar MLL = e(ll)
 * violating"). Same for a static nwset ..., twomode with these labels.
 nwclear
 use `tm', clear
-nwset sender receiver, twomode eventtime(time) name(tmstr)
+nwset sender receiver, twomode eventtime(time) name(tmstr) dropvars
 capture noisily nwdynam tmstr, seed(1)
 if _rc {
 	assert _rc == 198
@@ -292,12 +292,12 @@ foreach variant in "numeric codes (overlapping ids)" "numeric codes, organisatio
 		encode sender, gen(sn)
 		encode receiver, gen(rn)
 		if `v' == 2 quietly replace rn = rn + 100
-		nwset sn rn, twomode eventtime(time) name(tmv`v')
+		nwset sn rn, twomode eventtime(time) name(tmv`v') dropvars
 	}
 	else {
 		quietly replace sender = "X" + substr(sender, 2, .)
 		quietly replace receiver = "X" + substr(receiver, 2, .)
-		nwset sender receiver, twomode eventtime(time) name(tmv`v')
+		nwset sender receiver, twomode eventtime(time) name(tmv`v') dropvars
 	}
 	nwdynam tmv`v', seed(1)
 	assert e(nodes) == 10
@@ -312,7 +312,7 @@ di as text "{hline 60}"
 * with ceil(t/4): 0.4570586411, ll -70.5803895458
 nwclear
 xt_w40
-nwset sender receiver, eventtime(t) undirected name(wu)
+nwset sender receiver, eventtime(t) undirected name(wu) dropvars
 nwdynam wu, submodel(choice_coordination) inertia seed(1)
 xt_gf "coordination inertia" -68.8462194594 0.7290164305
 matrix UB = e(b)
@@ -321,13 +321,13 @@ nwclear
 xt_w40
 gen long a = cond(mod(_n, 2), sender, receiver)
 gen long b = cond(mod(_n, 2), receiver, sender)
-nwset a b, eventtime(t) undirected name(wus)
+nwset a b, eventtime(t) undirected name(wus) dropvars
 nwdynam wus, submodel(choice_coordination) inertia seed(1)
 xt_same "coordination, half of the pairs reversed" 1e-10 U
 nwclear
 xt_w40
 quietly replace t = ceil(t/4)
-nwset sender receiver, eventtime(t) undirected name(wuq)
+nwset sender receiver, eventtime(t) undirected name(wuq) dropvars
 nwdynam wuq, submodel(choice_coordination) inertia seed(1)
 assert "`e(ties)'" == "simultaneous"
 xt_gf "coordination inertia, ties" -70.5803895458 0.4570586411

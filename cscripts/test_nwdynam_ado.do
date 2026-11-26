@@ -41,7 +41,7 @@ for (i=1; i<=400; i++) {
 }
 end
 
-nwset sender receiver, eventtime(eventtime) name(chatlog)
+nwset sender receiver, eventtime(eventtime) name(chatlog) dropvars
 
 di as text "{hline 60}"
 di as text "Test: nwdynam requires eventtime()-declared network, errors on an ordinary one"
@@ -471,7 +471,7 @@ for (i=1; i<=20; i++) {
 	st_store(i, "receiver", pair[2])
 }
 end
-nwset sender receiver, eventtime(eventtime) name(undirectedchatlog) undirected
+nwset sender receiver, eventtime(eventtime) name(undirectedchatlog) undirected dropvars
 capture noisily nwdynam undirectedchatlog
 assert _rc == 198
 di as text "  correctly rejected undirected network (rc=" _rc ")"
@@ -491,7 +491,7 @@ set obs 1
 gen long sender = 1
 gen long receiver = 2
 gen eventtime = 1
-nwset sender receiver, eventtime(eventtime) name(onevent)
+nwset sender receiver, eventtime(eventtime) name(onevent) dropvars
 capture noisily nwdynam onevent
 assert _rc == 2001
 di as text "  correctly rejected a single-event network (rc=" _rc ")"
@@ -512,7 +512,7 @@ input long sender long receiver eventtime
 2 3 2
 1 1 3
 end
-nwset sender receiver, eventtime(eventtime) name(selfloopnet)
+nwset sender receiver, eventtime(eventtime) name(selfloopnet) dropvars
 capture noisily nwdynam selfloopnet
 assert _rc != 0
 di as text "  correctly rejected self-loop event (rc=" _rc ")"
@@ -540,7 +540,7 @@ input long sender long receiver long eventtime
 4 1 9
 5 2 10
 end
-nwset sender receiver, eventtime(eventtime) name(oppsmall)
+nwset sender receiver, eventtime(eventtime) name(oppsmall) dropvars
 
 nwdynam oppsmall, submodel(choice) inertia
 di as text "  fits successfully without opportunities() (baseline)"
@@ -627,7 +627,7 @@ input long sender long receiver long eventtime
 4 1 9
 5 2 10
 end
-nwset sender receiver, eventtime(eventtime) name(coordsmall) undirected
+nwset sender receiver, eventtime(eventtime) name(coordsmall) undirected dropvars
 
 di as text "Test: submodel(choice_coordination) requires an undirected network"
 clear
@@ -643,7 +643,7 @@ input long sender long receiver long eventtime
 4 1 9
 5 2 10
 end
-nwset sender receiver, eventtime(eventtime) name(directedsmall)
+nwset sender receiver, eventtime(eventtime) name(directedsmall) dropvars
 capture noisily nwdynam directedsmall, submodel(choice_coordination)
 assert _rc == 198
 di as text "  correctly rejected directed network (rc=" _rc ")"
@@ -730,7 +730,7 @@ input long sender long receiver long eventtime
 4 1 9
 5 2 10
 end
-nwset sender receiver, eventtime(eventtime) name(tiesmall)
+nwset sender receiver, eventtime(eventtime) name(tiesmall) dropvars
 nwset, mat((0,1,1,0,1\1,0,0,1,0\1,0,0,0,1\0,1,0,0,1\1,0,1,1,0)) name(statsmall) directed labs(A1,A2,A3,A4,A5)
 
 nwdynam tiesmall, submodel(choice) tie(statsmall)
@@ -820,7 +820,7 @@ input str2 person str2 org double time
 end
 encode person, gen(personnum)
 encode org, gen(orgnum)
-nwset personnum orgnum, twomode eventtime(time) name(intertwomodesmall)
+nwset personnum orgnum, twomode eventtime(time) name(intertwomodesmall) dropvars
 nwdynam intertwomodesmall, submodel(rate) intercept outdeg
 di as text "  fits successfully with intercept + outdeg (two-mode), e(effects)=`e(effects)'"
 assert "`e(effects)'" == "Intercept outdeg"

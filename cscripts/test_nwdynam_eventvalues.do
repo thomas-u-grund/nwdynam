@@ -186,14 +186,14 @@ save `ev'
 * ---- the event list carries the values (column 4); 1 without a value variable
 nwclear
 use `ev', clear
-nwset snd rcv vA, eventtime(tm) name(a)
+nwset snd rcv vA, eventtime(tm) name(a) dropvars
 _nwsyntax a
 mata: __evl = *(`netobj'->get_eventlist())
 mata: assert(cols(__evl) == 4)
 mata: assert(sum(__evl[., 4]) == 153)
 nwclear
 use `ev', clear
-nwset snd rcv, eventtime(tm) name(u)
+nwset snd rcv, eventtime(tm) name(u) dropvars
 _nwsyntax u
 mata: __evl = *(`netobj'->get_eventlist())
 mata: assert(cols(__evl) == 4 & all(__evl[., 4] :== 1))
@@ -209,7 +209,7 @@ matrix b_u = e(b)
 nwclear
 use `ev', clear
 generate one = 1
-nwset snd rcv one, eventtime(tm) name(u1)
+nwset snd rcv one, eventtime(tm) name(u1) dropvars
 nwdynam u1, weightedinertia seed(1)
 assert reldif(e(ll), ll_u) < 1e-12
 assert mreldif(e(b), b_u) < 1e-12
@@ -218,7 +218,7 @@ di as text "  PASS: values all 1 = no value variable"
 * ---- A: positive values, weighted effects
 nwclear
 use `ev', clear
-nwset snd rcv vA, eventtime(tm) name(a)
+nwset snd rcv vA, eventtime(tm) name(a) dropvars
 nwdynam a, weightedinertia
 chk "A1 choice weightedinertia" 0.05969556 -95.30813375
 nwdynam a, weightedinertia weightedrecip weightedindeg weightedoutdeg
@@ -233,7 +233,7 @@ di as text "  PASS: positive values leave the unweighted effects unchanged"
 * ---- B: values 0 and below dissolve ties
 nwclear
 use `ev', clear
-nwset snd rcv vB, eventtime(tm) name(b)
+nwset snd rcv vB, eventtime(tm) name(b) dropvars
 nwdynam b
 chk "B1 choice default (native kernel)" 0.62774458 -0.12396545 0.12623936 -92.44713255
 scalar ll_nat = e(ll)
@@ -255,7 +255,7 @@ chk "B3 choice inertia weightedrecip trans alter" 0.89514471 -0.06614179 0.06689
 nwclear
 use `ev', clear
 generate vC = vB - 1
-nwset snd rcv vC, eventtime(tm) name(e)
+nwset snd rcv vC, eventtime(tm) name(e) dropvars
 nwdynam e
 chk "E1 choice default, negative tie values (native kernel)" 0.41948555 0.09777224 0.00965213 -95.73599057
 scalar ll_nat = e(ll)
@@ -271,7 +271,7 @@ di as text "  PASS: E Mata evaluator = native evaluator with negative tie values
 * ---- C: windows with values (and covariates)
 nwclear
 use `ev', clear
-nwset snd rcv vA, eventtime(tm) name(c)
+nwset snd rcv vA, eventtime(tm) name(c) dropvars
 addcov
 nwdynam c, weightedinertia inertiawindow(10) recipwindow(10) same(g) alter(x)
 chk "C1 choice weighted window inertia, window recip, same, alter" 0.29634102 -0.15804754 0.30517480 0.06896162 -90.47074720
@@ -279,7 +279,7 @@ nwdynam c, submodel(rate) weightedindeg indegwindow(8) outdeg ego(x)
 chk "C2 rate weighted window indeg, outdeg, ego" -0.13656306 -0.02429524 0.05479761 -105.69491420
 nwclear
 use `ev', clear
-nwset snd rcv vB, eventtime(tm) name(c)
+nwset snd rcv vB, eventtime(tm) name(c) dropvars
 nwdynam c, inertiawindow(10) indeg
 chk "C3 choice window inertia with dissolving values" 1.07970895 0.16300970 -90.03222704
 nwdynam c, submodel(rate) indegwindow(12) weightedoutdeg outdegwindow(12)
@@ -288,12 +288,12 @@ chk "C4 rate window indeg, weighted window outdeg" -0.44739416 0.06900673 -103.7
 * ---- D: undirected network, choice_coordination
 nwclear
 use `ev', clear
-nwset snd rcv vB, eventtime(tm) undirected name(d)
+nwset snd rcv vB, eventtime(tm) undirected name(d) dropvars
 nwdynam d, submodel(choice_coordination) inertia indeg
 chk "D1 coordination with values" 0.20874620 0.05003181 -161.44811731
 nwclear
 use `ev', clear
-nwset snd rcv, eventtime(tm) undirected name(d)
+nwset snd rcv, eventtime(tm) undirected name(d) dropvars
 nwdynam d, submodel(choice_coordination) inertia indeg
 chk "D0 coordination without values" 0.36279784 0.07180544 -160.24836654
 
@@ -301,7 +301,7 @@ chk "D0 coordination without values" 0.36279784 0.07180544 -160.24836654
 nwclear
 use `ev', clear
 replace vA = . in 5
-capture noisily nwset snd rcv vA, eventtime(tm) name(m)
+capture noisily nwset snd rcv vA, eventtime(tm) name(m) dropvars
 assert _rc == 416
 di as text "  PASS: missing event value refused (416)"
 

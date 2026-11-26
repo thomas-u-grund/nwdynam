@@ -44,7 +44,7 @@ save `d'
 
 * ---- A: 4 time points, 631 tied events
 use `d', clear
-nwset sender receiver, eventtime(tt) directed name(a)
+nwset sender receiver, eventtime(tt) directed name(a) dropvars
 nwdynam a, inertia recip indeg
 assert e(ntimes) == 4
 assert "`e(ties)'" == "simultaneous"
@@ -55,7 +55,7 @@ chk "A rate indeg outdeg" -2884.893 .01549955 .1719255
 * ---- B: 43 time points
 nwclear
 use `d', clear
-nwset sender receiver, eventtime(th) directed name(b)
+nwset sender receiver, eventtime(th) directed name(b) dropvars
 nwdynam b, inertia recip indeg
 chk "B choice (native)" -2403.316 1.327586 2.486849 .08555338
 scalar llnative = e(ll)
@@ -77,7 +77,7 @@ use `d', clear
 set seed 11
 generate double u = runiform()
 sort th u
-nwset sender receiver, eventtime(th) directed name(b2)
+nwset sender receiver, eventtime(th) directed name(b2) dropvars
 nwdynam b2, inertia recip indeg
 chk "B rows of ties shuffled" -2403.316 1.327586 2.486849 .08555338
 nwdynam b2, submodel(rate) intercept indeg outdeg
@@ -87,7 +87,7 @@ chk "B rate intercept, shuffled" -2274.449 -2.706195 -.0003323426 .03730036
 nwclear
 use `d', clear
 sort tt row
-nwset sender receiver, eventtime(tt) directed name(c)
+nwset sender receiver, eventtime(tt) directed name(c) dropvars
 nwdynam c, inertia recip indeg sequential
 assert "`e(ties)'" == "sequential"
 assert reldif(e(ll), -2184.5636) < 1e-6
@@ -101,14 +101,14 @@ nwclear
 import delimited "dev/dynam_ties_toy_events.csv", clear varnames(1)
 gen s = real(substr(sender, 2, .))
 gen r = real(substr(receiver, 2, .))
-nwset s r, eventtime(time) undirected name(tc)
+nwset s r, eventtime(time) undirected name(tc) dropvars
 nwdynam tc, submodel(choice_coordination) inertia
 chk "toy coordination" -37.4340124 .3389611
 nwclear
 import delimited "dev/dynam_ties_toy_events.csv", clear varnames(1)
 gen s = real(substr(sender, 2, .))
 gen r = real(substr(receiver, 2, .))
-nwset s r, eventtime(time) directed name(td)
+nwset s r, eventtime(time) directed name(td) dropvars
 nwdynam td, inertia recip indeg
 chk "toy choice" -20.5896781 1.4920436 -.1801964 -.8036452
 nwdynam td, submodel(rate) indeg outdeg
@@ -119,7 +119,7 @@ chk "toy rate intercept" -26.8764901 -.9173658 -.2049949 .1516609
 * ---- data without ties: e(ties) is none
 nwclear
 use `d', clear
-nwset sender receiver, eventtime(tstrict) directed name(e)
+nwset sender receiver, eventtime(tstrict) directed name(e) dropvars
 nwdynam e, inertia recip indeg
 assert "`e(ties)'" == "none"
 assert e(ntimes) == e(N)
