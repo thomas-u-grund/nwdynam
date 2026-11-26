@@ -14,7 +14,7 @@ do nwdynam.ado
 use `"`nwcore'/data/manufacturing.dta"', clear
 keep if t < 14
 assert _N == 2738
-nwset sender receiver, eventtime(t) name(mail)
+nwset sender receiver, eventtime(t) name(mail) dropvars
 timer clear 77
 timer on 77
 nwdynam mail, submodel(rate) intercept indeg

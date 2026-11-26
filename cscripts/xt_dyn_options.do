@@ -67,7 +67,7 @@ end
 
 nwclear
 xt_w40
-nwset sender receiver, eventtime(t) directed name(w40)
+nwset sender receiver, eventtime(t) directed name(w40) dropvars
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
@@ -102,7 +102,7 @@ xt_gf "rate outdegwindow(4.5)" -55.44260094 0.03669108
 * time unit: times x 3 with windows x 3
 nwclear
 xt_w40 "3*_n"
-nwset sender receiver, eventtime(t) directed name(w3)
+nwset sender receiver, eventtime(t) directed name(w3) dropvars
 nwdynam w3, inertiawindow(15) seed(1)
 xt_same "times x 3, inertiawindow(15) = inertiawindow(5)" 1e-6 W5
 nwdynam w3, submodel(rate) outdegwindow(15) seed(1)
@@ -110,12 +110,12 @@ xt_same "times x 3, outdegwindow(15) = outdegwindow(5)" 1e-6 RW5
 * a time shift does not change any window
 nwclear
 xt_w40 "_n - 1000.5"
-nwset sender receiver, eventtime(t) directed name(wsh)
+nwset sender receiver, eventtime(t) directed name(wsh) dropvars
 nwdynam wsh, inertiawindow(5) seed(1)
 xt_same "time shift, inertiawindow(5)" 1e-6 W5
 nwclear
 xt_w40
-nwset sender receiver, eventtime(t) directed name(w40)
+nwset sender receiver, eventtime(t) directed name(w40) dropvars
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"
@@ -195,7 +195,7 @@ xt_gf "rate intercept" -94.37558055 -1.259479036 -0.067194365 0.009146213
 xt_keep IC
 nwclear
 xt_w40 "2*_n"
-nwset sender receiver, eventtime(t) directed name(w2)
+nwset sender receiver, eventtime(t) directed name(w2) dropvars
 nwdynam w2, submodel(rate) intercept seed(1)
 assert abs(el(e(b),1,1) - (el(ICB,1,1) - ln(2))) < 1e-5
 assert abs(el(e(b),1,2) - el(ICB,1,2)) < 1e-5
@@ -209,7 +209,7 @@ nwdynam w2, submodel(rate) intercept weightedindeg weightedoutdeg seed(1)
 assert "`: colnames e(b)'" == "Intercept indeg outdeg"
 nwclear
 xt_w40
-nwset sender receiver, eventtime(t) directed name(w40)
+nwset sender receiver, eventtime(t) directed name(w40) dropvars
 
 * ---------------------------------------------------------------------------------------------------------------------
 di as text "{hline 60}"

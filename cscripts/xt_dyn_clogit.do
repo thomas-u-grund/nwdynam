@@ -220,7 +220,7 @@ di as text "Block A: nwdynam fits, distinct times"
 di as text "{hline 60}"
 nwclear
 xt_events
-nwset sender receiver, eventtime(t) directed name(gen)
+nwset sender receiver, eventtime(t) directed name(gen) dropvars
 xt_covs gen
 nwdynam gen, seed(1)
 xt_keep C1
@@ -269,7 +269,7 @@ di as text "Block C: nwdynam fits, tied times (ceil(i/4)), simultaneous and sequ
 di as text "{hline 60}"
 nwclear
 xt_events "ceil(_n/4)"
-nwset sender receiver, eventtime(t) directed name(gq)
+nwset sender receiver, eventtime(t) directed name(gq) dropvars
 xt_covs gq
 nwdynam gq, seed(1)
 assert "`e(ties)'" == "simultaneous" & e(ntimes) == 50
@@ -362,7 +362,7 @@ gen long sender = .
 gen long receiver = .
 mata: st_store(., ("sender", "receiver"), XEp)
 gen double t = _n
-nwset sender receiver, eventtime(t) directed name(gp)
+nwset sender receiver, eventtime(t) directed name(gp) dropvars
 nwload gp, xvars
 gen double cx = .
 gen double cz = .

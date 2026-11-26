@@ -115,13 +115,13 @@ input str3 s str3 r double t
 "A1" "A3" 4
 "A2" "A1" 5
 end
-nwset s r, eventtime(t) directed name(tinynet)
+nwset s r, eventtime(t) directed name(tinynet) dropvars
 clear
 input str3 s str3 r double t
 "A1" "Z9" 1
 "A2" "A3" 2
 end
-nwset s r, eventtime(t) directed name(strangenet)
+nwset s r, eventtime(t) directed name(strangenet) dropvars
 capture nwdynam tinynet, netterms(tie(strangenet))
 assert _rc == 198
 * two-mode networks
@@ -134,7 +134,7 @@ input str3 s str3 r double t
 "P3" "O1" 5
 "P3" "O2" 6
 end
-nwset s r, twomode eventtime(t) name(twonet)
+nwset s r, twomode eventtime(t) name(twonet) dropvars
 capture nwdynam twonet, netterms(tie(tinynet))
 assert _rc == 198
 di as result "PASS: error paths (what stays refused)"

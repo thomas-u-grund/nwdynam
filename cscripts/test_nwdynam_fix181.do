@@ -26,7 +26,7 @@ quietly save `emails'
 quietly import delimited using "dev/fix181_actors.csv", clear varnames(1) stringcols(1)
 quietly levelsof label, local(everyone) clean
 quietly use `emails', clear
-quietly nwset sender receiver, directed eventtime(t) name(mail)
+quietly nwset sender receiver, directed eventtime(t) name(mail) dropvars
 local without : list everyone - seen
 local miss
 foreach e of local without {
@@ -36,7 +36,7 @@ if "`miss'" != "" quietly nwaddnodes mail, nodenames(`=substr("`miss'", 2, .)')
 * the reporting hierarchy as an event network, every tie created at time 0
 quietly import delimited using "dev/fix181_hier.csv", clear varnames(1) stringcols(1 2)
 assert _N == 153
-quietly nwset sender receiver, directed eventtime(t) name(hier)
+quietly nwset sender receiver, directed eventtime(t) name(hier) dropvars
 
 * ---- 1. event network as the second network: goldfish ll -2297.03947783289, tie 0.971986964341019, inertia 1.715472042433106,
 *         recip 2.893126700008462, indeg 0.110878617701675; the same in every fit (before 1.8.1 only the first fit was right)
@@ -76,7 +76,7 @@ di as result "PASS: estat changepoints, plot"
 * ---- 3. coordination on the emails as undirected contacts (the actors that wrote or received an email): goldfish
 *         indeg 0.09895999563 (ll -5250.956); inertia 1.87626305219, indeg 0.04106160058 (ll -4602.25); inertia 1.968821873 (ll -4621.636)
 quietly import delimited using "dev/fix181_emails.csv", clear varnames(1)
-quietly nwset sender receiver, undirected eventtime(t) name(contact)
+quietly nwset sender receiver, undirected eventtime(t) name(contact) dropvars
 quietly nwdynam contact, submodel(choice_coordination) indeg
 assert reldif(el(e(b), 1, 1), 0.09895999563) < 5e-4 & reldif(e(ll), -5250.956) < 5e-4
 quietly nwdynam contact, submodel(choice_coordination) inertia indeg

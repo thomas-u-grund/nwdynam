@@ -12,7 +12,7 @@ generate long receiver = ceil(5 * runiform())
 replace receiver = receiver + (receiver >= sender)
 generate double eventtime = _n + runiform() / 4
 sort eventtime
-nwset sender receiver, eventtime(eventtime) name(toy) directed
+nwset sender receiver, eventtime(eventtime) name(toy) directed dropvars
 nwdynam toy, submodel(choice) inertia
 estat outliers, method(iqr) parameter(1) plot
 quietly graph export "$NWP_OUT/outliers.png", replace width(600)

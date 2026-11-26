@@ -21,7 +21,7 @@ nwclear
 import delimited "dev/dynam_crosscheck_tie_events.csv", clear varnames(1)
 gen senderidx = real(substr(sender, 2, .))
 gen receiveridx = real(substr(receiver, 2, .))
-nwset senderidx receiveridx, eventtime(time) name(tienet)
+nwset senderidx receiveridx, eventtime(time) name(tienet) dropvars
 
 * Load the SAME static matrix as an ordinary (non-event) network via
 * nwset's own mat() option - the package's own established

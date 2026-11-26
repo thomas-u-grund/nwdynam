@@ -31,9 +31,9 @@ for (i=1; i<=120; i++) {
 end
 tempfile evd
 quietly save `evd'
-nwset sender receiver, eventtime(eventtime) name(chk)
+nwset sender receiver, eventtime(eventtime) name(chk) dropvars
 quietly use `evd', clear
-nwset sender receiver, eventtime(eventtime) undirected name(chkc)
+nwset sender receiver, eventtime(eventtime) undirected name(chkc) dropvars
 mata: st_local("pname", DynamNativePluginFilename())
 mata: st_local("plugsrc", DynamNativePluginPath())
 confirm file `"`plugsrc'"'

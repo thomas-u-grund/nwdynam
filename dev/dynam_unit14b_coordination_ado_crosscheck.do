@@ -25,7 +25,7 @@ nwclear
 import delimited "dev/dynam_crosscheck_coord2_events.csv", clear varnames(1)
 gen senderidx = real(substr(sender, 2, .))
 gen receiveridx = real(substr(receiver, 2, .))
-nwset senderidx receiveridx, eventtime(time) name(coordnet) undirected
+nwset senderidx receiveridx, eventtime(time) name(coordnet) undirected dropvars
 
 di as text "{hline 60}"
 di as text "Test: submodel(choice_coordination) requires undirected network"
@@ -33,7 +33,7 @@ di as text "{hline 60}"
 import delimited "dev/dynam_crosscheck_coord2_events.csv", clear varnames(1)
 gen senderidx = real(substr(sender, 2, .))
 gen receiveridx = real(substr(receiver, 2, .))
-nwset senderidx receiveridx, eventtime(time) name(directedver)
+nwset senderidx receiveridx, eventtime(time) name(directedver) dropvars
 capture noisily nwdynam directedver, submodel(choice_coordination)
 assert _rc == 198
 di as text "  correctly rejected directed network (rc=" _rc ")"

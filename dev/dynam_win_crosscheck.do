@@ -26,15 +26,15 @@ program runcase
 	local vv ""
 	capture confirm variable increment
 	if !_rc local vv "increment"
-	if "`kind'" == "two" nwset sender receiver `vv', twomode eventtime(time) name(net)
-	else if "`kind'" == "und" nwset sender receiver `vv', eventtime(time) undirected name(net)
-	else nwset sender receiver `vv', eventtime(time) directed name(net)
+	if "`kind'" == "two" nwset sender receiver `vv', twomode eventtime(time) name(net) dropvars
+	else if "`kind'" == "und" nwset sender receiver `vv', eventtime(time) undirected name(net) dropvars
+	else nwset sender receiver `vv', eventtime(time) directed name(net) dropvars
 	local chgopt ""
 	foreach v of local chg {
 		preserve
 		impd using `"$WINDIR/changes_`v'_`id'.csv"', stringcols(2)
 		generate node2 = node
-		nwset node node2 value, eventtime(time) selfloop name(chg_`v')
+		nwset node node2 value, eventtime(time) selfloop name(chg_`v') dropvars
 		restore
 		local chgopt "`chgopt' `v' chg_`v'"
 	}

@@ -27,7 +27,7 @@ import delimited using `"$TVDIR/nodes_c1.csv"', clear varnames(1) stringcols(1)
 tempfile nodes
 save `nodes'
 import delimited using `"$TVDIR/events_c1.csv"', clear varnames(1) stringcols(2 3)
-nwset sender receiver, eventtime(time) name(net)
+nwset sender receiver, eventtime(time) name(net) dropvars
 rename _nwnode label
 quietly merge 1:1 label using `nodes', keep(match master) nogen
 rename label _nwnode
@@ -43,7 +43,7 @@ quietly generate str3 node = "A1"
 quietly generate str3 node2 = "A1"
 quietly generate double time = 5.5
 quietly generate double value = `x1'
-quietly nwset node node2 value, eventtime(time) selfloop name(same_chg)
+quietly nwset node node2 value, eventtime(time) selfloop name(same_chg) dropvars
 restore
 quietly nwdynam net, inertia alter(x) change(x same_chg)
 assert mreldif(e(b), b0) < 1e-12
@@ -58,7 +58,7 @@ quietly generate str3 node = "A1"
 quietly generate str3 node2 = "A1"
 quietly generate double time = 5.5
 quietly generate double value = 0
-quietly nwset node node2 value, eventtime(time) selfloop name(zero_chg)
+quietly nwset node node2 value, eventtime(time) selfloop name(zero_chg) dropvars
 restore
 quietly nwdynam net, inertia alter(x) change(x zero_chg) increment
 assert mreldif(e(b), b0) < 1e-12
@@ -89,7 +89,7 @@ quietly generate str3 node = "Z9"
 quietly generate str3 node2 = "Z9"
 quietly generate double time = 5.5
 quietly generate double value = 1
-quietly nwset node node2 value, eventtime(time) selfloop name(bad_chg)
+quietly nwset node node2 value, eventtime(time) selfloop name(bad_chg) dropvars
 restore
 capture nwdynam net, inertia alter(x) change(x bad_chg)
 assert _rc == 198

@@ -22,9 +22,9 @@ program prun
 	save `ndfile'
 	nwclear
 	pimpd using `"$POSTDIR/events_`cid'.csv"', stringcols(2 3)
-	if "`isdir'" == "2" nwset sender receiver, twomode eventtime(time) name(net)
-	else if "`isdir'" == "0" nwset sender receiver, eventtime(time) undirected name(net)
-	else nwset sender receiver, eventtime(time) directed name(net)
+	if "`isdir'" == "2" nwset sender receiver, twomode eventtime(time) name(net) dropvars
+	else if "`isdir'" == "0" nwset sender receiver, eventtime(time) undirected name(net) dropvars
+	else nwset sender receiver, eventtime(time) directed name(net) dropvars
 	if "`isdir'" != "2" {
 		_nwsyntax net, max(1)
 		preserve
@@ -45,7 +45,7 @@ program prun
 		preserve
 		pimpd using `"$POSTDIR/changes_x_`cid'.csv"', stringcols(2)
 		generate node2 = node
-		nwset node node2 value, eventtime(time) selfloop name(chg_x)
+		nwset node node2 value, eventtime(time) selfloop name(chg_x) dropvars
 		restore
 	}
 	capture confirm file `"$POSTDIR/comp_`cid'.csv"'
@@ -53,7 +53,7 @@ program prun
 		preserve
 		pimpd using `"$POSTDIR/comp_`cid'.csv"', stringcols(2)
 		generate node2 = node
-		nwset node node2 value, eventtime(time) selfloop name(comp)
+		nwset node node2 value, eventtime(time) selfloop name(comp) dropvars
 		restore
 	}
 	_nwsyntax net, max(1)
@@ -66,7 +66,7 @@ program prun
 		if substr("`ty'", 1, 3) == "dyn" {
 			preserve
 			pimpd using `"$POSTDIR/exo_`cid'_`nm'.csv"', stringcols(2 3)
-			nwset sender receiver increment, eventtime(time) `dr' name(`nm')
+			nwset sender receiver increment, eventtime(time) `dr' name(`nm') dropvars
 			restore
 		}
 		else {

@@ -55,7 +55,7 @@ generate long receiver = ceil(5 * runiform())
 replace receiver = receiver + (receiver >= sender)
 generate double eventtime = _n + runiform() / 4
 sort eventtime
-nwset sender receiver, eventtime(eventtime) name(toy) directed
+nwset sender receiver, eventtime(eventtime) name(toy) directed dropvars
 generate double canary = _n^2
 datasignature set, reset
 local sig = r(datasignature)

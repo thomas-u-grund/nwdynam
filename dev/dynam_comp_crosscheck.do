@@ -19,9 +19,9 @@ program runcase
 	save `ndfile'
 	nwclear
 	import delimited using `"$COMPDIR/events_`cid'.csv"', clear varnames(1) stringcols(2 3)
-	if "`isdir'" == "2" nwset sender receiver, twomode eventtime(time) name(net)
-	else if "`isdir'" == "0" nwset sender receiver, eventtime(time) undirected name(net)
-	else nwset sender receiver, eventtime(time) directed name(net)
+	if "`isdir'" == "2" nwset sender receiver, twomode eventtime(time) name(net) dropvars
+	else if "`isdir'" == "0" nwset sender receiver, eventtime(time) undirected name(net) dropvars
+	else nwset sender receiver, eventtime(time) directed name(net) dropvars
 	* actors without an event of their own (for example absent during the whole log) are not in the network yet
 	* (the two-mode cases have none: nwaddnodes appends to the end, a two-mode network needs mode 1 first)
 	_nwsyntax net, max(1)
@@ -42,13 +42,13 @@ program runcase
 		preserve
 		import delimited using `"$COMPDIR/changes_x_`cid'.csv"', clear varnames(1) stringcols(2)
 		generate node2 = node
-		nwset node node2 value, eventtime(time) selfloop name(chg_x)
+		nwset node node2 value, eventtime(time) selfloop name(chg_x) dropvars
 		restore
 	}
 	preserve
 	import delimited using `"$COMPDIR/comp_`cid'.csv"', clear varnames(1) stringcols(2)
 	generate node2 = node
-	nwset node node2 value, eventtime(time) selfloop name(comp)
+	nwset node node2 value, eventtime(time) selfloop name(comp) dropvars
 	restore
 	rename _nwnode label
 	merge 1:1 label using `ndfile', nogen

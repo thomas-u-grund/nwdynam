@@ -31,13 +31,13 @@ tempfile d
 save `d'
 
 * strictly ordered reference (same event order, no ties)
-nwset sender receiver, eventtime(tstrict) directed name(strict)
+nwset sender receiver, eventtime(tstrict) directed name(strict) dropvars
 quietly nwdynam strict
 scalar llref = e(ll)
 matrix bref = e(b)
 
 use `d', clear
-nwset sender receiver, eventtime(tt) directed name(tied)
+nwset sender receiver, eventtime(tt) directed name(tied) dropvars
 forvalues s = 1/6 {
 	set seed `s'
 	forvalues j = 1/`s' {

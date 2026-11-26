@@ -27,8 +27,8 @@ program runcase
 	local vv ""
 	capture confirm variable increment
 	if !_rc local vv "increment"
-	if "`kind'" == "und" nwset sender receiver `vv', eventtime(time) undirected name(net)
-	else nwset sender receiver `vv', eventtime(time) directed name(net)
+	if "`kind'" == "und" nwset sender receiver `vv', eventtime(time) undirected name(net) dropvars
+	else nwset sender receiver `vv', eventtime(time) directed name(net) dropvars
 	foreach e of local exo {
 		local nm = substr("`e'", 1, strpos("`e'", "=") - 1)
 		local ty = substr("`e'", strpos("`e'", "=") + 1, .)
@@ -37,7 +37,7 @@ program runcase
 		if substr("`ty'", 1, 3) == "dyn" {
 			preserve
 			impd using `"$WINDIR/exo_`id'_`nm'.csv"', stringcols(2 3)
-			nwset sender receiver increment, eventtime(time) `dr' name(`nm')
+			nwset sender receiver increment, eventtime(time) `dr' name(`nm') dropvars
 			restore
 		}
 		else {

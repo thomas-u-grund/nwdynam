@@ -128,7 +128,7 @@ di as text "Block B: closed-form MLE on W40"
 di as text "{hline 60}"
 nwclear
 xt_w40
-nwset sender receiver, eventtime(t) directed name(w40)
+nwset sender receiver, eventtime(t) directed name(w40) dropvars
 xt_cov w40
 assert _N == 4
 gen double x01 = (_n >= 3)
@@ -151,7 +151,7 @@ xt_cf "choice tie(nxt)" -40.4753676513 -1.04145387483 0.44280744277
 nwclear
 xt_w40
 quietly replace t = ceil(t/4)
-nwset sender receiver, eventtime(t) directed name(wq)
+nwset sender receiver, eventtime(t) directed name(wq) dropvars
 xt_cov wq
 gen double x01 = (_n >= 3)
 gen double x4 = (_n == 4)
@@ -181,7 +181,7 @@ input long sender long receiver double t
 1 2 1
 2 3 2
 end
-nwset sender receiver, eventtime(t) directed name(two)
+nwset sender receiver, eventtime(t) directed name(two) dropvars
 xt_cov two
 assert _N == 3
 gen double x = (_n == 1)
@@ -196,7 +196,7 @@ input long sender long receiver double t
 1 3 1
 2 1 2
 end
-nwset sender receiver, eventtime(t) directed name(two2)
+nwset sender receiver, eventtime(t) directed name(two2) dropvars
 xt_cov two2
 gen double x = (_n == 3)
 nwdynam two2, alter(x) seed(1)
@@ -212,7 +212,7 @@ input long sender long receiver double t
 2 1 2
 1 2 3
 end
-nwset sender receiver, eventtime(t) directed name(pair)
+nwset sender receiver, eventtime(t) directed name(pair) dropvars
 capture noisily nwdynam pair, seed(1)
 if _rc == 0 {
 	assert abs(e(ll)) < 1e-12
@@ -241,7 +241,7 @@ quietly set obs 30
 gen long sender = _n
 gen long receiver = _n + 30
 gen double t = _n
-nwset sender receiver, eventtime(t) directed name(big)
+nwset sender receiver, eventtime(t) directed name(big) dropvars
 xt_cov big
 assert _N == 60
 gen double x = (_n <= 10)

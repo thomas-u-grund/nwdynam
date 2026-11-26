@@ -19,7 +19,7 @@ generate long sender = ceil(6 * runiform())
 generate long receiver = ceil(5 * runiform())
 replace receiver = receiver + (receiver >= sender)
 generate double eventtime = _n
-nwset sender receiver, eventtime(eventtime) name(tt) directed
+nwset sender receiver, eventtime(eventtime) name(tt) directed dropvars
 nwdynam tt, submodel(choice) inertia
 
 * ---- 1. run twice: identical, with different seeds in between (no random numbers)
@@ -79,7 +79,7 @@ input long s long r double t
 4 1 9
 5 1 10
 end
-nwset s r, eventtime(t) name(kk) directed
+nwset s r, eventtime(t) name(kk) directed dropvars
 nwdynam kk, submodel(choice) inertia
 estat choiceplot, noplot topk(1 2 3 4) frame(fk)
 frame fk {

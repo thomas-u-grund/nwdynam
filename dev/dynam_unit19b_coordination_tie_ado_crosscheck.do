@@ -22,7 +22,7 @@ nwclear
 import delimited "dev/dynam_crosscheck_coordtie_events.csv", clear varnames(1)
 gen senderidx = real(substr(sender, 2, .))
 gen receiveridx = real(substr(receiver, 2, .))
-nwset senderidx receiveridx, eventtime(time) name(coordtienet) undirected
+nwset senderidx receiveridx, eventtime(time) name(coordtienet) undirected dropvars
 
 preserve
 import delimited "dev/dynam_crosscheck_coordtie_staticmat.csv", clear varnames(1)

@@ -85,7 +85,7 @@ input sender receiver t
 2 1 9
 1 3 10
 end
-nwset sender receiver, eventtime(t) directed name(chat)
+nwset sender receiver, eventtime(t) directed name(chat) dropvars
 log using `l2', text replace name(mw2)
 capture noisily nwdynam chat, submodel(choice) inertia inertiawindow(0)
 local rc = _rc

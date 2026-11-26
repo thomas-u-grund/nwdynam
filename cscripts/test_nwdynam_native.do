@@ -97,7 +97,7 @@ for (i=1; i<=200; i++) {
 	st_store(i, "receiver", pair[2])
 }
 end
-nwset sender receiver, eventtime(eventtime) name(cmpnet)
+nwset sender receiver, eventtime(eventtime) name(cmpnet) dropvars
 _nwsyntax cmpnet
 mata: __ev = *(`netobj'->get_eventlist())
 

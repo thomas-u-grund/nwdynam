@@ -25,7 +25,7 @@ nwclear
 import delimited "dev/dynam_crosscheck_oppl_events.csv", clear varnames(1)
 gen senderidx = real(substr(sender, 2, .))
 gen receiveridx = real(substr(receiver, 2, .))
-nwset senderidx receiveridx, eventtime(time) name(oppnet)
+nwset senderidx receiveridx, eventtime(time) name(oppnet) dropvars
 
 di as text "{hline 60}"
 di as text "nwdynam oppnet, submodel(choice) inertia indeg  (no opportunities())"

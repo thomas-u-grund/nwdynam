@@ -40,7 +40,7 @@ input sender receiver t
 2 1 9
 1 3 10
 end
-nwset sender receiver, eventtime(t) directed name(chat)
+nwset sender receiver, eventtime(t) directed name(chat) dropvars
 nwdynam chat
 assert strpos(" `e(unidentified)' ", " inertia ") > 0
 assert strpos(" `e(unidentified)' ", " indeg ") > 0
@@ -50,7 +50,7 @@ di as text "  PASS: unidentified effects are reported (`e(unidentified)')"
 * an identified fit reports nothing
 nwwebuse manufacturing, nwclear
 keep if t < 5
-nwset sender receiver, eventtime(t) directed name(mail)
+nwset sender receiver, eventtime(t) directed name(mail) dropvars
 nwdynam mail
 assert `"`e(unidentified)'"' == ""
 di as text "  PASS: identified fit has empty e(unidentified)"

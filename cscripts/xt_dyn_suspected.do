@@ -33,7 +33,7 @@ local failed ""
 
 nwclear
 xt_w40
-nwset sender receiver, eventtime(t) directed name(w40)
+nwset sender receiver, eventtime(t) directed name(w40) dropvars
 nwdynam w40, seed(1)
 assert reldif(e(ll), -38.1300248) < 1e-5
 matrix XB = e(b)
@@ -51,7 +51,7 @@ capture noisily {
 	xt_w40
 	replace sender = 20000000 + 2*sender - 1
 	replace receiver = 20000000 + 2*receiver - 1
-	nwset sender receiver, eventtime(t) directed name(wbig)
+	nwset sender receiver, eventtime(t) directed name(wbig) dropvars
 	nwdynam wbig, seed(1)
 	assert e(nodes) == 4 & e(N) == 40
 	assert mreldif(e(b), XB) < 1e-10
@@ -77,7 +77,7 @@ capture noisily {
 	recast double sender receiver
 	replace sender = sender * 1e9
 	replace receiver = receiver * 1e9
-	nwset sender receiver, eventtime(t) directed name(wbil)
+	nwset sender receiver, eventtime(t) directed name(wbil) dropvars
 	nwdynam wbil, seed(1)
 	assert e(nodes) == 4 & e(N) == 40
 	assert mreldif(e(b), XB) < 1e-10
@@ -105,7 +105,7 @@ capture noisily {
 	replace receiver = 2 in 41
 	replace t = 41 in 41
 	* the core now refuses the event at nwset (r(416), a message, nothing created)
-	capture noisily nwset sender receiver, eventtime(t) directed name(wmis)
+	capture noisily nwset sender receiver, eventtime(t) directed name(wmis) dropvars
 	assert _rc == 416
 }
 if _rc {
@@ -129,7 +129,7 @@ capture noisily {
 	xt_w40
 	replace t = . in 10
 	* the core now refuses the event at nwset (r(416), a message, nothing created)
-	capture noisily nwset sender receiver, eventtime(t) directed name(wmt)
+	capture noisily nwset sender receiver, eventtime(t) directed name(wmt) dropvars
 	assert _rc == 416
 }
 if _rc {
@@ -150,7 +150,7 @@ di as text "{hline 60}"
 capture noisily {
 	nwclear
 	xt_w40
-	nwset sender receiver, eventtime(t) directed name(w40)
+	nwset sender receiver, eventtime(t) directed name(w40) dropvars
 	clear
 	quietly set obs 160
 	gen long oev = ceil(_n / 4)
@@ -212,7 +212,7 @@ capture noisily {
 	input long sender long receiver double t
 	1 2 1
 	end
-	nwset sender receiver, eventtime(t) directed name(one)
+	nwset sender receiver, eventtime(t) directed name(one) dropvars
 	capture scalar drop __nwdynam_sequential
 	capture nwdynam one
 	assert _rc == 2001
@@ -240,7 +240,7 @@ di as text "{hline 60}"
 capture noisily {
 	nwclear
 	xt_w40
-	nwset sender receiver, eventtime(t) directed name(w40)
+	nwset sender receiver, eventtime(t) directed name(w40) dropvars
 	nwdynam w40, inertiawindow(0.5) seed(1)
 	assert abs(e(ll) - (-43.9444915467)) < 1e-6
 	assert strpos(" `e(unidentified)' ", " inertia ") > 0
@@ -340,7 +340,7 @@ capture noisily {
 	nwclear
 	xt_w40
 	gen double w = mod(_n, 3) + 1
-	nwset sender receiver w, eventtime(t) directed name(wval)
+	nwset sender receiver w, eventtime(t) directed name(wval) dropvars
 	nwdynam wval, weightedinertia seed(1)
 	assert abs(el(e(b),1,1) - 0.1389639466) < 1e-4
 	assert reldif(e(ll), -39.2302174436) < 1e-6
@@ -368,7 +368,7 @@ di as text "{hline 60}"
 capture noisily {
 	nwclear
 	xt_w40
-	nwset sender receiver, eventtime(t) directed name(w40)
+	nwset sender receiver, eventtime(t) directed name(w40) dropvars
 	nwload w40, xvars
 	gen double x4 = (_n == 4)
 	gsort -_nwnode
@@ -394,7 +394,7 @@ capture noisily {
 	nwclear
 	xt_w40
 	replace receiver = sender in 3
-	nwset sender receiver, eventtime(t) directed name(wloop)
+	nwset sender receiver, eventtime(t) directed name(wloop) dropvars
 	capture noisily nwdynam wloop, seed(1)
 	assert _rc == 3498
 }
@@ -425,12 +425,12 @@ capture noisily {
 	quietly gen double t = _n
 	* the core now refuses the event with the missing receiver at nwset (r(416)), so this fault no longer reaches the
 	* native fit; nwdynam's own checks also come before the helper frame is created
-	capture noisily nwset sender receiver, eventtime(t) directed name(wfail)
+	capture noisily nwset sender receiver, eventtime(t) directed name(wfail) dropvars
 	assert _rc == 416
 	assert "`c(frame)'" == "default"
 	nwclear
 	xt_w40
-	nwset sender receiver, eventtime(t) directed name(w40)
+	nwset sender receiver, eventtime(t) directed name(w40) dropvars
 	capture noisily nwdynam w40, seed(1)
 	assert _rc == 0
 }
@@ -450,7 +450,7 @@ di as text "{hline 60}"
 capture noisily {
 	nwclear
 	xt_w40
-	nwset sender receiver, eventtime(t) directed name(wrp)
+	nwset sender receiver, eventtime(t) directed name(wrp) dropvars
 	nwdynam wrp, seed(1)
 	matrix XR = e(b)
 	estimates store xtrp

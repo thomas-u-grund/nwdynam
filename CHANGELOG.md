@@ -5,6 +5,12 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.2] - 2026-11-26
+
+### Fixed
+- Help: the examples declare their event networks as `directed`; without it, `nwset` made an undirected network and the examples stopped.
+- Tests: `nwset` with `dropvars` where unused variables are discarded (needed to run the tests with core 3.39.0; the package itself works with core 3.36.0 or later).
+
 ## [1.11.1] - 2026-11-22
 
 ### Changed

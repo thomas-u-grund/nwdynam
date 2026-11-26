@@ -28,7 +28,7 @@ nwclear
 import delimited "dev/dynam_crosscheck_twomode_intercept_events.csv", clear varnames(1)
 encode sender, gen(sendernum)
 encode receiver, gen(receivernum)
-nwset sendernum receivernum, twomode eventtime(time) name(twomodeintnet)
+nwset sendernum receivernum, twomode eventtime(time) name(twomodeintnet) dropvars
 nwdynam twomodeintnet, submodel(rate) intercept outdeg
 di as text "e(effects) = `e(effects)'"
 matrix b1 = e(b)
@@ -49,7 +49,7 @@ nwclear
 import delimited "dev/dynam_crosscheck_rateintweighted_events.csv", clear varnames(1)
 gen senderidx = real(substr(sender, 2, .))
 gen receiveridx = real(substr(receiver, 2, .))
-nwset senderidx receiveridx, eventtime(time) name(weightedintnet)
+nwset senderidx receiveridx, eventtime(time) name(weightedintnet) dropvars
 nwdynam weightedintnet, submodel(rate) intercept weightedoutdeg
 di as text "e(effects) = `e(effects)'"
 matrix b2 = e(b)

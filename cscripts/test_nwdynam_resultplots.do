@@ -74,7 +74,7 @@ generate double eventtime = _n + runiform() / 4
 tempfile evfile
 sort eventtime
 save `evfile'
-nwset sender receiver, eventtime(eventtime) name(toy) directed
+nwset sender receiver, eventtime(eventtime) name(toy) directed dropvars
 use `evfile', clear
 sort eventtime
 mata: EV = st_data(., "sender receiver")
@@ -198,7 +198,7 @@ generate long sender = ceil(5 * runiform())
 generate long receiver = ceil(4 * runiform())
 replace receiver = receiver + (receiver >= sender)
 generate double eventtime = _n + runiform() / 4
-nwset sender receiver, eventtime(eventtime) name(toyu) undirected
+nwset sender receiver, eventtime(eventtime) name(toyu) undirected dropvars
 nwdynam toyu, submodel(choice_coordination) inertia
 estat choiceplot, topk(1 2) frame(rku) name(gcoord)
 assert r(mean_riskset) == 10

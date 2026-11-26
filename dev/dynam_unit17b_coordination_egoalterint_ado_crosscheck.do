@@ -22,7 +22,7 @@ nwclear
 import delimited "dev/dynam_crosscheck_coord3_events.csv", clear varnames(1)
 gen senderidx = real(substr(sender, 2, .))
 gen receiveridx = real(substr(receiver, 2, .))
-nwset senderidx receiveridx, eventtime(time) name(coordnet3) undirected
+nwset senderidx receiveridx, eventtime(time) name(coordnet3) undirected dropvars
 
 nwload coordnet3, xvars
 gen floor = 1 in 1

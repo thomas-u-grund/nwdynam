@@ -36,9 +36,9 @@ for (i=1; i<=300; i++) {
 end
 tempfile ev
 save "`ev'"
-nwset sender receiver, eventtime(eventtime) name(ev0)
+nwset sender receiver, eventtime(eventtime) name(ev0) dropvars
 use "`ev'", clear
-nwset sender receiver w, eventtime(eventtime) name(ev1)
+nwset sender receiver w, eventtime(eventtime) name(ev1) dropvars
 _nwsyntax ev1, max(1)
 assert "`valued'" == "true"
 nwdynam ev0, inertia recip

@@ -32,9 +32,9 @@ quietly replace time = 0.01 in l
 quietly replace node = "A7" in l
 quietly replace value = 0 in l
 generate node2 = node
-quietly nwset node node2 value, eventtime(time) selfloop name(comp)
+quietly nwset node node2 value, eventtime(time) selfloop name(comp) dropvars
 import delimited using `"$COMPDIR/events_opp.csv"', clear varnames(1) stringcols(2 3)
-quietly nwset sender receiver, eventtime(time) directed name(net)
+quietly nwset sender receiver, eventtime(time) directed name(net) dropvars
 foreach a in A1 A2 A3 A4 A5 A6 A7 A8 {
 	capture quietly nwaddnodes net, nodenames(`a')
 }
@@ -54,7 +54,7 @@ import delimited using `"$COMPDIR/nodes_c01.csv"', clear varnames(1) stringcols(
 tempfile ndf
 save `ndf'
 import delimited using `"$COMPDIR/events_c01.csv"', clear varnames(1) stringcols(2 3)
-quietly nwset sender receiver, eventtime(time) directed name(net)
+quietly nwset sender receiver, eventtime(time) directed name(net) dropvars
 foreach a in A1 A2 A3 A4 A5 A6 {
 	capture quietly nwaddnodes net, nodenames(`a')
 }
@@ -82,7 +82,7 @@ quietly replace time = 1e6 in 2
 quietly replace value = 0 in 2
 quietly replace time = 2e6 in 3
 quietly replace value = 1 in 3
-quietly nwset node node2 value, eventtime(time) selfloop name(redund)
+quietly nwset node node2 value, eventtime(time) selfloop name(redund) dropvars
 restore
 quietly nwdynam net, inertia indeg compchange(redund)
 assert mreldif(e(b), b0) < 1e-12 & reldif(e(ll), ll0) < 1e-12
@@ -114,7 +114,7 @@ generate str3 node = "A1"
 generate str3 node2 = "A1"
 generate double time = 0.5
 generate double value = 0
-quietly nwset node node2 value, eventtime(time) selfloop name(leave1)
+quietly nwset node node2 value, eventtime(time) selfloop name(leave1) dropvars
 restore
 capture noisily nwdynam net, inertia indeg compchange(leave1)
 assert _rc == 198
@@ -134,7 +134,7 @@ generate float time = 0.5
 generate double value = 0
 quietly replace time = `tfirst' in 2
 quietly replace value = 1 in 2
-quietly nwset node node2 value, eventtime(time) selfloop name(joinatfirst)
+quietly nwset node node2 value, eventtime(time) selfloop name(joinatfirst) dropvars
 restore
 quietly nwdynam net, inertia indeg compchange(joinatfirst)
 di as result "PASS: a join at the time of the actor's first event is allowed"
@@ -146,7 +146,7 @@ generate str3 node = "A1"
 generate str3 node2 = "A1"
 generate float time = `tlast'
 generate double value = 0
-quietly nwset node node2 value, eventtime(time) selfloop name(leaveatlast)
+quietly nwset node node2 value, eventtime(time) selfloop name(leaveatlast) dropvars
 restore
 capture noisily nwdynam net, inertia indeg compchange(leaveatlast)
 assert _rc == 198
@@ -162,8 +162,8 @@ program mkchg
 	quietly generate str3 node2 = "`n2'"
 	quietly generate double time = `t'
 	quietly generate double value = `v'
-	if "`n1'" == "`n2'" quietly nwset node node2 value, eventtime(time) selfloop name(`nm')
-	else quietly nwset node node2 value, eventtime(time) name(`nm')
+	if "`n1'" == "`n2'" quietly nwset node node2 value, eventtime(time) selfloop name(`nm') dropvars
+	else quietly nwset node node2 value, eventtime(time) name(`nm') dropvars
 	restore
 end
 mkchg notself A1 A2 3 1
@@ -182,7 +182,7 @@ clear
 quietly set obs 2
 generate str3 node = "A1"
 generate str3 node2 = "A2"
-quietly nwset node node2, edgelist name(staticnet)
+quietly nwset node node2, edgelist name(staticnet) dropvars
 restore
 capture noisily nwdynam net, inertia indeg compchange(staticnet)
 assert _rc == 198
@@ -208,21 +208,21 @@ generate float time = 0.1
 generate double value = 0
 quietly replace time = `t2' in 2
 quietly replace value = 1 in 2
-quietly nwset node node2 value, eventtime(time) selfloop name(a2comp)
+quietly nwset node node2 value, eventtime(time) selfloop name(a2comp) dropvars
 clear
 quietly set obs 1
 generate str3 node = "A2"
 generate str3 node2 = "A2"
 generate float time = `t2' / 2
 generate double value = 1.5
-quietly nwset node node2 value, eventtime(time) selfloop name(a2chgbad)
+quietly nwset node node2 value, eventtime(time) selfloop name(a2chgbad) dropvars
 clear
 quietly set obs 1
 generate str3 node = "A2"
 generate str3 node2 = "A2"
 generate float time = `t2'
 generate double value = 1.5
-quietly nwset node node2 value, eventtime(time) selfloop name(a2chgok)
+quietly nwset node node2 value, eventtime(time) selfloop name(a2chgok) dropvars
 restore
 capture noisily nwdynam net, inertia alter(x) change(x a2chgbad) compchange(a2comp)
 assert _rc == 198

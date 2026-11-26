@@ -22,7 +22,7 @@ nwclear
 import delimited "dev/dynam_crosscheck_coord3_events.csv", clear varnames(1)
 gen senderidx = real(substr(sender, 2, .))
 gen receiveridx = real(substr(receiver, 2, .))
-nwset senderidx receiveridx, eventtime(time) name(coordnet3) undirected
+nwset senderidx receiveridx, eventtime(time) name(coordnet3) undirected dropvars
 
 di as text "{hline 60}"
 di as text "nwdynam coordnet3, submodel(choice_coordination) inertia nodetrans trans"

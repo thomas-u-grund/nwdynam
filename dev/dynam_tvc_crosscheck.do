@@ -19,8 +19,8 @@ program runcase
 	save `nodes'
 	nwclear
 	import delimited using `"$TVDIR/events_`id'.csv"', clear varnames(1) stringcols(2 3)
-	if "`directed'" == "0" nwset sender receiver, eventtime(time) undirected name(net)
-	else nwset sender receiver, eventtime(time) name(net)
+	if "`directed'" == "0" nwset sender receiver, eventtime(time) undirected name(net) dropvars
+	else nwset sender receiver, eventtime(time) name(net) dropvars
 	local chgopt ""
 	foreach v in x y g {
 		capture confirm file `"$TVDIR/changes_`v'_`id'.csv"'
@@ -28,7 +28,7 @@ program runcase
 			preserve
 			import delimited using `"$TVDIR/changes_`v'_`id'.csv"', clear varnames(1) stringcols(2)
 			generate node2 = node
-			nwset node node2 value, eventtime(time) selfloop name(chg_`v')
+			nwset node node2 value, eventtime(time) selfloop name(chg_`v') dropvars
 			restore
 			local chgopt "`chgopt' `v' chg_`v'"
 		}
