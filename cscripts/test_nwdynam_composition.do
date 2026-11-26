@@ -182,7 +182,7 @@ clear
 quietly set obs 2
 generate str3 node = "A1"
 generate str3 node2 = "A2"
-quietly nwset node node2, name(staticnet)
+quietly nwset node node2, edgelist name(staticnet)
 restore
 capture noisily nwdynam net, inertia indeg compchange(staticnet)
 assert _rc == 198
