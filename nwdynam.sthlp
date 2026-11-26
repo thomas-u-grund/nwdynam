@@ -184,7 +184,7 @@ risks hazard variant instead - see its own paragraph below.
 network via {help nwset}'s {opt eventtime(varname)} option; it must be directed (or two-mode) for the choice and rate
 sub-models and undirected for {opt submodel(choice_coordination)}:
 
-	{cmd:. nwset sender receiver, eventtime(t) name(mynet)}
+	{cmd:. nwset sender receiver, eventtime(t) directed name(mynet)}
 	{cmd:. nwdynam mynet}
 	{cmd:. nwdynam mynet, submodel(rate)}
 
@@ -665,7 +665,7 @@ The build clears the data and the Mata objects in memory. See {help nwinstall##b
 	{cmd:. 2 1 9}
 	{cmd:. 1 3 10}
 	{cmd:. end}
-	{cmd:. nwset sender receiver, eventtime(t) name(chat)}
+	{cmd:. nwset sender receiver, eventtime(t) directed name(chat)}
 	{cmd:. nwdynam chat}
 
 {pstd}
